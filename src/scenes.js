@@ -354,7 +354,7 @@
     if (fxT >= 0) { for (var d = 0; d < 5; d++) circle(ctx, sx + vs * 0.5 + d * 14, gy - 10 - ((now * 40 + d * 9) % 30), 6, 'rgba(160,140,120,' + (0.6 - d * 0.1) + ')'); }
     if (prog > 3) { // きゅうきゅうしゃ到着
       var q = ease(prog - 3);
-      Vh.drawVehicle(ctx, 7, lerp(W * 1.15, W * 0.78, q), vy, vs);
+      Vh.drawVehicle(ctx, 7, lerp(W * 1.15, W * 0.78, q), vy, vs, -1);   // 右から左へ走ってくるので左向き
     }
   }
 
