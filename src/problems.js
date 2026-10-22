@@ -79,41 +79,100 @@
   function wordPool(level) {
     return D.WORDS.filter(function (w) { return level === 'K1' ? w.group === 'A' : true; });
   }
-  function confusableOf(ch) {
-    for (var i = 0; i < D.CONFUSABLE.length; i++) {
-      var p = D.CONFUSABLE[i];
-      if (p[0] === ch) return p[1];
-      if (p[1] === ch) return p[0];
-    }
-    return null;
+  // 形が似た文字（複数ありうる。は → ほ・け）
+  function confusablesOf(ch) {
+    var out = [];
+    D.CONFUSABLE.forEach(function (p) {
+      if (p[0] === ch) out.push(p[1]);
+      else if (p[1] === ch) out.push(p[0]);
+    });
+    return out;
   }
+  function uniq(arr) { return arr.filter(function (v, i) { return arr.indexOf(v) === i; }); }
 
-  function generateLetter(level, rng, prevWordId) {
-    rng = defRng(rng);
+  // 指定の語で国語の問題を作る（選択肢を決める）。誤答は単語表の頭文字から選び、正解の頭文字は混ぜない
+  function buildLetter(level, word, rng) {
     var L = LETTER[level];
-    if (!L) throw new RangeError('letter level: ' + level);
-    var pool = wordPool(level);
-    var cands = pool.filter(function (w) { return w.id !== prevWordId; });
-    var word = cands[randInt(rng, 0, cands.length - 1)];
-    var ans = word.head;
-    var letters = pool.map(function (w) { return w.head; });     // 誤答は単語表の文字から
-    var need = L.choices - 1, out = [];
+    var pool = wordPool(level), ans = word.head;
+    var letters = uniq(pool.map(function (w) { return w.head; }));
+    var need = L.choices - 1, out = [], sims = confusablesOf(ans);
+    function clash(c) { return c === ans || sims.indexOf(c) >= 0 || out.some(function (o) { return confusablesOf(o).indexOf(c) >= 0; }); }
     if (level === 'K3') {
-      // 形が似た文字を 1 つ混ぜてよい（単語表にある文字のみ）。半分の確率で混ぜる
-      var sim = confusableOf(ans);
-      if (sim && letters.indexOf(sim) >= 0 && rng() < 0.5) out.push(sim);
-      var rest = shuffle(letters.filter(function (c) { return c !== ans && out.indexOf(c) < 0; }), rng);
-      out = out.concat(rest.slice(0, need - out.length));
-    } else {
-      // K1/K2: 行が違う文字だけを選ぶ（互いの行も別）
-      var rows = {}; rows[D.ROW[ans]] = true;
+      // 形が似た文字を 1 つ混ぜてよい（半分の確率）。それ以外の誤答は、正解や互いに似た文字を避ける
+      var simIn = shuffle(sims.filter(function (c) { return letters.indexOf(c) >= 0; }), rng);
+      if (simIn.length && rng() < 0.5) out.push(simIn[0]);
       shuffle(letters, rng).forEach(function (c) {
-        if (out.length >= need || c === ans || rows[D.ROW[c]]) return;
-        rows[D.ROW[c]] = true; out.push(c);
+        if (out.length >= need || out.indexOf(c) >= 0 || (c === ans || sims.indexOf(c) >= 0)) return;
+        if (out.some(function (o) { return confusablesOf(o).indexOf(c) >= 0; })) return;
+        out.push(c);
+      });
+    } else {
+      // K1/K2: 行ファミリー（は行は清音・濁音・半濁音をまとめる）が違う文字だけを選ぶ。正解や互いに似た文字も避ける
+      var fams = {}; fams[D.FAMILY[ans]] = true;
+      shuffle(letters, rng).forEach(function (c) {
+        if (out.length >= need || fams[D.FAMILY[c]] || clash(c)) return;
+        fams[D.FAMILY[c]] = true; out.push(c);
       });
     }
     out.push(ans);
-    return { kind: 'letter', level: level, wordId: word.id, word: word.label, choices: shuffle(out, rng), answer: ans };
+    return { kind: 'letter', level: level, script: 'hira', wordId: word.id, word: word.label, pic: word.pic,
+      choices: shuffle(out, rng), answer: ans };
+  }
+
+  // 1 問だけ作る。prevWordId と avoid（{ wordIds, pics, answers } の配列。省略可）に当たる語は選ばない（候補が無ければ prevWordId だけ避ける）
+  function generateLetter(level, rng, prevWordId, avoid) {
+    rng = defRng(rng);
+    if (!LETTER[level]) throw new RangeError('letter level: ' + level);
+    avoid = avoid || {};
+    var pool = wordPool(level);
+    var cands = pool.filter(function (w) {
+      return w.id !== prevWordId && !(avoid.wordIds && avoid.wordIds.indexOf(w.id) >= 0) &&
+        !(avoid.pics && avoid.pics.indexOf(w.pic) >= 0) && !(avoid.answers && avoid.answers.indexOf(w.head) >= 0);
+    });
+    if (!cands.length) cands = pool.filter(function (w) { return w.id !== prevWordId; });
+    return buildLetter(level, cands[randInt(rng, 0, cands.length - 1)], rng);
+  }
+
+  // ---- 国語の出題の偏り防止（plan-katakana-english.md 2.9） ----
+  function isFire(w) { return w.cat === 'fire'; }
+
+  // 4 語を選ぶ。stage 0=全部の規則、1=分類の規則を外す、2=行ファミリーも外す、3=答えの文字の重複も許す（同じ語・同じ絵は常に禁止）。
+  // 直近の絵の除外は、planned 個（plan 2.9-B1）から始め、候補が 4 未満になるか、規則を満たせないときは古い順に解く。
+  // ただし規則（stage 0）を満たすための解禁は直前の出動の 4 枚（4 個）までで、それ以降は規則のほうを緩める
+  function pickWords(level, rng, recent) {
+    var pool = wordPool(level);
+    var n = Math.max(4, Math.min(D.SEEN_MAX, Math.floor(uniq(pool.map(function (w) { return w.pic; })).length / 2)));
+    function candsFor(k) {
+      var ex = k > 0 ? recent.slice(-k) : [];
+      return pool.filter(function (w) { return ex.indexOf(w.pic) < 0; });
+    }
+    for (; n > 0 && candsFor(n).length < QUESTIONS_PER_SESSION; n--);
+    function attempt(cands, stage) {
+      var mix = level === 'K3' && cands.some(isFire) && cands.some(function (w) { return !isFire(w); });
+      for (var tries = 0; tries < 300; tries++) {
+        var chosen = [], fam = {}, cat = {}, ans = {}, pics = {};
+        var order = shuffle(cands, rng);
+        order.forEach(function (w) {
+          if (chosen.length >= QUESTIONS_PER_SESSION || pics[w.pic]) return;
+          var f = D.FAMILY[w.head];
+          if (stage < 3 && ans[w.head]) return;
+          if (stage < 2 && (fam[f] || 0) >= 2) return;
+          if (stage < 1 && (cat[w.cat] || 0) >= 3) return;
+          chosen.push(w); pics[w.pic] = true; ans[w.head] = true; fam[f] = (fam[f] || 0) + 1; cat[w.cat] = (cat[w.cat] || 0) + 1;
+        });
+        if (chosen.length < QUESTIONS_PER_SESSION) continue;
+        if (stage < 1 && mix && !(chosen.some(isFire) && chosen.some(function (w) { return !isFire(w); }))) continue;
+        return chosen;
+      }
+      return null;
+    }
+    var r, k;
+    for (k = n; k >= Math.min(n, QUESTIONS_PER_SESSION); k--) { r = attempt(candsFor(k), 0); if (r) return r; }
+    for (var stage = 1; stage <= 3; stage++) { r = attempt(candsFor(n), stage); if (r) return r; }
+    // 語が 4 つに満たない表（通常は起きない）。空の出動にしないため、足りない分は表から重複なしで足し、それでも足りなければ繰り返す
+    var out = shuffle(pool, rng).slice(0, QUESTIONS_PER_SESSION);
+    while (out.length < QUESTIONS_PER_SESSION) out.push(pool[out.length % pool.length]);
+    return out;
   }
 
   // ---- とけい ----
@@ -181,15 +240,17 @@
     return p.wordId === q.wordId;
   }
 
-  function generateSession(game, level, rng) {
+  // recentPics: 国語だけが使う。直近の出動で出した絵（古い順）。連続する出動で同じ絵が出にくくなる
+  function generateSession(game, level, rng, recentPics) {
     rng = defRng(rng);
+    if (game === 'letter') {
+      if (!LETTER[level]) throw new RangeError('letter level: ' + level);
+      return pickWords(level, rng, D.cleanSeen(recentPics)).map(function (w) { return buildLetter(level, w, rng); });
+    }
     var list = [], tries = 0;
     while (list.length < QUESTIONS_PER_SESSION) {
       var prev = list[list.length - 1], p;
-      if (game === 'letter') {
-        p = generateLetter(level, rng, prev && prev.wordId);
-        if (list.some(function (q) { return q.wordId === p.wordId; })) { if (++tries < 1000) continue; }
-      } else if (game === 'math') {
+      if (game === 'math') {
         p = MATH[level].kind === 'count' ? generateCounting(level, rng) : generateAddition(level, rng);
         if (sameProblem(prev, p) && ++tries < 1000) continue;
       } else if (game === 'clock') {
@@ -217,7 +278,7 @@
     QUESTIONS_PER_SESSION: QUESTIONS_PER_SESSION, PROMOTE_AT: PROMOTE_AT, DEMOTE_AT: DEMOTE_AT,
     LEVELS: LEVELS, MATH: MATH, LETTER: LETTER, CLOCK: CLOCK,
     generateCounting: generateCounting, generateAddition: generateAddition,
-    generateLetter: generateLetter, generateClock: generateClock, handAngles: handAngles, readTime: readTime,
+    generateLetter: generateLetter, buildLetter: buildLetter, generateClock: generateClock, handAngles: handAngles, readTime: readTime,
     clockKey: clockKey, sameProblem: sameProblem, generateSession: generateSession, nextLevel: nextLevel
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;

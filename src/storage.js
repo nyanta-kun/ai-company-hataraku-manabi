@@ -2,6 +2,7 @@
 // ブラウザでは window.Manabi.storage、Node では module.exports（normalize はテスト対象）。
 (function (root) {
   'use strict';
+  var D = (typeof module !== 'undefined' && module.exports) ? require('./data.js') : root.Manabi.data;
   var KEY = 'hataraku-manabi:v1';
   var MATH_LV = ['M1', 'M2', 'M3', 'M4', 'M5'], LETTER_LV = ['K1', 'K2', 'K3'], CLOCK_LV = ['T1', 'T2', 'T3'];
   var CAR_IDS = ['nekoguruma', 'forklift', 'gomi', 'shovel', 'bulldozer', 'dump', 'kyukyu', 'shoubousha', 'mizutank', 'hashigo', 'chodai'];
@@ -19,6 +20,7 @@
         letter: { sessions: 0, questions: 0, firstTry: 0 },
         clock: { sessions: 0, questions: 0, firstTry: 0 }
       },
+      seen: { letter: [] },
       lastPlayed: ''
     };
   }
@@ -43,6 +45,7 @@
       var x = st[g] || {};
       d.stats[g] = { sessions: num(x.sessions), questions: num(x.questions), firstTry: num(x.firstTry) };
     });
+    d.seen.letter = D.cleanSeen(raw.seen && raw.seen.letter);
     d.lastPlayed = typeof raw.lastPlayed === 'string' ? raw.lastPlayed.slice(0, 10) : '';
     return d;
   }

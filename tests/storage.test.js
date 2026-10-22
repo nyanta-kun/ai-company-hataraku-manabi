@@ -58,3 +58,15 @@ test('clock の不正値（レベル・負数・文字列）は戻る', () => {
   assert.deepEqual(d.stats.clock, { sessions: 0, questions: 0, firstTry: 2 });
   assert.equal(S.normalize({ levels: { clock: 'T3' }, locked: { clock: true } }).levels.clock, 'T3');
 });
+
+test('seen.letter: 旧データは空配列。配列でない値・文字列以外・未知の絵・重複・13個以上も正規化される', () => {
+  assert.deepEqual(S.normalize({ levels: { math: 'M3' } }).seen, { letter: [] });
+  assert.deepEqual(S.normalize(null).seen, { letter: [] });
+  for (const bad of ['v6', 5, {}, null, true]) assert.deepEqual(S.normalize({ seen: { letter: bad } }).seen.letter, []);
+  assert.deepEqual(S.normalize({ seen: 'x' }).seen, { letter: [] });
+  assert.deepEqual(S.normalize({ seen: { letter: ['v6', 3, null, 'nope', 'airplane', 'v6', {}, 'bus'] } }).seen.letter, ['airplane', 'v6', 'bus']);
+  const many = ['v1', 'v2', 'v3', 'v5', 'v6', 'v9', 'v10', 'hose', 'flame', 'airplane', 'train', 'ship', 'bus', 'truck'];
+  assert.deepEqual(S.normalize({ seen: { letter: many } }).seen.letter, many.slice(-12));
+  const d = S.normalize({ seen: { letter: ['v6', 'bus'] } });
+  assert.deepEqual(S.normalize(JSON.parse(JSON.stringify(d))).seen.letter, ['v6', 'bus']);   // 保存して読み直しても同じ
+});
