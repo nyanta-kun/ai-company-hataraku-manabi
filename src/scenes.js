@@ -104,6 +104,7 @@
     this.marks = [];
     this.bounceIdx = -1; this.bounceT0 = 0;
     this.picBounceT0 = -9;
+    this.hintT0 = -9;        // とけい: 短針をふくらませ始めた時刻
     this.silent = false;
     this.resize();
   }
@@ -131,7 +132,7 @@
   Stage.prototype.layout = function () {
     var p = this.prob, b = this.board(), it = [], pad = 14;
     var inner = { x: b.x + pad, y: b.y + pad, w: b.w - pad * 2, h: b.h - pad * 2 };
-    this.plus = null; this.pic = null;
+    this.plus = null; this.pic = null; this.clock = null;
     if (p && p.kind === 'count') {
       it = grid(p.n, p.n <= 5 ? p.n : 5, inner, 150);
     } else if (p && p.kind === 'add') {
@@ -141,6 +142,8 @@
       var B = grid(p.b, colsFor(p.b), { x: inner.x + inner.w - half, y: inner.y, w: half, h: inner.h }, 130);
       it = A.concat(B);
       this.plus = { x: inner.x + inner.w / 2, y: inner.y + inner.h / 2, s: Math.min(inner.w * 0.12, 70) };
+    } else if (p && p.kind === 'clock') {
+      this.clock = { x: inner.x + inner.w / 2, y: inner.y + inner.h / 2, r: Math.min(inner.w, inner.h) / 2 * 0.97, x0: inner.x, y0: inner.y, w: inner.w, h: inner.h };
     } else if (p && p.kind === 'letter') {
       var s = Math.min(inner.w * 0.7, inner.h * 1.0);
       this.pic = { x: inner.x + inner.w / 2, y: inner.y + inner.h / 2, s: s };
@@ -149,6 +152,12 @@
   };
   Stage.prototype.bounce = function (i, now) { this.bounceIdx = i; this.bounceT0 = now; };
   Stage.prototype.bouncePic = function (now) { this.picBounceT0 = now; };
+  Stage.prototype.pulseHour = function (now) { this.hintT0 = now; };
+  // 短針のふくらみ 0..1（0.9 秒周期で 2 回）
+  Stage.prototype.pulseAt = function (now) {
+    var bt = now - this.hintT0;
+    return bt >= 0 && bt < 1.8 ? Math.abs(Math.sin(bt / 0.9 * Math.PI)) : 0;
+  };
   // 位置(CSS px, canvas 左上基準) -> ものの番号。無ければ -1
   Stage.prototype.hit = function (px, py) {
     var x = px / this.cssScale, y = py / this.cssScale, best = -1, bd = 1e9;
@@ -183,7 +192,7 @@
       else { this.shown = lerp(a.from, a.to, ease((u - 0.25) / 0.75)); fxT = u; }
     }
     var pr = this.prob;
-    var hide = !this.reveal && !!pr && (pr.kind !== 'letter' || (this.scene === 'kaji' && this.word && this.word.pic === 'flame'));
+    var hide = !this.reveal && !!pr && ((pr.kind !== 'letter' && pr.kind !== 'clock') || (this.scene === 'kaji' && this.word && this.word.pic === 'flame'));
     drawBackground(ctx, this.scene, this.shown, fxT, now, H, hide);
     // ボード
     var b = this.board();
@@ -193,6 +202,10 @@
       var pb = this.pic, bt = now - this.picBounceT0, k = bt >= 0 && bt < 0.6 ? 1 + 0.18 * Math.sin(bt / 0.6 * Math.PI) : 1;
       var dy = bt >= 0 && bt < 0.6 ? -Math.sin(bt / 0.6 * Math.PI) * 18 : 0;
       V().drawPic(ctx, this.word.pic, pb.x, pb.y + dy, pb.s * k, now);
+    } else if (p && p.kind === 'clock' && this.clock) {
+      var ck = this.clock;
+      if (p.form === 'read') root.Manabi.clockface.drawClock(ctx, ck.x, ck.y, ck.r, p.h + ':00', { numbers: 12, pulse: this.pulseAt(now) });
+      else drawSign(ctx, ck, p);
     } else {
       for (i = 0; i < this.items.length; i++) {
         var it = this.items[i], sc = 1, dy2 = 0, bt2 = now - this.bounceT0;
@@ -211,6 +224,29 @@
       }
     }
   };
+  // 出動ひょうの札（形式 B）。大きな数字。○じはん は数字の下に半月のマークと「はん」
+  function drawSign(ctx, ck, p) {
+    var w = Math.min(ck.w * 0.8, ck.h * 1.5), h = ck.h * 0.98, x = ck.x - w / 2, y = ck.y - h / 2;
+    fillRR(ctx, x, y, w, h, 26, '#fffdf5', null);
+    ctx.save(); rrect(ctx, x, y, w, h, 26); ctx.clip();
+    ctx.fillStyle = '#e53935'; ctx.fillRect(x, y, w, h * 0.17);   // 上の赤い帯（札の角丸で切る）
+    ctx.restore();
+    fillRR(ctx, x, y, w, h, 26, null, OUT, 5);
+    for (var i = 0; i < 3; i++) circle(ctx, x + w * (0.4 + i * 0.1), y + h * 0.085, h * 0.035, '#fff2a0', OUT, 2);
+    var half = p.m === 30, body = h * 0.83, by = y + h * 0.17;
+    ctx.fillStyle = OUT; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.font = 'bold ' + Math.round(body * (half ? 0.58 : 0.8)) + 'px sans-serif';
+    ctx.fillText(String(p.h), ck.x, by + body * (half ? 0.38 : 0.52), w * 0.9);
+    if (half) {
+      var my = by + body * 0.84, mr = body * 0.1;
+      // 半月: まる全体の外わく + 右半分だけ色
+      ctx.beginPath(); ctx.arc(ck.x - body * 0.25, my, mr, 0, Math.PI * 2); ctx.fillStyle = '#fff'; ctx.fill();
+      ctx.beginPath(); ctx.arc(ck.x - body * 0.25, my, mr, -Math.PI / 2, Math.PI / 2); ctx.closePath(); ctx.fillStyle = '#f2a900'; ctx.fill();
+      ctx.beginPath(); ctx.arc(ck.x - body * 0.25, my, mr, 0, Math.PI * 2); ctx.lineWidth = 3; ctx.strokeStyle = OUT; ctx.stroke();
+      ctx.fillStyle = OUT; ctx.font = 'bold ' + Math.round(body * 0.2) + 'px sans-serif'; ctx.textAlign = 'left';
+      ctx.fillText('はん', ck.x - body * 0.25 + mr * 1.6, my + 2);
+    }
+  }
   function linePlus(ctx, x, y, s) {
     linepx(ctx, x - s / 2, y, x + s / 2, y, s * 0.28, '#3a2b24');
     linepx(ctx, x, y - s / 2, x, y + s / 2, s * 0.28, '#3a2b24');

@@ -28,10 +28,11 @@
   <section id="s-pick" class="screen">
     <button id="btn-pick-back" class="corner tl" type="button" aria-label="もどる"><canvas width="64" height="64" data-icon="back"></canvas></button>
     <div class="pick-box">
-      <h2>どっちで しゅつどう？</h2>
+      <h2>どれで しゅつどう？</h2>
       <div class="row">
         <button id="btn-math" class="big math" type="button"><canvas width="96" height="96" data-icon="kazu"></canvas><span>かず</span></button>
         <button id="btn-letter" class="big letter" type="button"><canvas width="96" height="96" data-icon="moji"></canvas><span>もじ</span></button>
+        <button id="btn-clock" class="big clock" type="button"><canvas width="96" height="96" data-icon="tokei"></canvas><span>とけい</span></button>
       </div>
     </div>
   </section>
@@ -95,6 +96,7 @@
       <div class="card"><h3>レベル</h3>
         <div class="lv"><span>かず</span><select id="p-lv-math"></select><label class="chk"><input type="checkbox" id="p-lock-math"> このレベルでこてい</label></div>
         <div class="lv"><span>もじ</span><select id="p-lv-letter"></select><label class="chk"><input type="checkbox" id="p-lock-letter"> このレベルでこてい</label></div>
+        <div class="lv"><span>とけい</span><select id="p-lv-clock"></select><label class="chk"><input type="checkbox" id="p-lock-clock"> このレベルでこてい</label></div>
         <p class="note">こていしないと、4もん ぜんぶ 1かいで せいかいで 1つ上がり、0〜1もんで 1つ下がります。</p>
       </div>
       <div class="card"><h3>データ</h3>
@@ -115,6 +117,7 @@
 <script src="src/vehicles.js"></script>
 <script src="src/audio.js"></script>
 <script src="src/speech.js"></script>
+<script src="src/clockface.js"></script>
 <script src="src/scenes.js"></script>
 <script src="src/ui.js"></script>
 <script src="src/main.js"></script>
