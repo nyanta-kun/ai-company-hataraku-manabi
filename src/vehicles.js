@@ -3,6 +3,7 @@
 //   OUT, LW, rr, poly, circ, line, wheel, win, light, tracks (L5-53) / draw[1..11] (L55-199) / fireCab, star (L134-209)
 // 変更点: Matter・形モード(S.layout, G.info, C.SHAPE_BODIES)への依存を削除。
 //   draw[11] の「金の輪」(円モード専用) を省いた。drawVehicle は新規（単位座標 -1..1 を size px に拡縮）。
+// 新しい絵 N01〜N23（pics。plan-katakana-english.md 2.8）はコピー元なしの新規。横から見る乗り物は前を左に描く。
 // ブラウザでは window.Manabi.vehicles に登録する。
 (function (root) {
   'use strict';
@@ -236,15 +237,320 @@
     body(0.35, '#fff1a8', 0.03, 0.3);
   }
 
+  // ---- 新しい絵（plan-katakana-english.md 2.8 の N01〜N23。id は 'v' で始めない） ----
+  // 横から見る乗り物（DIRECTIONAL）は「前」を左に描く。drawPic が facing に合わせて反転する（FRONT 規約）。
+  // 向きのない絵（ロケット・しずく・けむり・バケツ・うきわ・えき・サイレン・ポンプ・ヘルメット）は反転しない。
+  // 実在のマーク・ロゴ・文字は描かない。
+  var pics = {};
+  function ell(ctx, x, y, rx, ry, fill) {
+    ctx.beginPath(); ctx.ellipse(x, y, rx, ry, 0, 0, Math.PI * 2);
+    if (fill) { ctx.fillStyle = fill; ctx.fill(); }
+    ctx.lineWidth = LW; ctx.strokeStyle = OUT; ctx.stroke();
+  }
+  function stripe(ctx, x, y, w, h, col) { ctx.fillStyle = col; ctx.fillRect(x, y, w, h); }
+  function headlamp(ctx, x, y) { circ(ctx, x, y, 0.05, '#fff3b0'); }
+
+  pics.airplane = function (ctx) {   // N01 ひこうき
+    poly(ctx, [[0.5, -0.18], [0.66, -0.56], [0.8, -0.56], [0.8, -0.18]], '#3a7bd5');          // 尾翼
+    poly(ctx, [[0.52, 0.0], [0.84, -0.02], [0.84, 0.14], [0.6, 0.16]], '#c9ced3');            // 水平尾翼
+    poly(ctx, [[-0.12, 0.0], [0.28, 0.0], [0.42, 0.46], [0.1, 0.46]], '#c9ced3');             // 主翼
+    rr(ctx, -0.84, -0.22, 1.68, 0.4, 0.2, '#fafafa');                                         // 胴体
+    stripe(ctx, -0.7, 0.03, 1.4, 0.07, '#3a7bd5'); rr(ctx, -0.84, -0.22, 1.68, 0.4, 0.2, null);
+    for (var i = 0; i < 6; i++) circ(ctx, -0.42 + i * 0.16, -0.07, 0.045, '#bfe6fb');          // 窓
+    rr(ctx, -0.72, -0.14, 0.12, 0.1, 0.03, '#bfe6fb');                                        // 操縦席の窓
+    rr(ctx, 0.0, 0.14, 0.22, 0.14, 0.06, '#8a8f94');                                          // エンジン
+  };
+
+  function carBody(ctx, fill) {   // 乗用車の車体（パトカー・タクシー共通）。前が左
+    poly(ctx, [[-0.42, -0.02], [-0.3, -0.36], [0.34, -0.36], [0.56, -0.02]], fill);
+    rr(ctx, -0.8, -0.04, 1.6, 0.42, 0.12, fill);
+    poly(ctx, [[-0.36, -0.06], [-0.27, -0.3], [-0.02, -0.3], [-0.02, -0.06]], '#bfe6fb');
+    poly(ctx, [[0.05, -0.06], [0.05, -0.3], [0.32, -0.3], [0.47, -0.06]], '#bfe6fb');
+    headlamp(ctx, -0.77, 0.08);
+    wheel(ctx, -0.5, 0.38, 0.17); wheel(ctx, 0.48, 0.38, 0.17);
+  }
+  pics.patrol = function (ctx) {   // N20 パトカー
+    carBody(ctx, '#fafafa');
+    stripe(ctx, -0.74, 0.12, 1.48, 0.1, '#2b2b2b'); rr(ctx, -0.8, -0.04, 1.6, 0.42, 0.12, null);
+    rr(ctx, -0.12, -0.48, 0.12, 0.12, 0.03, '#e53935'); rr(ctx, 0.0, -0.48, 0.12, 0.12, 0.03, '#3a7bd5');
+  };
+  pics.taxi = function (ctx) {   // N08 タクシー
+    carBody(ctx, '#f6c933');
+    for (var i = 0; i < 8; i++) { ctx.fillStyle = i % 2 ? '#fafafa' : '#2b2b2b'; ctx.fillRect(-0.7 + i * 0.17, 0.14, 0.085, 0.085); }
+    rr(ctx, -0.8, -0.04, 1.6, 0.42, 0.12, null);
+    rr(ctx, -0.12, -0.5, 0.3, 0.14, 0.04, '#fafafa');   // 行灯
+  };
+
+  pics.bus = function (ctx) {   // N22 バス
+    rr(ctx, -0.82, -0.46, 1.64, 0.84, 0.14, '#f6c933');
+    stripe(ctx, -0.78, 0.08, 1.56, 0.08, '#e8512f'); rr(ctx, -0.82, -0.46, 1.64, 0.84, 0.14, null);
+    rr(ctx, -0.76, -0.38, 0.2, 0.4, 0.04, '#bfe6fb');                                         // 前の窓
+    rr(ctx, -0.48, -0.38, 0.2, 0.7, 0.03, '#bfe6fb'); line(ctx, -0.38, -0.38, -0.38, 0.32, 0.03);   // ドア
+    for (var i = 0; i < 4; i++) win(ctx, -0.16 + i * 0.24, -0.38, 0.19, 0.3);
+    headlamp(ctx, -0.79, 0.26);
+    wheel(ctx, -0.5, 0.4, 0.17); wheel(ctx, 0.5, 0.4, 0.17);
+  };
+
+  pics.truck = function (ctx) {   // N19 トラック
+    rr(ctx, -0.8, -0.1, 0.5, 0.46, 0.08, '#f08a24');
+    win(ctx, -0.74, -0.04, 0.34, 0.24);
+    rr(ctx, -0.26, -0.5, 1.06, 0.82, 0.06, '#fafafa');
+    stripe(ctx, -0.22, -0.12, 0.98, 0.08, '#f08a24'); rr(ctx, -0.26, -0.5, 1.06, 0.82, 0.06, null);
+    rr(ctx, -0.8, 0.24, 1.6, 0.1, 0.03, '#34384a');
+    headlamp(ctx, -0.78, 0.12);
+    wheel(ctx, -0.54, 0.4, 0.16); wheel(ctx, 0.38, 0.4, 0.16); wheel(ctx, 0.66, 0.4, 0.16);
+  };
+
+  pics.postcar = function (ctx) {   // N06 ゆうびんしゃ（赤い箱＋封筒。実在の記号なし）
+    rr(ctx, -0.8, -0.1, 0.46, 0.46, 0.08, '#d9342b');
+    win(ctx, -0.74, -0.04, 0.32, 0.24);
+    rr(ctx, -0.3, -0.5, 1.1, 0.82, 0.08, '#d9342b');
+    rr(ctx, -0.12, -0.34, 0.74, 0.46, 0.03, '#fafafa');                                       // 封筒
+    line(ctx, -0.12, -0.34, 0.25, -0.08, 0.035); line(ctx, 0.62, -0.34, 0.25, -0.08, 0.035);
+    rr(ctx, -0.8, 0.24, 1.6, 0.1, 0.03, '#34384a');
+    headlamp(ctx, -0.78, 0.12);
+    wheel(ctx, -0.55, 0.4, 0.16); wheel(ctx, 0.45, 0.4, 0.16);
+  };
+
+  pics.crane = function (ctx) {   // N18 クレーンしゃ
+    rr(ctx, -0.82, -0.1, 0.44, 0.46, 0.08, '#f6c933');
+    win(ctx, -0.76, -0.04, 0.3, 0.24);
+    rr(ctx, -0.4, -0.02, 1.2, 0.36, 0.05, '#f6c933');
+    rr(ctx, 0.1, -0.3, 0.4, 0.3, 0.05, '#e5bf45');                                            // 旋回台
+    line(ctx, 0.3, -0.2, -0.5, -0.58, 0.14, OUT); line(ctx, 0.3, -0.2, -0.5, -0.58, 0.09, '#f08a24');   // ブーム
+    circ(ctx, 0.3, -0.2, 0.06, '#8a8f94');
+    line(ctx, -0.5, -0.58, -0.5, -0.24, 0.025);                                               // ワイヤー
+    rr(ctx, -0.56, -0.24, 0.12, 0.12, 0.03, '#8a8f94');                                       // フック
+    rr(ctx, -0.8, 0.24, 1.6, 0.1, 0.03, '#34384a');
+    wheel(ctx, -0.55, 0.4, 0.16); wheel(ctx, 0.3, 0.4, 0.16); wheel(ctx, 0.6, 0.4, 0.16);
+  };
+
+  pics.roller = function (ctx) {   // N23 ロードローラー
+    rr(ctx, -0.5, -0.08, 0.5, 0.18, 0.04, '#8d8d8d');                                         // 前の枠
+    rr(ctx, -0.1, -0.12, 0.84, 0.46, 0.08, '#f6c933');
+    rr(ctx, 0.12, -0.56, 0.48, 0.46, 0.04, '#e5bf45');
+    win(ctx, 0.18, -0.5, 0.36, 0.3);
+    rr(ctx, 0.06, -0.64, 0.6, 0.09, 0.03, '#555');                                            // 屋根
+    circ(ctx, -0.46, 0.2, 0.36, '#9aa0a6'); circ(ctx, -0.46, 0.2, 0.13, '#cfd3d6');          // ローラー
+    circ(ctx, 0.52, 0.3, 0.26, '#2b2b2b'); circ(ctx, 0.52, 0.3, 0.11, '#cfd3d6');            // 後輪
+  };
+
+  pics.train = function (ctx) {   // N02 でんしゃ（2りょう）
+    for (var c = 0; c < 2; c++) {
+      var x0 = -0.86 + c * 0.86;
+      rr(ctx, x0, -0.36, 0.84, 0.66, 0.1, '#fafafa');
+      stripe(ctx, x0 + 0.03, 0.04, 0.78, 0.1, '#3e9a3e'); rr(ctx, x0, -0.36, 0.84, 0.66, 0.1, null);
+      for (var i = 0; i < 3; i++) win(ctx, x0 + 0.1 + i * 0.25, -0.26, 0.18, 0.26);
+      wheel(ctx, x0 + 0.17, 0.34, 0.09); wheel(ctx, x0 + 0.67, 0.34, 0.09);
+    }
+    line(ctx, -0.02, 0.18, 0.02, 0.18, 0.05);                                                 // 連結
+    line(ctx, 0.5, -0.36, 0.5, -0.46, 0.035); line(ctx, 0.38, -0.46, 0.62, -0.46, 0.04);      // パンタグラフ
+    headlamp(ctx, -0.83, 0.2);
+  };
+
+  pics.shinkansen = function (ctx) {   // N03 しんかんせん（とがった先頭と青い帯）
+    var nose = [[-0.92, 0.28], [-0.88, 0.14], [-0.6, -0.14], [-0.34, -0.3], [0.0, -0.3], [0.0, 0.28]];
+    poly(ctx, nose, '#fafafa');
+    rr(ctx, 0.02, -0.3, 0.8, 0.58, 0.08, '#fafafa');
+    ctx.save(); ctx.beginPath(); ctx.rect(-1, 0.0, 2, 0.1); ctx.clip();
+    poly(ctx, nose, '#1e6fd0'); rr(ctx, 0.02, -0.3, 0.8, 0.58, 0.08, '#1e6fd0');
+    ctx.restore();
+    poly(ctx, nose, null); rr(ctx, 0.02, -0.3, 0.8, 0.58, 0.08, null);
+    poly(ctx, [[-0.7, -0.08], [-0.52, -0.2], [-0.36, -0.22], [-0.36, -0.08]], '#bfe6fb');   // 運転席の窓
+    for (var i = 0; i < 4; i++) win(ctx, -0.26 + i * 0.22, -0.2, 0.15, 0.14);
+    for (var j = 0; j < 3; j++) win(ctx, 0.1 + j * 0.22, -0.2, 0.15, 0.14);
+    wheel(ctx, -0.5, 0.33, 0.09); wheel(ctx, -0.1, 0.33, 0.09); wheel(ctx, 0.2, 0.33, 0.09); wheel(ctx, 0.66, 0.33, 0.09);
+  };
+
+  pics.steam = function (ctx) {   // N05 きかんしゃ（SL）
+    rr(ctx, 0.46, -0.2, 0.36, 0.5, 0.05, '#2b2b2b');                                          // 炭水車
+    ell(ctx, 0.64, -0.22, 0.14, 0.07, '#444');
+    rr(ctx, -0.84, -0.2, 0.88, 0.42, 0.2, '#2b2b2b');                                         // ボイラー
+    poly(ctx, [[-0.7, -0.2], [-0.66, -0.44], [-0.76, -0.52], [-0.34, -0.52], [-0.44, -0.44], [-0.4, -0.2]], '#444');   // えんとつ
+    circ(ctx, -0.14, -0.28, 0.1, '#555');                                                     // ドーム
+    rr(ctx, 0.0, -0.52, 0.5, 0.8, 0.05, '#c0392b');                                           // 運転台
+    win(ctx, 0.08, -0.42, 0.3, 0.26);
+    rr(ctx, -0.04, -0.6, 0.58, 0.1, 0.03, '#555');
+    rr(ctx, -0.84, 0.16, 1.66, 0.1, 0.03, '#555');
+    circ(ctx, -0.82, -0.02, 0.06, '#ffd23f');
+    circ(ctx, -0.55, 0.38, 0.15, '#c0392b'); circ(ctx, -0.55, 0.38, 0.05, '#cfd3d6');
+    circ(ctx, -0.12, 0.34, 0.2, '#c0392b'); circ(ctx, -0.12, 0.34, 0.07, '#cfd3d6');
+    circ(ctx, 0.3, 0.34, 0.2, '#c0392b'); circ(ctx, 0.3, 0.34, 0.07, '#cfd3d6');
+    line(ctx, -0.12, 0.34, 0.3, 0.34, 0.035, '#cfd3d6');
+  };
+
+  function wave(ctx, x0, x1, y) {
+    ctx.beginPath(); ctx.moveTo(x0, y);
+    var n = Math.round((x1 - x0) / 0.2);
+    for (var i = 0; i < n; i++) ctx.quadraticCurveTo(x0 + (i + 0.5) * (x1 - x0) / n, y - 0.09, x0 + (i + 1) * (x1 - x0) / n, y);
+    ctx.lineCap = 'round'; ctx.lineWidth = 0.045; ctx.strokeStyle = '#4aa3df'; ctx.stroke();
+  }
+  pics.ship = function (ctx) {   // N04 ふね
+    rr(ctx, 0.12, -0.6, 0.2, 0.3, 0.03, '#e53935');                                           // えんとつ
+    stripe(ctx, 0.14, -0.5, 0.16, 0.06, '#fafafa'); rr(ctx, 0.12, -0.6, 0.2, 0.3, 0.03, null);
+    rr(ctx, -0.28, -0.46, 0.4, 0.22, 0.04, '#fafafa');                                        // 操舵室
+    win(ctx, -0.22, -0.4, 0.28, 0.1);
+    rr(ctx, -0.5, -0.26, 1.0, 0.28, 0.04, '#fafafa');                                         // 船室
+    for (var i = 0; i < 5; i++) circ(ctx, -0.38 + i * 0.19, -0.12, 0.05, '#bfe6fb');
+    poly(ctx, [[-0.88, -0.02], [0.84, -0.02], [0.66, 0.36], [-0.6, 0.36]], '#2f4f8f');        // 船体
+    stripe(ctx, -0.8, 0.07, 1.6, 0.05, '#e53935');
+    poly(ctx, [[-0.88, -0.02], [0.84, -0.02], [0.66, 0.36], [-0.6, 0.36]], null);
+    wave(ctx, -0.9, 0.9, 0.46);
+  };
+
+  pics.heli = function (ctx, t) {   // N21 ヘリコプター（ローターは t で回る）
+    var L = 0.75 * (0.35 + 0.65 * Math.abs(Math.cos((t || 0) * 14)));
+    poly(ctx, [[0.2, -0.1], [0.8, -0.24], [0.8, -0.12], [0.2, 0.1]], '#d4202a');            // テール
+    poly(ctx, [[0.66, -0.22], [0.78, -0.5], [0.86, -0.5], [0.8, -0.14]], '#d4202a');
+    ell(ctx, -0.18, 0.0, 0.5, 0.32, '#d4202a');                                               // 胴体
+    ell(ctx, -0.42, -0.04, 0.22, 0.2, '#bfe6fb');                                             // 風防
+    rr(ctx, -0.24, -0.42, 0.1, 0.14, 0.02, '#555');                                           // マスト
+    line(ctx, -0.19 - L, -0.46, -0.19 + L, -0.46, 0.08, OUT); line(ctx, -0.19 - L, -0.46, -0.19 + L, -0.46, 0.04, '#8a8f94');
+    line(ctx, -0.5, 0.42, 0.1, 0.42, 0.06);                                                   // スキッド
+    line(ctx, -0.36, 0.28, -0.4, 0.42, 0.045); line(ctx, -0.0, 0.3, 0.0, 0.42, 0.045);
+    circ(ctx, 0.82, -0.2, 0.06, '#8a8f94');
+  };
+
+  pics.motorbike = function (ctx) {   // N14 オートバイ
+    ctx.translate(0, -0.14);
+    line(ctx, 0.2, 0.2, 0.5, 0.36, 0.08);                                                     // 後ろのアーム
+    wheel(ctx, -0.56, 0.36, 0.22); wheel(ctx, 0.52, 0.36, 0.22);
+    line(ctx, -0.56, 0.36, -0.42, -0.2, 0.08);                                                // フォーク
+    rr(ctx, -0.66, -0.0, 0.2, 0.08, 0.03, '#e53935');                                         // 前フェンダー
+    rr(ctx, -0.2, 0.06, 0.4, 0.3, 0.05, '#8a8f94');                                           // エンジン
+    rr(ctx, -0.32, -0.2, 0.5, 0.26, 0.1, '#e53935');                                          // タンク
+    rr(ctx, 0.1, -0.18, 0.5, 0.1, 0.05, '#2b2b2b');                                           // シート
+    line(ctx, -0.46, -0.26, -0.28, -0.3, 0.06);                                               // ハンドル
+    circ(ctx, -0.5, -0.12, 0.07, '#ffd23f');
+    rr(ctx, 0.3, 0.14, 0.36, 0.07, 0.03, '#aaa');                                             // マフラー
+  };
+
+  pics.rocket = function (ctx, t) {   // N07 ロケット（ななめ）
+    var k = Math.sin((t || 0) * 12) * 0.04;
+    ctx.rotate(0.55); ctx.translate(0, -0.06); ctx.scale(0.82, 0.82);
+    ctx.save(); ctx.translate(0, 0.5); ctx.rotate(Math.PI); ctx.scale(0.3 + k, 0.4 + k); drawFlame(ctx, t); ctx.restore();
+    poly(ctx, [[-0.2, 0.2], [-0.4, 0.55], [-0.2, 0.4]], '#e53935');
+    poly(ctx, [[0.2, 0.2], [0.4, 0.55], [0.2, 0.4]], '#e53935');
+    rr(ctx, -0.1, 0.4, 0.2, 0.1, 0.03, '#555');
+    rr(ctx, -0.22, -0.3, 0.44, 0.74, 0.1, '#fafafa');
+    poly(ctx, [[-0.22, -0.28], [0.0, -0.74], [0.22, -0.28]], '#e53935');
+    circ(ctx, 0, -0.06, 0.11, '#bfe6fb');
+    stripe(ctx, -0.2, 0.2, 0.4, 0.07, '#e53935'); rr(ctx, -0.22, -0.3, 0.44, 0.74, 0.1, null);
+  };
+
+  pics.water = function (ctx, t) {   // N09 みず（しずく）
+    var k = Math.sin((t || 0) * 4) * 0.02;
+    function drop(sc, ox, oy) {
+      ctx.beginPath();
+      ctx.moveTo(ox, oy - 0.62 * sc);
+      ctx.bezierCurveTo(ox + 0.12 * sc, oy - 0.3 * sc, ox + 0.5 * sc, oy - 0.05 * sc, ox + 0.5 * sc, oy + 0.2 * sc);
+      ctx.bezierCurveTo(ox + 0.5 * sc, oy + 0.5 * sc, ox + 0.25 * sc, oy + 0.6 * sc, ox, oy + 0.6 * sc);
+      ctx.bezierCurveTo(ox - 0.25 * sc, oy + 0.6 * sc, ox - 0.5 * sc, oy + 0.5 * sc, ox - 0.5 * sc, oy + 0.2 * sc);
+      ctx.bezierCurveTo(ox - 0.5 * sc, oy - 0.05 * sc, ox - 0.12 * sc, oy - 0.3 * sc, ox, oy - 0.62 * sc);
+      ctx.closePath(); ctx.fillStyle = '#3aa6e8'; ctx.fill(); ctx.lineWidth = LW; ctx.strokeStyle = OUT; ctx.stroke();
+    }
+    ctx.lineJoin = 'round';
+    drop(0.28, -0.62, 0.3 + k); drop(0.22, 0.62, 0.34 - k);
+    drop(0.92, 0, -0.04 + k);
+    ctx.beginPath(); ctx.arc(0, 0.12, 0.3, Math.PI * 0.62, Math.PI * 0.95);
+    ctx.lineCap = 'round'; ctx.lineWidth = 0.05; ctx.strokeStyle = '#d6f0ff'; ctx.stroke();
+  };
+
+  pics.smoke = function (ctx, t) {   // N10 けむり
+    t = t || 0;
+    var s = Math.sin(t * 3) * 0.03;
+    ctx.lineJoin = 'round';
+    circ(ctx, -0.32, 0.26, 0.3, '#8e949a');
+    circ(ctx, 0.2, 0.22, 0.34, '#a3a9af');
+    circ(ctx, -0.08, -0.08 + s, 0.34, '#b8bdc2');
+    circ(ctx, 0.34, -0.22 - s, 0.25, '#c9ced3');
+    circ(ctx, -0.1, -0.4 + s, 0.2, '#dde0e3');
+  };
+
+  pics.bucket = function (ctx) {   // N11 バケツ
+    ctx.beginPath(); ctx.ellipse(0, -0.28, 0.46, 0.3, 0, Math.PI, 0);
+    ctx.lineCap = 'round'; ctx.lineWidth = 0.1; ctx.strokeStyle = OUT; ctx.stroke();
+    ctx.lineWidth = 0.05; ctx.strokeStyle = '#9aa0a6'; ctx.stroke();
+    poly(ctx, [[-0.5, -0.28], [0.5, -0.28], [0.36, 0.52], [-0.36, 0.52]], '#e53935');
+    stripe(ctx, -0.44, 0.04, 0.88, 0.14, '#fafafa');
+    poly(ctx, [[-0.5, -0.28], [0.5, -0.28], [0.36, 0.52], [-0.36, 0.52]], null);
+    ell(ctx, 0, -0.28, 0.5, 0.1, '#b71c1c');
+    ell(ctx, 0, -0.27, 0.4, 0.06, '#3aa6e8');
+  };
+
+  pics.ring = function (ctx) {   // N12 うきわ
+    var R = 0.6, r = 0.28, cols = ['#e53935', '#fafafa', '#e53935', '#fafafa'];
+    for (var i = 0; i < 4; i++) {
+      var a0 = -Math.PI / 4 + i * Math.PI / 2, a1 = a0 + Math.PI / 2;
+      ctx.beginPath(); ctx.arc(0, 0, R, a0, a1); ctx.arc(0, 0, r, a1, a0, true); ctx.closePath();
+      ctx.fillStyle = cols[i]; ctx.fill(); ctx.lineWidth = LW; ctx.strokeStyle = OUT; ctx.stroke();
+    }
+  };
+
+  pics.station = function (ctx) {   // N13 えき
+    rr(ctx, -0.8, -0.16, 1.6, 0.64, 0.04, '#e9d8b4');
+    poly(ctx, [[-0.38, -0.26], [0, -0.6], [0.38, -0.26]], '#c0392b');
+    rr(ctx, -0.88, -0.28, 1.76, 0.14, 0.03, '#c0392b');
+    circ(ctx, 0, -0.36, 0.11, '#fafafa');                                                    // とけい
+    line(ctx, 0, -0.36, 0, -0.43, 0.03); line(ctx, 0, -0.36, 0.05, -0.34, 0.03);
+    win(ctx, -0.68, -0.04, 0.32, 0.26); win(ctx, 0.36, -0.04, 0.32, 0.26);
+    rr(ctx, -0.17, 0.0, 0.34, 0.48, 0.03, '#7a5a3a');
+    line(ctx, 0, 0.0, 0, 0.48, 0.03);
+    rr(ctx, -0.88, 0.48, 1.76, 0.08, 0.02, '#8d8d8d');
+  };
+
+  pics.siren = function (ctx, t) {   // N15 サイレン（回転灯）
+    var on = Math.floor((t || 0) * 4) % 2 === 0;
+    for (var k = 0; k < 7; k++) {
+      var a = Math.PI + k * Math.PI / 6;
+      line(ctx, Math.cos(a) * 0.44, 0.12 + Math.sin(a) * 0.44, Math.cos(a) * 0.62, 0.12 + Math.sin(a) * 0.62, 0.06, (k % 2 === (on ? 0 : 1)) ? '#ffb733' : '#ffd23f');
+    }
+    ctx.beginPath(); ctx.moveTo(-0.32, 0.12); ctx.arc(0, 0.12, 0.32, Math.PI, 0); ctx.closePath();
+    ctx.fillStyle = '#e53935'; ctx.fill(); ctx.lineWidth = LW; ctx.strokeStyle = OUT; ctx.stroke();
+    ctx.beginPath(); ctx.arc(0, 0.12, 0.2, Math.PI * 1.1, Math.PI * 1.45);
+    ctx.lineCap = 'round'; ctx.lineWidth = 0.05; ctx.strokeStyle = '#ff9d9a'; ctx.stroke();
+    rr(ctx, -0.42, 0.12, 0.84, 0.2, 0.05, '#555');
+  };
+
+  pics.pump = function (ctx) {   // N16 ポンプ
+    rr(ctx, -0.76, -0.16, 1.52, 0.56, 0.08, '#e53935');
+    stripe(ctx, -0.72, 0.12, 1.44, 0.07, '#fafafa'); rr(ctx, -0.76, -0.16, 1.52, 0.56, 0.08, null);
+    circ(ctx, -0.42, -0.0, 0.17, '#fafafa'); line(ctx, -0.42, -0.0, -0.33, -0.1, 0.035);    // 圧力計
+    circ(ctx, 0.12, 0.04, 0.13, '#b0b5ba'); circ(ctx, 0.12, 0.04, 0.06, '#555');            // 吸水口
+    rr(ctx, -0.74, -0.3, 0.28, 0.14, 0.03, '#b0b5ba');
+    for (var i = 0; i < 2; i++) {                                                             // 巻いたホース
+      ctx.beginPath(); ctx.arc(0.38, -0.36, 0.2 - i * 0.09, 0, Math.PI * 2);
+      ctx.lineWidth = 0.09; ctx.strokeStyle = OUT; ctx.stroke();
+      ctx.lineWidth = 0.055; ctx.strokeStyle = i % 2 ? '#e0b73a' : '#f3d054'; ctx.stroke();
+    }
+    wheel(ctx, -0.48, 0.42, 0.13); wheel(ctx, 0.5, 0.42, 0.13);
+  };
+
+  pics.helmet = function (ctx) {   // N17 ヘルメット（マークなし）
+    ctx.translate(0, -0.04);
+    poly(ctx, [[-0.76, 0.2], [-0.62, 0.1], [0.62, 0.1], [0.8, 0.34], [-0.7, 0.34]], '#c4302b');   // つば
+    ctx.beginPath(); ctx.moveTo(-0.6, 0.12); ctx.arc(0, 0.12, 0.6, Math.PI, 0); ctx.closePath();
+    ctx.fillStyle = '#e53935'; ctx.fill(); ctx.lineWidth = LW; ctx.strokeStyle = OUT; ctx.stroke();
+    rr(ctx, -0.07, -0.6, 0.14, 0.7, 0.05, '#f6c933');                                         // 山
+    poly(ctx, [[-0.24, -0.2], [0.24, -0.2], [0.3, 0.1], [0, 0.18], [-0.3, 0.1]], '#f6c933');   // 前の板（マークなし）
+  };
+
+  var DIRECTIONAL = { airplane: 1, train: 1, shinkansen: 1, ship: 1, steam: 1, postcar: 1, taxi: 1, motorbike: 1, crane: 1,
+    truck: 1, patrol: 1, heli: 1, bus: 1, roller: 1 };
+  // 絵の id 一覧（出題に使える絵）
+  var PICS = ['v1', 'v2', 'v3', 'v4', 'v5', 'v6', 'v7', 'v8', 'v9', 'v10', 'v11', 'hose', 'flame'].concat(Object.keys(pics));
+  function hasPic(id) { return typeof id === 'string' && PICS.indexOf(id) >= 0; }
+
   // ---- 公開 API ----
   // 絵そのものの「前（運転席・先頭）」の向き。1=右、-1=左。ねこぐるま(1)・フォークリフト(2)・しょべるかー(4)は右向きに描いてある。
   // 新しい乗り物は左向き(-1)に描く（FRONT に載せなければ -1 とみなす）。
   var FRONT = { 1: 1, 2: 1, 4: 1 };
-  function frontOf(stage) { return FRONT[stage] === 1 ? 1 : -1; }
+  function frontOf(stage) { return FRONT[stage] === 1 ? 1 : -1; }   // 新しい絵（pics）は全部左向き＝既定の -1
   // 乗り物 stage(1..11) を、中心 (x, y)・おおよそ size px 四方に収めて描く。
   // facing: 前を向ける向き。1(既定)=右、-1=左。絵の前の向きと違うときだけ左右反転する。
   //   反転は絵の中だけ（呼び出し側の座標・文字は反転しない）。車体に文字を描くときは反転の外で描くこと。
-  function drawVehicle(ctx, stage, x, y, size, facing) {
+  function drawVehicle(ctx, stage, x, y, size, facing, t) {
+    var fn = typeof stage === 'string' ? pics[stage] : draw[stage];
     var s = size / 1.8, f = facing === -1 ? -1 : 1, flip = frontOf(stage) !== f;
     ctx.save();
     ctx.translate(x, y);
@@ -252,15 +558,18 @@
     ctx.translate(-0.05 * s, 0.14 * s);
     ctx.scale(s, s);
     ctx.lineJoin = 'round';
-    draw[stage](ctx);
+    fn(ctx, t);
     ctx.restore();
   }
-  // 絵の種類('v1'..'v11' / 'hose' / 'flame')から描く
+  // 絵の種類('v1'..'v11' / 'hose' / 'flame' / 新しい絵の id)から描く
   function drawPic(ctx, pic, x, y, size, t, facing) {
     if (pic.charAt(0) === 'v') return drawVehicle(ctx, +pic.slice(1), x, y, size, facing);
+    if (DIRECTIONAL[pic]) return drawVehicle(ctx, pic, x, y, size, facing, t);
     ctx.save();
     ctx.translate(x, y); ctx.scale(size / 1.8, size / 1.8);
-    if (pic === 'hose') drawHose(ctx); else drawFlame(ctx, t);
+    ctx.lineJoin = 'round';
+    if (pics[pic]) pics[pic](ctx, t);
+    else if (pic === 'hose') drawHose(ctx); else drawFlame(ctx, t);
     ctx.restore();
   }
   // 未入手の黒いシルエット
@@ -283,7 +592,7 @@
   }
 
   var api = {
-    draw: draw, drawVehicle: drawVehicle, frontOf: frontOf, drawPic: drawPic, drawSilhouette: drawSilhouette,
+    draw: draw, pics: pics, PICS: PICS, hasPic: hasPic, drawVehicle: drawVehicle, frontOf: frontOf, drawPic: drawPic, drawSilhouette: drawSilhouette,
     drawFlame: drawFlame, drawHose: drawHose, star: star, rr: rr, circ: circ, poly: poly, line: line,
     OUT: OUT
   };
