@@ -8,12 +8,13 @@
 | ファイル | 役割 | テスト |
 |---|---|---|
 | `src/data.js` | 単語表8語・車11種・現場と関連車・数の読み | tests |
-| `src/problems.js` | 問題生成・`generateSession`・`nextLevel`（純粋関数） | `tests/problems.test.js`（性質1〜9） |
+| `src/problems.js` | 問題生成・`generateSession`・`nextLevel`・`handAngles`・`readTime`（純粋関数） | `tests/problems.test.js`（性質1〜9）、`tests/clock.test.js`（とけい性質1〜12） |
 | `src/rewards.js` | `pickReward`（純粋関数） | `tests/rewards.test.js`（性質10） |
 | `src/storage.js` | localStorage（`hataraku-manabi:v1`）。`normalize` で壊れたデータを補正、使えなければメモリのみ | `tests/storage.test.js` |
 | `src/vehicles.js` | 乗り物の絵。hataraku-drop `src/render.js` の `draw[1..11]` と部品をコピー（対応は冒頭コメント） | 目視 |
 | `src/audio.js` | Web Audio の効果音（外部ファイルなし） | 目視 |
 | `src/speech.js` | 読み上げ・声なしモード判定 | 目視 |
+| `src/clockface.js` | アナログ時計の Canvas 描画（`drawClock`）。短針は太く短く青、長針は細く長く赤 | 目視 |
 | `src/scenes.js` | 現場・カード・タイトルの Canvas 描画 | 目視 |
 | `src/ui.js` / `src/main.js` | 画面遷移・出動の流れ・保護者画面・`#debug` | 目視 |
 
@@ -27,7 +28,17 @@
 - 「もういちどきく」ボタンは、スマホ縦の幅360px でも答えボタン 72px を確保するため、企画書の左下ではなく上部右に置いた。
 - 全車★3 の後の「ごほうびステッカー」は、カード画面で文言だけ出す（U5: 未実装）。
 
+## とけい（docs/plan-clock.md の実装。未決事項は推奨案で決めた）
+- C1: T1 の誤答は 12 を一周する数え方で 3 以上離す。C4: T3 は 12 時台（12:30）も含める。C6: 昇降級は4/4・0〜1/4 をそのまま使う。C9: アイコンは丸い時計、並びは かず・もじ・とけい。
+- C11: 選択肢の小さい時計も数字は 12 個（`opts.numbers: 4` で 4 個に切り替え可。幅 360 縦の実測で 12 個でも読めた）。
+- 時刻の読みは `data.TIME_KANA`（よじ・しちじ・くじ）。○じはん は末尾に「はん」。数の読み（NUM_KANA）は使わない。
+- 取り違え誤答 `swap:h`（短針 12・長針 h）は m=0 かつ h≠12 の問題にだけ、`h:mm` とは別のキーで出す。選択肢は全ペアで「長針60度以上 または 短針30度以上」ちがう絵だけを並べる（h=1・11 では隣の 12:00 と両立しないので swap を省き、他の時刻で補う）。
+- 誤答の読み上げは `h:mm` なら「{よじ}。おしい！もういちど」、`swap` は読み上げ不能なので「おしい！もういちど」だけ。ヒントは T1 が「みじかい はりを みてね」＋短針をふくらませる、T2/T3 は正解の時計の短針をふくらませる。声なし（または読み上げオフ）の T3 は 1 回の誤答で正解が光る。
+- 出動えらびは3ボタン（幅 360 縦で 94px×3 が 1 行に収まる。`.pick-box .big` の横 padding を 6px に詰めた）。時計の答えボタンは 2×2、高さ `clamp(112px, 20vh, 150px)`。
+- 答えボタンを出したあとに `stage.resize()` で現場の Canvas を測り直す（時計ボタンが高く、測り直さないと縦に伸びて時計が楕円になる）。
+- 保存データは `levels.clock`・`locked.clock`・`stats.clock` を足しただけ（バージョン 1 のまま、`normalize` が旧データを補完）。
+
 ## 確認方法
 - `scripts/test.sh`（`node --test tests/*.test.js`）。
-- `index.html#debug` で確認パネル（レベル切替・全車★3・声なしモード・エラー表示 `#errlog`）。`#debug:play-math-M3-kaji-2`（画面-ゲーム-レベル-現場-進み）、`#debug:play-letter-K3-takai`、`#debug:reward-kaji`、`#debug:garage`、`#debug:parent`、`#debug:pick` で画面へ直接移動。
+- `index.html#debug` で確認パネル（レベル切替・全車★3・声なしモード・エラー表示 `#errlog`）。`#debug:play-math-M3-kaji-2`（画面-ゲーム-レベル-現場-進み）、`#debug:play-letter-K3-takai`、`#debug:play-clock-T3-kaji-0`、`#debug:reward-kaji`、`#debug:garage`、`#debug:parent`、`#debug:pick` で画面へ直接移動。
 - 注意: 確認パネルの「ごほうび」（`#debug:reward-*`）は通常の出動と同じく、本物のごほうびとして保存する。子どもが使うブラウザでは開かず、確認は別のプロファイルで。`#debug:garage` は保存データをそのまま表示する（中身を見たいときは先に「全車★3」）。
