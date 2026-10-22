@@ -57,3 +57,159 @@ test('端末内の日本語の声を優先する', () => {
   sp.speak('こんにちは');
   assert.equal(synth.pending[0].voice.name, 'l');
 });
+
+// ---- 英語 ----
+const EN = { lang: 'en-US', localService: true, name: 'Samantha' };
+
+test('英語の声が無くても日本語は使える（enAvailable だけ false）', () => {
+  const { env, run } = fake([JA]);
+  const sp = create(env);
+  sp.init(); run();
+  assert.equal(sp.isVoiceless(), false);
+  assert.equal(sp.enAvailable(), false);
+  assert.equal(sp.enReason(), 'novoice');
+  assert.equal(sp.speak('Bus', { lang: 'en' }), false);
+  assert.equal(sp.speak('こんにちは'), true);
+});
+
+test('日本語の声が無く英語の声だけでも、英語は使える', () => {
+  const { env, run } = fake([EN]);
+  const sp = create(env);
+  sp.init(); run();
+  assert.equal(sp.isVoiceless(), true);
+  assert.equal(sp.enAvailable(), true);
+});
+
+test('英語の声の選択: en-US かつ端末内 → en-* かつ端末内 → 端末外。ノベルティボイスは選ばない', () => {
+  const pick = voices => { const { env, synth } = fake(voices); const sp = create(env); sp.init(); sp.speak('Bus', { lang: 'en' }); return synth.pending[0] && synth.pending[0].voice; };
+  const gbLocal = { lang: 'en-GB', localService: true, name: 'Daniel' }, usRemote = { lang: 'en-US', localService: false, name: 'Google US English' };
+  const novelty = { lang: 'en-US', localService: true, name: 'Zarvox' }, bells = { lang: 'en-US', localService: true, name: 'Bells' };
+  assert.equal(pick([usRemote, gbLocal, EN]).name, 'Samantha');
+  assert.equal(pick([usRemote, gbLocal]).name, 'Daniel');
+  assert.equal(pick([usRemote, { lang: 'en-AU', localService: false, name: 'x' }]).name, 'Google US English');
+  assert.equal(pick([novelty, bells, gbLocal]).name, 'Daniel');
+  assert.equal(pick([novelty, bells]), undefined);             // 通常の声が無ければ英語は読まない
+  assert.equal(pick([{ lang: 'en_US', localService: true, name: 'Android' }]).name, 'Android');   // en_US 表記
+  assert.equal(pick([{ lang: 'ja-JP', localService: true, name: 'Kyoko' }]), undefined);
+});
+
+test('英語の発話は en-US・遅めの速度で、日本語は ja-JP のまま', () => {
+  const { env, synth, run } = fake([JA, EN]);
+  const sp = create(env);
+  sp.init(); run();
+  sp.speak('Fire truck', { lang: 'en' });
+  assert.equal(synth.pending[0].lang, 'en-US');
+  assert.ok(synth.pending[0].rate < 0.85);
+  sp.speak('おしい');
+  assert.equal(synth.pending[0].lang, 'ja-JP');
+  assert.equal(synth.pending[0].rate, 0.85);
+});
+
+test('英語だけ開始しない端末でも日本語は声なしにならない（失敗は言語ごとに数える）', () => {
+  const { env, run } = fake([JA, EN]);
+  const sp = create(env);
+  sp.init(); run();
+  sp.speak('a', { lang: 'en' }); run();
+  sp.speak('b', { lang: 'en' }); run();
+  assert.equal(sp.enAvailable(), false);
+  assert.equal(sp.enReason(), 'nostart');
+  assert.equal(sp.isVoiceless(), false);
+  assert.equal(sp.speak('こんにちは'), true);
+});
+
+test('日本語の開始失敗は英語に影響しない', () => {
+  const { env, run } = fake([JA, EN]);
+  const sp = create(env);
+  sp.init(); run();
+  sp.speak('a'); run(); sp.speak('b'); run();
+  assert.equal(sp.isVoiceless(), true);
+  assert.equal(sp.enAvailable(), true);
+});
+
+test('英語の声が後から来たら復帰し、onChange で通知される。forceNoEnglish は日本語に影響しない', () => {
+  const { synth, env, run } = fake([JA]);
+  const sp = create(env);
+  let n = 0; sp.onChange(() => n++);
+  sp.init(); run();
+  assert.equal(sp.enAvailable(), false);
+  const before = n;
+  synth.voices = [JA, EN];
+  synth.listeners.voiceschanged();
+  assert.equal(sp.enAvailable(), true);
+  assert.ok(n > before);
+  sp.forceNoEnglish();
+  assert.equal(sp.enAvailable(), false);
+  assert.equal(sp.isVoiceless(), false);
+});
+
+test('speakSeq: 英語→日本語の順に、onend でつないで読む', () => {
+  const { env, synth, run } = fake([JA, EN]);
+  const sp = create(env);
+  sp.init(); run();
+  let done = false;
+  assert.equal(sp.speakSeq([{ text: 'Fire truck', lang: 'en' }, { text: 'しょうぼうしゃは どれ？', lang: 'ja' }], { onend: () => { done = true; } }), true);
+  assert.deepEqual(synth.pending.map(u => u.text), ['Fire truck']);
+  assert.equal(synth.pending[0].lang, 'en-US');
+  const first = synth.pending[0]; synth.pending = [];
+  first.onstart(); first.onend();
+  assert.deepEqual(synth.pending.map(u => [u.text, u.lang]), [['しょうぼうしゃは どれ？', 'ja-JP']]);
+  assert.equal(done, false);
+  const second = synth.pending[0]; synth.pending = [];
+  second.onstart(); second.onend();
+  assert.equal(done, true);
+  assert.equal(sp.isVoiceless(), false); assert.equal(sp.enAvailable(), true);
+});
+
+test('speakSeq: 途中で cancel や次の発話が来たら、古い連鎖は止まる', () => {
+  const { env, synth, run } = fake([JA, EN]);
+  const sp = create(env);
+  sp.init(); run();
+  sp.speakSeq([{ text: 'Bus', lang: 'en' }, { text: 'ばすは どれ？', lang: 'ja' }]);
+  const first = synth.pending[0];
+  sp.cancel();
+  first.onend();                                   // 実機では cancel で onend/onerror が来る
+  assert.deepEqual(synth.pending, []);
+  sp.speakSeq([{ text: 'Bus', lang: 'en' }, { text: 'ばすは どれ？', lang: 'ja' }]);
+  const old = synth.pending[0];
+  sp.speakSeq([{ text: 'Train', lang: 'en' }, { text: 'でんしゃは どれ？', lang: 'ja' }]);   // 置き換え
+  synth.pending = [];
+  old.onend();
+  assert.deepEqual(synth.pending, []);
+});
+
+test('speakSeq: 英語の声が無ければ日本語だけ読み、日本語の声が無ければ英語だけ読む。どちらも無ければ false', () => {
+  let t = fake([JA]);
+  let sp = create(t.env); sp.init(); t.run();
+  assert.equal(sp.speakSeq([{ text: 'Bus', lang: 'en' }, { text: 'ばすは どれ？', lang: 'ja' }]), true);
+  assert.deepEqual(t.synth.pending.map(u => u.text), ['ばすは どれ？']);
+  t = fake([EN]);
+  sp = create(t.env); sp.init(); t.run();
+  assert.equal(sp.speakSeq([{ text: 'Bus', lang: 'en' }, { text: 'ばすは どれ？', lang: 'ja' }]), true);
+  t.synth.pending[0].onend();
+  assert.deepEqual(t.synth.pending.map(u => u.text), ['Bus']);
+  t = fake([]);
+  sp = create(t.env); sp.init(); t.run();
+  assert.equal(sp.speakSeq([{ text: 'Bus', lang: 'en' }, { text: 'ばす', lang: 'ja' }]), false);
+});
+
+test('speakSeq: onend が来なくても保険のタイマーで次へ進む。読み上げオフなら読まない', () => {
+  const { env, synth, run } = fake([JA, EN]);
+  const sp = create(env);
+  sp.init(); run();
+  sp.speakSeq([{ text: 'Bus', lang: 'en' }, { text: 'ばすは どれ？', lang: 'ja' }]);
+  synth.pending[0].onstart();
+  run();                                           // 保険のタイマー（onend なし）
+  assert.deepEqual(synth.pending.map(u => u.text), ['Bus', 'ばすは どれ？']);
+  sp.setEnabled(false);
+  assert.equal(sp.speakSeq([{ text: 'Bus', lang: 'en' }]), false);
+});
+
+test('speakSeq: gap の待ちの間に cancel されたら読まない', () => {
+  const { env, synth, run } = fake([JA, EN]);
+  const sp = create(env);
+  sp.init(); run();
+  sp.speakSeq([{ text: 'ばす', lang: 'ja', gap: 400 }]);
+  assert.deepEqual(synth.pending, []);
+  sp.cancel(); run();
+  assert.deepEqual(synth.pending, []);
+});
