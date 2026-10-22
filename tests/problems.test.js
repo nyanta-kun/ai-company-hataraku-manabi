@@ -112,8 +112,8 @@ test('性質6: 国語の answer は頭文字、誤答は許される文字で an
   }
 });
 
-test('性質6b: 単語表は8語で、拗音で始まらず、頭文字が単語の先頭と一致', () => {
-  assert.equal(D.WORDS.length, 8);
+test('性質6b: 単語表は31語で、拗音で始まらず、頭文字が単語の先頭と一致', () => {
+  assert.equal(D.WORDS.length, 31);
   for (const w of D.WORDS) {
     assert.equal(w.label[0], w.head);
     assert.ok(!'ゃゅょ'.includes(w.head));
