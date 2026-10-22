@@ -38,3 +38,23 @@ test('localStorage が使えれば保存・読み込みでき isPersistent が t
     assert.equal(S.load().cards.dump, 2);
   } finally { delete globalThis.localStorage; }
 });
+
+test('旧データ（clock なし）は T1・固定なし・stats 0 で補完され、既存の項目は保たれる', () => {
+  const old = { version: 1, levels: { math: 'M3', letter: 'K2' }, locked: { math: true, letter: false },
+    cards: { dump: 2 }, stats: { sessions: 5, math: { sessions: 3, questions: 12, firstTry: 8 }, letter: { sessions: 2, questions: 8, firstTry: 5 } } };
+  const d = S.normalize(old);
+  assert.equal(d.levels.clock, 'T1');
+  assert.equal(d.locked.clock, false);
+  assert.deepEqual(d.stats.clock, { sessions: 0, questions: 0, firstTry: 0 });
+  assert.equal(d.levels.math, 'M3'); assert.equal(d.locked.math, true); assert.equal(d.cards.dump, 2);
+  assert.deepEqual(d.stats.math, { sessions: 3, questions: 12, firstTry: 8 });
+  assert.equal(d.stats.sessions, 5);
+});
+
+test('clock の不正値（レベル・負数・文字列）は戻る', () => {
+  const d = S.normalize({ levels: { clock: 'T9' }, locked: { clock: 'yes' }, stats: { clock: { sessions: -1, questions: 'a', firstTry: 2.7 } } });
+  assert.equal(d.levels.clock, 'T1');
+  assert.equal(d.locked.clock, false);
+  assert.deepEqual(d.stats.clock, { sessions: 0, questions: 0, firstTry: 2 });
+  assert.equal(S.normalize({ levels: { clock: 'T3' }, locked: { clock: true } }).levels.clock, 'T3');
+});
