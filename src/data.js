@@ -131,8 +131,29 @@
   // 時刻の読み（数の読みとは別。よじ・しちじ・くじ）。index = 時 1..12
   var TIME_KANA = ['', 'いちじ', 'にじ', 'さんじ', 'よじ', 'ごじ', 'ろくじ', 'しちじ', 'はちじ', 'くじ', 'じゅうじ', 'じゅういちじ', 'じゅうにじ'];
 
+  // えいご E1 の語彙（plan 3.2。14語）。en は読み上げ用（小文字の英字とスペースだけ）、ja は日本語の補助（ひらがな）。
+  // group が同じ語は同じ問題の選択肢に並べない（重機／救助／バス系／空・海・レール）
+  var ENGLISH_WORDS = [
+    { id: 'fire',      en: 'fire truck',    ja: 'しょうぼうしゃ',       pic: 'v8',       group: 'rescue' },
+    { id: 'ambulance', en: 'ambulance',     ja: 'きゅうきゅうしゃ',     pic: 'v7',       group: 'rescue' },
+    { id: 'police',    en: 'police car',    ja: 'ぱとかー',             pic: 'patrol',   group: 'rescue' },
+    { id: 'dump',      en: 'dump truck',    ja: 'だんぷかー',           pic: 'v6',       group: 'heavy' },
+    { id: 'bulldozer', en: 'bulldozer',     ja: 'ぶるどーざー',         pic: 'v5',       group: 'heavy' },
+    { id: 'garbage',   en: 'garbage truck', ja: 'ごみしゅうしゅうしゃ', pic: 'v3',       group: 'heavy' },
+    { id: 'forklift',  en: 'forklift',      ja: 'ふぉーくりふと',       pic: 'v2',       group: 'heavy' },
+    { id: 'truck',     en: 'truck',         ja: 'とらっく',             pic: 'truck',    group: 'heavy' },
+    { id: 'bus',       en: 'bus',           ja: 'ばす',                 pic: 'bus',      group: 'road' },
+    { id: 'taxi',      en: 'taxi',          ja: 'たくしー',             pic: 'taxi',     group: 'road' },
+    { id: 'airplane',  en: 'airplane',      ja: 'ひこうき',             pic: 'airplane', group: 'trip' },
+    { id: 'helicopter', en: 'helicopter',   ja: 'へりこぷたー',         pic: 'heli',     group: 'trip' },
+    { id: 'ship',      en: 'ship',          ja: 'ふね',                 pic: 'ship',     group: 'trip' },
+    { id: 'train',     en: 'train',         ja: 'でんしゃ',             pic: 'train',    group: 'trip' }
+  ];
+  // 英語の数（index = 数 1..10）
+  var NUM_EN = ['', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten'];
+
   var api = {
-    TIME_KANA: TIME_KANA, WORDS: WORDS, KATA_WORDS: KATA_WORDS, ALL_WORDS: ALL_WORDS, EXTRA_KATA: EXTRA_KATA, CONFUSABLE_KATA: CONFUSABLE_KATA, toHira: toHira, CATS: CATS, SEEN_MAX: SEEN_MAX, cleanSeen: cleanSeen, addSeen: addSeen, CONFUSABLE: CONFUSABLE, ROW: ROW, FAMILY: FAMILY, CARS: CARS,
+    ENGLISH_WORDS: ENGLISH_WORDS, NUM_EN: NUM_EN, TIME_KANA: TIME_KANA, WORDS: WORDS, KATA_WORDS: KATA_WORDS, ALL_WORDS: ALL_WORDS, EXTRA_KATA: EXTRA_KATA, CONFUSABLE_KATA: CONFUSABLE_KATA, toHira: toHira, CATS: CATS, SEEN_MAX: SEEN_MAX, cleanSeen: cleanSeen, addSeen: addSeen, CONFUSABLE: CONFUSABLE, ROW: ROW, FAMILY: FAMILY, CARS: CARS,
     SCENES: SCENES, SCENE_CARS: SCENE_CARS, NUM_KANA: NUM_KANA
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
