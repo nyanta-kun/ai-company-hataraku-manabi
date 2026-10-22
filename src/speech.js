@@ -47,6 +47,7 @@
     // 声を選ぶ。日本語は端末内の声（localService）を優先して、端末外への送信を避ける。戻り値は日本語の声が見つかったか
     function pickVoice() {
       if (!synth) return false;
+      var enBefore = avail('en');
       var vs = (synth.getVoices && synth.getVoices()) || [];
       var ja = vs.filter(function (v) { return /^ja/i.test(v.lang) || /japan/i.test(v.lang); });
       var local = ja.filter(function (v) { return v.localService === true; });
@@ -55,6 +56,7 @@
       var changed = false;
       if (ja.length && L.ja.failed && L.ja.reason === 'novoice') { L.ja.failed = false; L.ja.reason = ''; L.ja.noStart = 0; changed = true; }   // 後から声が来たら復帰
       if (L.en.voice && L.en.failed && L.en.reason === 'novoice') { L.en.failed = false; L.en.reason = ''; L.en.noStart = 0; changed = true; }
+      if (avail('en') !== enBefore) changed = true;   // 声の一覧が後から埋まった（voiceschanged）・英語の声が消えた
       if (changed) notify();
       return ja.length > 0;
     }

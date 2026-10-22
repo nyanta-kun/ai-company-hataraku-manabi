@@ -106,9 +106,11 @@
     if (name === 'reward') startRewardAnim();
   }
   // 出動えらびの「えいご」: 英語の声が使えないときは選べない（グレー＋スピーカー×）。開くたび・声の状態が変わるたびに見直す
+  // 英語が聞こえない状態（声が無い／失敗した／保護者がよみあげをオフにした）。えいごは聞いて選ぶので、この間は成立しない
+  function enOff() { return !SP.enAvailable() || !data.sound.voice; }
   function updatePick() {
     var b = $('btn-english'); if (!b) return;
-    var off = !SP.enAvailable();
+    var off = enOff();
     b.classList.toggle('disabled', off); b.setAttribute('aria-disabled', off ? 'true' : 'false');
   }
   function updateVoiceMark() {
@@ -227,7 +229,7 @@
   // 英語の声が途中で使えなくなったら、英語を字幕で出す（plan 3.4）
   function syncCaption() {
     if (!run || run.game !== 'english' || !stage) return;
-    var q = run.qs[run.idx], want = q && !SP.enAvailable() ? q.en : '';
+    var q = run.qs[run.idx], want = q && enOff() ? q.en : '';
     if ((stage.caption || '') !== want) { stage.setCaption(want); kick(); }
   }
   function presentQuestion() {
@@ -297,8 +299,8 @@
     if (q.kind === 'english') seq([{ text: q.form === 'word' ? englishOf(v).en : D.NUM_EN[v], lang: 'en' }, { text: 'おしい！もういちど', lang: 'ja', gap: 250 }]);
     else say(said);
     var left = answerButtons().filter(function (b) { return !b.classList.contains('off'); });
-    var voiceless = SP.isVoiceless() || !data.sound.voice, enOff = !SP.enAvailable() || !data.sound.voice;
-    if (run.wrong >= 2 || left.length <= 1 || ((q.kind === 'letter' || (q.kind === 'clock' && q.level === 'T3')) && voiceless) || (q.kind === 'english' && enOff)) {
+    var voiceless = SP.isVoiceless() || !data.sound.voice, enOff_ = enOff();
+    if (run.wrong >= 2 || left.length <= 1 || ((q.kind === 'letter' || (q.kind === 'clock' && q.level === 'T3')) && voiceless) || (q.kind === 'english' && enOff_)) {
       later(900, function () {
         if (!run || run.busy) return;
         answerButtons().forEach(function (b) { if (b.getAttribute('data-v') === String(q.answer)) b.classList.add('glow'); });
@@ -544,7 +546,7 @@
     $('btn-garage').addEventListener('click', function () { sfx('tap'); show('garage'); });
     $('btn-sound').addEventListener('click', function () {
       var on = !(data.sound.sfx || data.sound.voice);
-      data.sound.sfx = data.sound.voice = on; applySound(); save(); updateVoiceMark();
+      data.sound.sfx = data.sound.voice = on; applySound(); save(); updateVoiceMark(); updatePick();
       if (on) sfx('tap');
     });
     holdButton($('btn-gear'), 2000, function () { show('parent'); });
@@ -553,7 +555,7 @@
     $('btn-letter').addEventListener('click', function () { startSession('letter'); });
     $('btn-clock').addEventListener('click', function () { startSession('clock'); });
     $('btn-english').addEventListener('click', function () {
-      if (!SP.enAvailable()) {   // 英語の声が無い: 出動しない。おしい音と、日本語の声が使えれば説明を読む
+      if (enOff()) {   // 英語の声が無い: 出動しない。おしい音と、日本語の声が使えれば説明を読む
         updatePick(); sfx('oshii'); say('えいごの こえが ないよ'); return;
       }
       startSession('english');
@@ -586,7 +588,7 @@
 
     // 保護者画面
     $('p-sfx').addEventListener('change', function () { data.sound.sfx = this.checked; applySound(); save(); updateVoiceMark(); sfx('correct'); });
-    $('p-voice').addEventListener('change', function () { data.sound.voice = this.checked; applySound(); save(); updateVoiceMark(); });
+    $('p-voice').addEventListener('change', function () { data.sound.voice = this.checked; applySound(); save(); updateVoiceMark(); updatePick(); });
     $('p-test').addEventListener('click', function () {
       unlockOnce();
       if (!say('こんにちは。はたらくまなびです', { force: true })) $('p-voice-note').textContent = 'よみあげが つかえません（このたんまつは こえなしモードです）。';

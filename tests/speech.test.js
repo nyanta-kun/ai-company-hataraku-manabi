@@ -213,3 +213,21 @@ test('speakSeq: gap の待ちの間に cancel されたら読まない', () => {
   sp.cancel(); run();
   assert.deepEqual(synth.pending, []);
 });
+
+test('声の一覧が init の後（1.5秒より前）に埋まっても、英語が使えるようになり onChange で通知される', () => {
+  const { synth, env } = fake([]);
+  const sp = create(env);
+  let n = 0; sp.onChange(() => n++);
+  sp.init();                                       // タイマー（1.5秒）はまだ。この時点では声が無いが失敗とはしていない
+  assert.equal(sp.enAvailable(), false);
+  synth.voices = [JA, EN];
+  synth.listeners.voiceschanged();
+  assert.equal(sp.enAvailable(), true);
+  assert.equal(sp.isVoiceless(), false);
+  assert.ok(n >= 1);
+  synth.voices = [JA];                             // 英語の声が消えたら、それも通知する
+  const before = n;
+  synth.listeners.voiceschanged();
+  assert.equal(sp.enAvailable(), false);
+  assert.ok(n > before);
+});
