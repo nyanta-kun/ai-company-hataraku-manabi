@@ -33,6 +33,7 @@
         <button id="btn-math" class="big math" type="button"><canvas width="96" height="96" data-icon="kazu"></canvas><span>かず</span></button>
         <button id="btn-letter" class="big letter" type="button"><canvas width="96" height="96" data-icon="moji"></canvas><span>もじ</span></button>
         <button id="btn-clock" class="big clock" type="button"><canvas width="96" height="96" data-icon="tokei"></canvas><span>とけい</span></button>
+        <button id="btn-english" class="big english" type="button"><canvas width="96" height="96" data-icon="eigo"></canvas><span>えいご</span><canvas class="xmark" width="48" height="48" data-icon="speakerx"></canvas></button>
       </div>
     </div>
   </section>
@@ -92,11 +93,14 @@
         <label class="chk"><input type="checkbox" id="p-voice"> よみあげ</label>
         <button id="p-test" type="button" class="pbtn">よみあげテスト</button>
         <p id="p-voice-note" class="note"></p>
+        <button id="p-test-en" type="button" class="pbtn">えいごテスト</button>
+        <p id="p-en-note" class="note"></p>
       </div>
       <div class="card"><h3>レベル</h3>
         <div class="lv"><span>かず</span><select id="p-lv-math"></select><label class="chk"><input type="checkbox" id="p-lock-math"> このレベルでこてい</label></div>
         <div class="lv"><span>もじ</span><select id="p-lv-letter"></select><label class="chk"><input type="checkbox" id="p-lock-letter"> このレベルでこてい</label></div>
         <div class="lv"><span>とけい</span><select id="p-lv-clock"></select><label class="chk"><input type="checkbox" id="p-lock-clock"> このレベルでこてい</label></div>
+        <div class="lv"><span>えいご</span><select id="p-lv-english"></select><label class="chk"><input type="checkbox" id="p-lock-english"> このレベルでこてい</label></div>
         <p class="note">こていしないと、4もん ぜんぶ 1かいで せいかいで 1つ上がり、0〜1もんで 1つ下がります。もじ の K4〜K6 はカタカナです（ひらがなだけにしたいときは K3 でこてい）。</p>
       </div>
       <div class="card"><h3>データ</h3>

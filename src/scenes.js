@@ -119,12 +119,15 @@
   Stage.prototype.setProgress = function (n) { this.shown = this.target = n; this.anim = null; };
   Stage.prototype.setProblem = function (p) {
     this.prob = p; this.marks = []; this.bounceIdx = -1; this.word = null; this.reveal = false;
+    this.caption = '';
     if (p && p.kind === 'letter') {
       var ws = root.Manabi.data.ALL_WORDS;
       for (var i = 0; i < ws.length; i++) if (ws[i].id === p.wordId) this.word = ws[i];
     }
     this.layout();
   };
+  // えいご: 英語の字幕（英語の声が途中で使えなくなったときだけ）。null で消す
+  Stage.prototype.setCaption = function (text) { this.caption = text || ''; this.layout(); };
   Stage.prototype.board = function () {
     var H = this.H;
     return { x: W * 0.05, y: H * 0.03, w: W * 0.9, h: Math.min(H * 0.53, W * 0.62) };
@@ -132,7 +135,7 @@
   Stage.prototype.layout = function () {
     var p = this.prob, b = this.board(), it = [], pad = 14;
     var inner = { x: b.x + pad, y: b.y + pad, w: b.w - pad * 2, h: b.h - pad * 2 };
-    this.plus = null; this.pic = null; this.clock = null;
+    this.plus = null; this.pic = null; this.clock = null; this.speaker = null;
     if (p && p.kind === 'count') {
       it = grid(p.n, p.n <= 5 ? p.n : 5, inner, 150);
     } else if (p && p.kind === 'add') {
@@ -144,6 +147,11 @@
       this.plus = { x: inner.x + inner.w / 2, y: inner.y + inner.h / 2, s: Math.min(inner.w * 0.12, 70) };
     } else if (p && p.kind === 'clock') {
       this.clock = { x: inner.x + inner.w / 2, y: inner.y + inner.h / 2, r: Math.min(inner.w, inner.h) / 2 * 0.97, x0: inner.x, y0: inner.y, w: inner.w, h: inner.h };
+    } else if (p && p.kind === 'english') {
+      var sp = Math.min(inner.w * 0.7, inner.h * (this.caption ? 0.78 : 0.95));   // 字幕があるときは少し小さくして下に字幕の場所を空ける
+      this.speaker = { x: inner.x + inner.w / 2, y: inner.y + (this.caption ? inner.h * 0.43 : inner.h * 0.5), s: sp };
+      this.pic = { x: this.speaker.x, y: this.speaker.y, s: sp };
+      if (p.form === 'number') it = grid(p.n, p.n <= 5 ? p.n : 5, inner, 150);
     } else if (p && p.kind === 'letter') {
       var s = Math.min(inner.w * 0.7, inner.h * 1.0);
       this.pic = { x: inner.x + inner.w / 2, y: inner.y + inner.h / 2, s: s };
@@ -202,6 +210,15 @@
       var pb = this.pic, bt = now - this.picBounceT0, k = bt >= 0 && bt < 0.6 ? 1 + 0.18 * Math.sin(bt / 0.6 * Math.PI) : 1;
       var dy = bt >= 0 && bt < 0.6 ? -Math.sin(bt / 0.6 * Math.PI) * 18 : 0;
       V().drawPic(ctx, this.word.pic, pb.x, pb.y + dy, pb.s * k, now);
+    } else if (p && p.kind === 'english' && this.speaker && !(this.reveal && p.form === 'number')) {
+      var sk = this.speaker, ebt = now - this.picBounceT0, ek = ebt >= 0 && ebt < 0.6 ? 1 + 0.15 * Math.sin(ebt / 0.6 * Math.PI) : 1;
+      if (this.reveal) V().drawPic(ctx, p.pic, sk.x, sk.y, sk.s, now);   // 正解のあと: 乗り物の絵を大きく
+      else drawSpeaker(ctx, sk.x, sk.y, sk.s * ek, now);
+      if (this.caption) {
+        ctx.fillStyle = OUT; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.font = 'bold 44px sans-serif';
+        ctx.fillText(this.caption, sk.x, b.y + b.h - 38, b.w * 0.9);
+      }
     } else if (p && p.kind === 'clock' && this.clock) {
       var ck = this.clock;
       if (p.form === 'read') root.Manabi.clockface.drawClock(ctx, ck.x, ck.y, ck.r, p.h + ':00', { numbers: 12, pulse: this.pulseAt(now) });
@@ -224,6 +241,20 @@
       }
     }
   };
+  // えいご: 大きなスピーカー（音が出ているように波がゆれる）
+  function drawSpeaker(ctx, x, y, s, t) {
+    var r = s * 0.5;
+    circle(ctx, x, y, r, '#dff0ff', OUT, 5);
+    ctx.save(); ctx.translate(x - r * 0.18, y); ctx.scale(r / 100, r / 100);
+    ctx.fillStyle = OUT; ctx.lineJoin = 'round';
+    ctx.beginPath(); ctx.moveTo(-42, -22); ctx.lineTo(-18, -22); ctx.lineTo(10, -52); ctx.lineTo(10, 52); ctx.lineTo(-18, 22); ctx.lineTo(-42, 22); ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = '#3a7bd5'; ctx.lineCap = 'round';
+    for (var i = 0; i < 3; i++) {
+      var k = 1 + 0.06 * Math.sin(t * 5 - i), a = 0.85 - i * 0.1;
+      ctx.lineWidth = 9; ctx.beginPath(); ctx.arc(10, 0, (30 + i * 22) * k, -a, a); ctx.stroke();
+    }
+    ctx.restore();
+  }
   // 出動ひょうの札（形式 B）。大きな数字。○じはん は数字の下に半月のマークと「はん」
   function drawSign(ctx, ck, p) {
     var w = Math.min(ck.w * 0.8, ck.h * 1.5), h = ck.h * 0.98, x = ck.x - w / 2, y = ck.y - h / 2;
@@ -411,7 +442,7 @@
 
   var api = {
     Stage: Stage, drawCard: drawCard, drawTitle: drawTitle, drawCat: drawCat, drawRock: drawRock,
-    drawItem: drawItem, grid: grid, W: W
+    drawItem: drawItem, drawSpeaker: drawSpeaker, grid: grid, W: W
   };
   root.Manabi = root.Manabi || {};
   root.Manabi.scenes = api;

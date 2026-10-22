@@ -49,11 +49,20 @@ canvas { display: block; }
 #s-title .title-box { margin-top: auto; margin-bottom: 4vh; }
 #s-title .big { min-width: min(42vw, 230px); }
 
-/* 出動えらび */
+/* 出動えらび: 縦は 2×2、横は 4 列。ボタンの短辺は 72px 以上、すきまは 16px 以上 */
 .pick-box { margin: auto; text-align: center; padding: 16px; width: 100%; }
 .pick-box h2 { font-size: clamp(26px, 6vmin, 44px); margin: 0 0 24px; }
-.pick-box .row { gap: 16px; }
-.pick-box .big { min-width: min(26vw, 200px); min-height: 150px; padding: 10px 6px; }
+.pick-box .row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; max-width: 440px; margin: 0 auto; }
+.pick-box .big { min-width: 0; min-height: 140px; padding: 10px 6px; white-space: nowrap; position: relative; }
+.big.english { background: #8e44ad; border-bottom-color: #5e2a75; }
+.big .xmark { display: none; position: absolute; right: 8px; top: 8px; width: 40px; height: 40px; padding: 5px; border-radius: 50%; background: #fff; }
+.big.disabled { background: #a9a396; border-bottom-color: #877f70; box-shadow: none; }
+.big.disabled > canvas:not(.xmark), .big.disabled > span { opacity: .55; }
+.big.disabled .xmark { display: block; }
+@media (orientation: landscape) {
+  .pick-box .row { grid-template-columns: repeat(4, minmax(0, 1fr)); max-width: 880px; }
+  .pick-box .big { min-height: clamp(110px, 24vh, 160px); }
+}
 
 /* 問題画面 */
 #play-top { display: flex; align-items: center; justify-content: space-between; padding: 6px 8px; gap: 6px; flex: none; }
@@ -77,6 +86,8 @@ canvas { display: block; }
 .ans .dots b { flex-basis: 100%; height: 0; }
 .ans:active { transform: translateY(3px); }
 .ans.clk { height: clamp(112px, 20vh, 150px); padding: 4px; }
+.ans.pic { padding: 6px; }
+.ans.pic canvas { width: 100%; height: 100%; }
 .ans.clk canvas { height: 100%; aspect-ratio: 1; width: auto; max-width: 100%; }
 #answers.clocks { flex-wrap: wrap; align-content: center; max-width: 460px; margin: 0 auto; gap: 12px 16px; }
 #answers.clocks .ans { flex: 0 0 calc(50% - 8px); max-width: none; }
@@ -133,6 +144,7 @@ canvas { display: block; }
   #answers { flex-wrap: wrap; align-content: center; width: 100%; }
   .ans { flex: 0 0 calc(50% - 8px); max-width: none; height: 84px; min-width: 72px; }
   .ans.clk { height: 100px; }
+  .ans.pic { height: 96px; }
   .ans .dots i { width: 8px; height: 8px; }
   .ans .num { font-size: 34px; } .ans .kana { font-size: 44px; }
   #reward-box { flex-direction: row; justify-content: center; }
