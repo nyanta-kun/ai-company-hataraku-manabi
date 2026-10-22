@@ -32,7 +32,17 @@
     return { id: pid, stars: owned[pid] + 1, isNew: false };
   }
 
-  var api = { MAX_STARS: MAX_STARS, FIRST_CAR: FIRST_CAR, pickReward: pickReward };
+  // 抽選して cards に反映する。cards は書き換えず、新しい cards を返す。
+  // 戻り値: { r: pickReward の結果, cards: 反映後 }（ステッカーのときは cards は同じ中身のコピー）
+  function applyReward(cards, scene, rng) {
+    var next = {};
+    Object.keys(cards || {}).forEach(function (k) { next[k] = cards[k]; });
+    var r = pickReward(next, scene, rng);
+    if (!r.sticker) next[r.id] = r.stars;
+    return { r: r, cards: next };
+  }
+
+  var api = { MAX_STARS: MAX_STARS, FIRST_CAR: FIRST_CAR, pickReward: pickReward, applyReward: applyReward };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else { root.Manabi = root.Manabi || {}; root.Manabi.rewards = api; }
 })(typeof window !== 'undefined' ? window : globalThis);
