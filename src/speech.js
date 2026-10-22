@@ -7,6 +7,7 @@
   // macOS などに入っている、効果音のような声・機械的な古い声・Eloquence 系の声（ノベルティボイス）。英語の声として選ばない
   var NOVELTY = /(^|\s)(Albert|Bad News|Bahh|Bells|Boing|Bubbles|Cellos|Deranged|Good News|Hysterical|Jester|Organ|Pipe Organ|Superstar|Trinoids|Whisper|Wobble|Zarvox|Fred|Junior|Ralph|Kathy|Eddy|Flo|Grandma|Grandpa|Reed|Rocko|Sandy|Shelley)(\s|$)/i;
   var SEQ_START_MS = 3000;    // 連続読み上げで、発話が始まらない（開始失敗の判定と同じ 3 秒）ときに、次へ進むまでの保険
+  var current = null;         // 再生中の発話（GC 回避用）
   var SEQ_MAX_MS = 15000;     // 始まったのに onend が来ないときの上限
 
   function isEn(v) { return /^en([-_]|$)/i.test(v.lang || ''); }
@@ -98,6 +99,7 @@
       try {
         var my = seq;
         var u = new Utter(text);
+        current = u;   // 参照を持っておく（Chrome で GC されると onend が来ない不具合の回避）
         if (lang === 'en') { u.lang = (st.voice && st.voice.lang) || 'en-US'; u.rate = 0.8; u.pitch = 1.0; }
         else { u.lang = 'ja-JP'; u.rate = 0.85; u.pitch = 1.1; }
         if (st.voice) u.voice = st.voice;
@@ -148,9 +150,10 @@
           var started = false;
           function next() { if (moved || my !== seq) return; moved = true; step(i + 1); }
           function skip() { if (moved || my !== seq) return; flush(); next(); }   // 止まった発話を捨てて次へ（日本語がその後ろで待たされない）
-          if (!speakRaw(it.text, it.lang, next, { onstart: function () { started = true; }, onerror: next })) { next(); return; }
-          later(function () { if (!started) skip(); }, SEQ_START_MS);   // 始まらない
-          later(skip, SEQ_MAX_MS);                                       // 終わらない
+          var onstart = function () { started = true; later(skip, 2000 + it.text.length * 200); };   // 始まったら、文の長さから見積もった時間で打ち切る（onend が来ない端末）
+          if (!speakRaw(it.text, it.lang, next, { onstart: onstart, onerror: next })) { next(); return; }
+          if (it.lang === 'en') later(function () { if (!started) skip(); }, SEQ_START_MS);   // 英語が始まらない（日本語は起動の遅い端末で切らないよう対象外）
+          later(skip, SEQ_MAX_MS);                                       // 最後の保険
         }
         if (it.gap) later(go, it.gap); else go();
       }
