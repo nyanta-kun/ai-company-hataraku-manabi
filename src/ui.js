@@ -252,7 +252,7 @@
     btn.classList.add('off', 'shake'); btn.classList.remove('glow');
     sfx('oshii');
     var said = 'おしい！もういちど';
-    if (q.kind === 'letter') said = exampleOf(v) + 'の ' + v + '。おしい！もういちど';
+    if (q.kind === 'letter') said = exampleOf(v) + 'の ' + D.toHira(v) + '。おしい！もういちど';
     else if (q.kind === 'clock' && q.form === 'pick' && v.indexOf('swap:') !== 0) { var tk = v.split(':'); said = P.readTime(+tk[0], +tk[1]) + '。おしい！もういちど'; }
     say(said);
     var left = answerButtons().filter(function (b) { return !b.classList.contains('off'); });
@@ -295,7 +295,7 @@
     answerButtons().forEach(function (b) { b.classList.remove('glow'); });
     sfx('correct');
     var done = run.idx + 1;
-    if (q.kind === 'letter') say('そう！ ' + q.answer + '！ ' + correctExample(q) + 'の ' + q.answer);
+    if (q.kind === 'letter') say('そう！ ' + D.toHira(q.answer) + '！ ' + correctExample(q) + 'の ' + D.toHira(q.answer));
     else if (q.kind === 'clock') say('そう！ ' + P.readTime(q.h, q.m) + '！');
     else say('そう！ ' + NUMK[q.answer] + '！');
     updateLamps(done);
