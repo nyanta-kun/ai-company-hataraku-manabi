@@ -52,7 +52,7 @@ canvas { display: block; }
 /* 出動えらび */
 .pick-box { margin: auto; text-align: center; padding: 16px; width: 100%; }
 .pick-box h2 { font-size: clamp(26px, 6vmin, 44px); margin: 0 0 24px; }
-.pick-box .row { gap: clamp(10px, 2vw, 20px); }
+.pick-box .row { gap: 16px; }
 .pick-box .big { min-width: min(26vw, 200px); min-height: 150px; padding: 10px 6px; }
 
 /* 問題画面 */
