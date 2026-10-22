@@ -99,7 +99,7 @@
     [].forEach.call(doc.querySelectorAll('.screen'), function (s) { s.classList.toggle('active', s.id === 's-' + name); });
     updateVoiceMark();
     if (name === 'title') { drawTitle(); kick(); }
-    if (name === 'pick') { updatePick(); later(300, function () { say('どれで しゅつどう？'); }); }
+    if (name === 'pick') { updatePick(); later(300, function () { say('どれで出動する？'); }); }
     if (name === 'garage') buildGarage();
     if (name === 'parent') fillParent();
     if (name === 'play' && stage) { stage.resize(); stage.draw(now()); }
@@ -189,7 +189,7 @@
     updateLamps(0);
     stage.resize();
     sfx(A.carSound(DISPATCH_STAGE[run.scene]));   // 出動する車の音（現場ごと）
-    say('しゅつどう！');
+    say('出動！');
     stage.setProblem(null); stage.draw(now());
     later(opts.fast ? 0 : 1500, function () { presentQuestion(); });
   }
@@ -197,13 +197,15 @@
     [].forEach.call($('lamps').children, function (e, i) { e.classList.toggle('on', i < n); });
   }
   function promptText(p) {
-    if (p.kind === 'count') return 'いくつ あるかな？';
-    if (p.kind === 'add') return NUMK[p.a] + ' たす ' + NUMK[p.b] + ' は？';
-    if (p.kind === 'clock') return p.form === 'read' ? 'とけいを みてね。しゅつどうの じかんは なんじ？' : 'しゅつどうは ' + P.readTime(p.h, p.m) + '。どの とけい？';
-    if (p.kind === 'english') return p.form === 'number' ? 'かずが ' + p.ja + ' の ものは どれ？' : p.ja + 'は どれ？';
-    var w = wordOf(p.wordId);
-    return w.speech + '。さいしょのもじは？';
+    if (p.kind === 'count') return 'いくつあるかな？';
+    if (p.kind === 'add') return p.a + 'たす' + p.b + 'は、いくつ？';   // 数字で渡す（「に たす」の「に」が助詞に読まれないように）
+    if (p.kind === 'clock') return p.form === 'read' ? '時計を見てね。出動の時間は、何時かな？' : '出動は、' + P.readTime(p.h, p.m) + '。どの時計かな？';
+    if (p.kind === 'english') return 'どれかな？';   // 英語の意味は日本語で言わない（言うと英語を聞かなくても答えられる）
+    return yomiOf(wordOf(p.wordId)) + '。最初の文字は、どれかな？';
   }
+  // 語の読み上げ（漢字・カタカナまじりで自然に読ませる。data.js の YOMI）
+  function yomiOf(w) { var id = w.id.replace(/_k$/, ''); return D.YOMI[id] || w.kata || (w.script === 'kata' ? w.label : w.speech); }
+  function carYomi(car) { return D.CAR_YOMI[car.id] || car.name; }
   function wordOf(id) { for (var i = 0; i < D.ALL_WORDS.length; i++) if (D.ALL_WORDS[i].id === id) return D.ALL_WORDS[i]; return null; }
   // 文字の例語（「ひこうきの ひ」）。同じ頭文字の語が複数ある文字は、文字そのものでない例語を優先する
   function exampleOf(ch) {
@@ -248,7 +250,7 @@
   function renderAnswers(q) {
     var box = $('answers'); box.innerHTML = '';
     var pickClock = q.kind === 'clock' && q.form === 'pick', pickPic = q.kind === 'english' && q.form === 'word';
-    box.className = pickClock ? 'clocks' : '';
+    box.className = pickClock || (pickPic && q.choices.length > 3) ? 'clocks' : '';   // 4択の絵は 1 列だと小さいので時計と同じ 2×2
     q.choices.forEach(function (c) {
       var b = doc.createElement('button');
       b.type = 'button'; b.className = pickClock ? 'ans clk' : pickPic ? 'ans pic' : 'ans'; b.setAttribute('data-v', String(c));
@@ -294,10 +296,10 @@
     run.off.push(v);
     btn.classList.add('off', 'shake'); btn.classList.remove('glow');
     sfx('oshii');
-    var said = 'おしい！もういちど';
-    if (q.kind === 'letter') said = exampleOf(v) + 'の ' + D.toHira(v) + '。おしい！もういちど';
-    else if (q.kind === 'clock' && q.form === 'pick' && v.indexOf('swap:') !== 0) { var tk = v.split(':'); said = P.readTime(+tk[0], +tk[1]) + '。おしい！もういちど'; }
-    if (q.kind === 'english') seq([{ text: q.form === 'word' ? englishOf(v).en : D.NUM_EN[v], lang: 'en' }, { text: 'おしい！もういちど', lang: 'ja', gap: 250 }]);
+    var said = 'おしい！もう一回。';
+    if (q.kind === 'letter') said = exampleOf(v) + 'の ' + D.toHira(v) + '。おしい！もう一回。';
+    else if (q.kind === 'clock' && q.form === 'pick' && v.indexOf('swap:') !== 0) { var tk = v.split(':'); said = P.readTime(+tk[0], +tk[1]) + '。おしい！もう一回。'; }
+    if (q.kind === 'english') seq([{ text: q.form === 'word' ? englishOf(v).en : D.NUM_EN[v], lang: 'en' }, { text: 'おしい！もう一回。', lang: 'ja', gap: 250 }]);
     else say(said);
     var left = answerButtons().filter(function (b) { return !b.classList.contains('off'); });
     var voiceless = SP.isVoiceless() || !data.sound.voice, enOff_ = enOff();
@@ -306,7 +308,7 @@
         if (!run || run.busy) return;
         answerButtons().forEach(function (b) { if (b.getAttribute('data-v') === String(q.answer)) b.classList.add('glow'); });
         if (q.kind === 'clock') {
-          say(q.form === 'read' ? 'こっちかな？ みじかい はりを みてね' : 'こっちかな？');
+          say(q.form === 'read' ? 'こっちかな？短い針を見てね。' : 'こっちかな？');
           if (q.form === 'read') stage.pulseHour(now()); else run.pulse = { key: q.answer, t0: now() };
         } else if (q.kind === 'english') {
           seq([{ text: q.en + '?', lang: 'en' }, { text: 'こっちかな？', lang: 'ja', gap: 250 }]);
@@ -343,15 +345,15 @@
     sfx('correct');
     var done = run.idx + 1, my0 = run.token;
     run.countWait = false;
-    if (q.kind === 'letter') say('そう！ ' + D.toHira(q.answer) + '！ ' + correctExample(q) + 'の ' + D.toHira(q.answer));
-    else if (q.kind === 'clock') say('そう！ ' + P.readTime(q.h, q.m) + '！');
+    if (q.kind === 'letter') say('そう！' + D.toHira(q.answer) + '！ ' + correctExample(q) + 'の ' + D.toHira(q.answer) + '。');
+    else if (q.kind === 'clock') say('そう！' + P.readTime(q.h, q.m) + '！');
     else if (q.kind === 'english') {
       var ok = [{ text: 'そう！', lang: 'ja' }, { text: q.en + '!', lang: 'en' }];
       if (q.form === 'number') ok.push({ text: D.NUM_EN.slice(1, q.n + 1).join(', '), lang: 'en', gap: 300 });   // 数のものを 1 つずつ数える（1 回の読み上げ）
       if (q.form === 'number') { run.countWait = true; if (!seq(ok, { onend: function () { if (run && run.token === my0) run.countWait = false; } })) run.countWait = false; }
       else seq(ok);
     }
-    else say('そう！ ' + NUMK[q.answer] + '！');
+    else say('そう！' + NUMK[q.answer] + '！');
     updateLamps(done);
     later(700, function () {
       sfx(run.scene === 'kaji' ? 'water' : run.scene === 'takai' ? 'ladder' : 'dig');
@@ -409,10 +411,10 @@
       if (car) {
         $('reward-text').textContent = car.name + ' をげっと！';
         $('reward-sub').textContent = r.isNew ? 'あたらしい くるま！' : '★が ふえたよ！';
-        say(car.name + 'を げっと！');
+        say(carYomi(car) + 'を、ゲット！');
       } else {
         $('reward-text').textContent = 'ごほうびすてっかー！';
-        say('ごほうびすてっかー！');
+        say('ごほうびステッカー！');
       }
     });
     kick();
@@ -452,7 +454,7 @@
       el.addEventListener('click', function () {
         unlockOnce();
         if (!slot.n) { sfx('tap'); return; }
-        slot.drive = now(); sfx(A.carSound(car.stage)); say(car.name); kick();
+        slot.drive = now(); sfx(A.carSound(car.stage)); say(carYomi(car)); kick();
       });
     });
     $('g-count').textContent = have + ' / 11';
@@ -562,7 +564,7 @@
     $('btn-clock').addEventListener('click', function () { startSession('clock'); });
     $('btn-english').addEventListener('click', function () {
       if (enOff()) {   // 英語の声が無い: 出動しない。おしい音と、日本語の声が使えれば説明を読む
-        updatePick(); sfx('oshii'); say('えいごの こえが ないよ'); return;
+        updatePick(); sfx('oshii'); say('英語の声が、ないよ。'); return;
       }
       startSession('english');
     });
@@ -597,7 +599,7 @@
     $('p-voice').addEventListener('change', function () { data.sound.voice = this.checked; applySound(); save(); updateVoiceMark(); updatePick(); });
     $('p-test').addEventListener('click', function () {
       unlockOnce();
-      if (!say('こんにちは。はたらくまなびです', { force: true })) $('p-voice-note').textContent = 'よみあげが つかえません（このたんまつは こえなしモードです）。';
+      if (!say('こんにちは。はたらくまなびです。', { force: true })) $('p-voice-note').textContent = 'よみあげが つかえません（このたんまつは こえなしモードです）。';
     });
     $('p-test-en').addEventListener('click', function () {
       unlockOnce();

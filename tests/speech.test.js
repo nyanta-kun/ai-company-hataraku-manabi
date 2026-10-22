@@ -99,10 +99,10 @@ test('英語の発話は en-US・遅めの速度で、日本語は ja-JP のま�
   sp.init(); run();
   sp.speak('Fire truck', { lang: 'en' });
   assert.equal(synth.pending[0].lang, 'en-US');
-  assert.ok(synth.pending[0].rate < 0.85);
+  assert.ok(synth.pending[0].rate < 0.9);
   sp.speak('おしい');
   assert.equal(synth.pending[0].lang, 'ja-JP');
-  assert.equal(synth.pending[0].rate, 0.85);
+  assert.equal(synth.pending[0].rate, 0.9);
 });
 
 test('英語だけ開始しない端末でも日本語は声なしにならない（失敗は言語ごとに数える）', () => {

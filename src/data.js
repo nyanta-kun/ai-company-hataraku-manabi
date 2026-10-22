@@ -117,6 +117,17 @@
     { id: 'chodai',     stage: 11, name: 'ちょうだいはしごしゃ' }
   ];
 
+  // 読み上げ用の表記（漢字・カタカナまじり）。ひらがなだけだと端末の読み上げが語の切れ目やアクセントを決められず平坦になるため。
+  // 画面の文字・頭文字の判定には使わない。語の id（WORDS / CARS）→ 表記。無い語は、カタカナ表記があればそれを、無ければ speech / name を読む
+  var YOMI = {
+    hashigo: 'はしご車', gomi: 'ごみ収集車', mizu: '水タンク車', hi: '火', airplane: '飛行機', train: '電車', shinkansen: '新幹線',
+    ship: '船', steam: '機関車', postcar: '郵便車', water: '水', smoke: '煙', ring: '浮き輪', station: '駅'
+  };
+  var CAR_YOMI = {
+    forklift: 'フォークリフト', gomi: 'ごみ収集車', shovel: 'ショベルカー', bulldozer: 'ブルドーザー', dump: 'ダンプカー',
+    kyukyu: '救急車', shoubousha: '消防車', mizutank: '水タンク車', hashigo: 'はしご車', chodai: '長大はしご車'
+  };
+
   // 現場 3 種と、関連する車（ごほうび抽選で優先）
   var SCENES = ['kaji', 'takai', 'michi'];
   var SCENE_CARS = {
@@ -154,7 +165,7 @@
 
   var api = {
     ENGLISH_WORDS: ENGLISH_WORDS, NUM_EN: NUM_EN, TIME_KANA: TIME_KANA, WORDS: WORDS, KATA_WORDS: KATA_WORDS, ALL_WORDS: ALL_WORDS, EXTRA_KATA: EXTRA_KATA, CONFUSABLE_KATA: CONFUSABLE_KATA, toHira: toHira, CATS: CATS, SEEN_MAX: SEEN_MAX, cleanSeen: cleanSeen, addSeen: addSeen, CONFUSABLE: CONFUSABLE, ROW: ROW, FAMILY: FAMILY, CARS: CARS,
-    SCENES: SCENES, SCENE_CARS: SCENE_CARS, NUM_KANA: NUM_KANA
+    SCENES: SCENES, SCENE_CARS: SCENE_CARS, NUM_KANA: NUM_KANA, YOMI: YOMI, CAR_YOMI: CAR_YOMI
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else { root.Manabi = root.Manabi || {}; root.Manabi.data = api; }
