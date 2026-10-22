@@ -28,5 +28,6 @@
 - 全車★3 の後の「ごほうびステッカー」は、カード画面で文言だけ出す（U5: 未実装）。
 
 ## 確認方法
-- `scripts/test.sh`（`node --test tests/`）。
+- `scripts/test.sh`（`node --test tests/*.test.js`）。
 - `index.html#debug` で確認パネル（レベル切替・全車★3・声なしモード・エラー表示 `#errlog`）。`#debug:play-math-M3-kaji-2`（画面-ゲーム-レベル-現場-進み）、`#debug:play-letter-K3-takai`、`#debug:reward-kaji`、`#debug:garage`、`#debug:parent`、`#debug:pick` で画面へ直接移動。
+- 注意: 確認パネルの「ごほうび」（`#debug:reward-*`）は通常の出動と同じく、本物のごほうびとして保存する。子どもが使うブラウザでは開かず、確認は別のプロファイルで。`#debug:garage` は保存データをそのまま表示する（中身を見たいときは先に「全車★3」）。
