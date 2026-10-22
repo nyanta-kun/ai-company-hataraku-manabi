@@ -7,7 +7,6 @@
   var QUESTIONS_PER_SESSION = 4;   // 1 回の出動の問題数（調整可）
   var PROMOTE_AT = 4;              // 1 回目正解がこれ以上なら昇級
   var DEMOTE_AT = 1;               // 1 回目正解がこれ以下なら降級
-  var RECENT_MAX = 12;             // 国語の「直近に出した絵」を覚える数
 
   var LEVELS = { math: ['M1', 'M2', 'M3', 'M4', 'M5'], letter: ['K1', 'K2', 'K3'], clock: ['T1', 'T2', 'T3'] };
   // 数のレベル: max = 選択肢の範囲の上限、choices = 選択肢の数
@@ -97,18 +96,22 @@
     var pool = wordPool(level), ans = word.head;
     var letters = uniq(pool.map(function (w) { return w.head; }));
     var need = L.choices - 1, out = [], sims = confusablesOf(ans);
+    function clash(c) { return c === ans || sims.indexOf(c) >= 0 || out.some(function (o) { return confusablesOf(o).indexOf(c) >= 0; }); }
     if (level === 'K3') {
-      // 形が似た文字を 1 つ混ぜてよい（半分の確率）。それ以外の誤答は、正解に似た文字を避ける
+      // 形が似た文字を 1 つ混ぜてよい（半分の確率）。それ以外の誤答は、正解や互いに似た文字を避ける
       var simIn = shuffle(sims.filter(function (c) { return letters.indexOf(c) >= 0; }), rng);
       if (simIn.length && rng() < 0.5) out.push(simIn[0]);
-      var rest = shuffle(letters.filter(function (c) { return c !== ans && out.indexOf(c) < 0 && sims.indexOf(c) < 0; }), rng);
-      out = out.concat(rest.slice(0, need - out.length));
-    } else {
-      // K1/K2: 行が違う文字だけを選ぶ（互いの行も別）。正解に似た文字も避ける
-      var rows = {}; rows[D.ROW[ans]] = true;
       shuffle(letters, rng).forEach(function (c) {
-        if (out.length >= need || c === ans || rows[D.ROW[c]] || sims.indexOf(c) >= 0) return;
-        rows[D.ROW[c]] = true; out.push(c);
+        if (out.length >= need || out.indexOf(c) >= 0 || (c === ans || sims.indexOf(c) >= 0)) return;
+        if (out.some(function (o) { return confusablesOf(o).indexOf(c) >= 0; })) return;
+        out.push(c);
+      });
+    } else {
+      // K1/K2: 行ファミリー（は行は清音・濁音・半濁音をまとめる）が違う文字だけを選ぶ。正解や互いに似た文字も避ける
+      var fams = {}; fams[D.FAMILY[ans]] = true;
+      shuffle(letters, rng).forEach(function (c) {
+        if (out.length >= need || fams[D.FAMILY[c]] || clash(c)) return;
+        fams[D.FAMILY[c]] = true; out.push(c);
       });
     }
     out.push(ans);
@@ -131,19 +134,6 @@
   }
 
   // ---- 国語の出題の偏り防止（plan-katakana-english.md 2.9） ----
-  // recentPics: 直近に出した絵。古い順（末尾が最新）。未知の値・重複・配列以外は捨てて、最新 12 個にする
-  function cleanRecent(recent) {
-    if (!Array.isArray(recent)) return [];
-    var known = {};
-    D.WORDS.forEach(function (w) { known[w.pic] = true; });
-    var out = [];
-    recent.forEach(function (v) {
-      if (typeof v !== 'string' || !known[v]) return;
-      var i = out.indexOf(v); if (i >= 0) out.splice(i, 1);
-      out.push(v);
-    });
-    return out.slice(-RECENT_MAX);
-  }
   function isFire(w) { return w.cat === 'fire'; }
 
   // 4 語を選ぶ。stage 0=全部の規則、1=分類の規則を外す、2=行ファミリーも外す、3=答えの文字の重複も許す（同じ語・同じ絵は常に禁止）。
@@ -151,7 +141,7 @@
   // ただし規則（stage 0）を満たすための解禁は直前の出動の 4 枚（4 個）までで、それ以降は規則のほうを緩める
   function pickWords(level, rng, recent) {
     var pool = wordPool(level);
-    var n = Math.max(4, Math.min(RECENT_MAX, Math.floor(uniq(pool.map(function (w) { return w.pic; })).length / 2)));
+    var n = Math.max(4, Math.min(D.SEEN_MAX, Math.floor(uniq(pool.map(function (w) { return w.pic; })).length / 2)));
     function candsFor(k) {
       var ex = k > 0 ? recent.slice(-k) : [];
       return pool.filter(function (w) { return ex.indexOf(w.pic) < 0; });
@@ -162,15 +152,11 @@
       for (var tries = 0; tries < 300; tries++) {
         var chosen = [], fam = {}, cat = {}, ans = {}, pics = {};
         var order = shuffle(cands, rng);
-        // は行は 1 出動に 1 問までなので、そのままだと出番が少ない。たいてい 1 問は入るよう先頭に寄せる
-        var haIdx = -1;
-        order.forEach(function (w, i) { if (haIdx < 0 && D.FAMILY[w.head] === 'ha') haIdx = i; });
-        if (haIdx > 0 && rng() < 0.75) order.unshift(order.splice(haIdx, 1)[0]);
         order.forEach(function (w) {
           if (chosen.length >= QUESTIONS_PER_SESSION || pics[w.pic]) return;
           var f = D.FAMILY[w.head];
           if (stage < 3 && ans[w.head]) return;
-          if (stage < 2 && (fam[f] || 0) >= (f === 'ha' ? 1 : 2)) return;
+          if (stage < 2 && (fam[f] || 0) >= 2) return;
           if (stage < 1 && (cat[w.cat] || 0) >= 3) return;
           chosen.push(w); pics[w.pic] = true; ans[w.head] = true; fam[f] = (fam[f] || 0) + 1; cat[w.cat] = (cat[w.cat] || 0) + 1;
         });
@@ -259,7 +245,7 @@
     rng = defRng(rng);
     if (game === 'letter') {
       if (!LETTER[level]) throw new RangeError('letter level: ' + level);
-      return pickWords(level, rng, cleanRecent(recentPics)).map(function (w) { return buildLetter(level, w, rng); });
+      return pickWords(level, rng, D.cleanSeen(recentPics)).map(function (w) { return buildLetter(level, w, rng); });
     }
     var list = [], tries = 0;
     while (list.length < QUESTIONS_PER_SESSION) {
@@ -292,7 +278,7 @@
     QUESTIONS_PER_SESSION: QUESTIONS_PER_SESSION, PROMOTE_AT: PROMOTE_AT, DEMOTE_AT: DEMOTE_AT,
     LEVELS: LEVELS, MATH: MATH, LETTER: LETTER, CLOCK: CLOCK,
     generateCounting: generateCounting, generateAddition: generateAddition,
-    generateLetter: generateLetter, buildLetter: buildLetter, cleanRecent: cleanRecent, RECENT_MAX: RECENT_MAX, generateClock: generateClock, handAngles: handAngles, readTime: readTime,
+    generateLetter: generateLetter, buildLetter: buildLetter, generateClock: generateClock, handAngles: handAngles, readTime: readTime,
     clockKey: clockKey, sameProblem: sameProblem, generateSession: generateSession, nextLevel: nextLevel
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;

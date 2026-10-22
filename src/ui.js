@@ -152,9 +152,7 @@
   function seenLetter() { return data.seen && Array.isArray(data.seen.letter) ? data.seen.letter : []; }
   function rememberLetter(qs) {
     data.seen = data.seen || { letter: [] };
-    var cur = seenLetter().slice();
-    qs.forEach(function (q) { var i = cur.indexOf(q.pic); if (i >= 0) cur.splice(i, 1); cur.push(q.pic); });
-    data.seen.letter = cur.slice(-12);
+    data.seen.letter = D.addSeen(seenLetter(), qs.map(function (q) { return q.pic; }));
     save();
   }
   function startSession(game, opts) {
@@ -199,6 +197,9 @@
     }
     return hit || ch;
   }
+
+  // 正解のときの例語。その語自身の例語を使うが、例語が文字そのもの（ひ）なら、別の語の例語（ひこうき）にする
+  function correctExample(q) { var w = wordOf(q.wordId); return w.example !== q.answer ? w.example : exampleOf(q.answer); }
 
   function presentQuestion() {
     var q = run.qs[run.idx];
@@ -294,7 +295,7 @@
     answerButtons().forEach(function (b) { b.classList.remove('glow'); });
     sfx('correct');
     var done = run.idx + 1;
-    if (q.kind === 'letter') say('そう！ ' + q.answer + '！ ' + wordOf(q.wordId).example + 'の ' + q.answer);
+    if (q.kind === 'letter') say('そう！ ' + q.answer + '！ ' + correctExample(q) + 'の ' + q.answer);
     else if (q.kind === 'clock') say('そう！ ' + P.readTime(q.h, q.m) + '！');
     else say('そう！ ' + NUMK[q.answer] + '！');
     updateLamps(done);

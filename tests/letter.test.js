@@ -41,21 +41,32 @@ test('性質10b: 選択肢の文字は全て ROW を持ち、読み上げの例�
   }
 });
 
-test('性質10c: 誤答は正解に似た文字を避ける（K1/K2 は無し、K3 は最大1つ）。コードの正解性質は維持', () => {
-  const partners = ch => D.CONFUSABLE.filter(p => p.includes(ch)).map(p => p[0] === ch ? p[1] : p[0]);
+test('性質10c: K1/K2 は清音と濁音・半濁音（は–ば・は–ぱ 等）や は行の文字を同じ選択肢に並べない。K3 は似た文字を最大1つ', () => {
+  const clash = (a, b) => D.CONFUSABLE.some(p => (p[0] === a && p[1] === b) || (p[0] === b && p[1] === a));
+  for (const pair of [['は', 'ば'], ['は', 'ぱ'], ['ほ', 'ぽ'], ['ふ', 'ぶ'], ['た', 'だ'], ['ひ', 'び'], ['へ', 'べ'], ['か', 'が']]) {
+    assert.ok(clash(pair[0], pair[1]), pair.join('–'));
+  }
   for (const lv of LV) {
     const r = rngOf(15);
     for (let i = 0; i < 1500; i++) {
       const p = P.generateSession('letter', lv, r)[i % 4];
       assert.equal(p.choices.filter(c => c === p.answer).length, 1);
       assert.equal(new Set(p.choices).size, p.choices.length);
-      const sim = p.choices.filter(c => partners(p.answer).includes(c));
-      assert.ok(sim.length <= (lv === 'K3' ? 1 : 0), lv + ' ' + p.answer + ' ' + p.choices);
+      const pairs = [];
+      p.choices.forEach((a, x) => p.choices.forEach((b, y) => { if (x < y && clash(a, b)) pairs.push([a, b]); }));
+      if (lv === 'K3') {
+        assert.ok(pairs.length <= 1, lv + ' ' + p.choices);
+        pairs.forEach(q => assert.ok(q.includes(p.answer), '似た組は正解との組だけ: ' + p.choices));
+      } else {
+        assert.equal(pairs.length, 0, lv + ' ' + p.choices);
+        const fams = p.choices.map(c => D.FAMILY[c]);
+        assert.equal(new Set(fams).size, fams.length, lv + ' 同じ行ファミリー ' + p.choices);
+      }
     }
   }
 });
 
-test('性質11: 同一出動で wordId・pic・答えが重複せず、は行は1問・他の行は2問まで（緩和なし）', () => {
+test('性質11: 同一出動で wordId・pic・答えが重複せず、同じ行ファミリー（は行を含む）は2問まで（緩和なし）', () => {
   for (const lv of LV) {
     const r = rngOf(11);
     for (let i = 0; i < 1500; i++) {
@@ -66,7 +77,7 @@ test('性質11: 同一出動で wordId・pic・答えが重複せず、は行は
       assert.equal(new Set(s.map(p => p.answer)).size, 4, lv);
       const fam = {};
       s.forEach(p => { const f = D.FAMILY[p.answer]; fam[f] = (fam[f] || 0) + 1; });
-      Object.keys(fam).forEach(f => assert.ok(fam[f] <= (f === 'ha' ? 1 : 2), lv + ' ' + f));
+      Object.keys(fam).forEach(f => assert.ok(fam[f] <= 2, lv + ' ' + f));
     }
   }
 });
@@ -108,7 +119,7 @@ test('性質13: 連続200出動で全語が出て偏りが小さく、連続す�
       const pics = s.map(p => p.pic);
       if (prevPics) pics.forEach(x => assert.ok(!prevPics.includes(x), lv + ' 連続 ' + x));
       prevPics = pics;
-      recent = recent.concat(pics).slice(-P.RECENT_MAX);
+      recent = recent.concat(pics).slice(-D.SEEN_MAX);
     }
     const vals = Object.values(count);
     assert.ok(Math.min(...vals) > 0, lv + ' 出ない語がある');
@@ -129,7 +140,7 @@ test('性質14: 同じ分類は3問まで。K3 は消防と乗り物が1問ず�
         assert.ok(s.some(p => wordOf(p.wordId).cat === 'fire'), 'K3 消防');
         assert.ok(s.some(p => wordOf(p.wordId).cat !== 'fire'), 'K3 乗り物');
       }
-      recent = recent.concat(s.map(p => p.pic)).slice(-P.RECENT_MAX);
+      recent = recent.concat(s.map(p => p.pic)).slice(-D.SEEN_MAX);
     }
   }
 });

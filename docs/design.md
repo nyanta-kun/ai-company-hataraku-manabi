@@ -8,7 +8,7 @@
 | ファイル | 役割 | テスト |
 |---|---|---|
 | `src/data.js` | 単語表31語（cat・FAMILY つき）・車11種・現場と関連車・数の読み | tests |
-| `src/problems.js` | 問題生成・`generateSession`・`nextLevel`・`handAngles`・`readTime`（純粋関数） | `tests/problems.test.js`（性質1〜9）、`tests/clock.test.js`（とけい性質1〜12） |
+| `src/problems.js` | 問題生成・`generateSession`・`nextLevel`・`handAngles`・`readTime`（純粋関数） | `tests/problems.test.js`（性質1〜9）、`tests/letter.test.js`（もじの単語表・偏り防止。性質10〜14）、`tests/clock.test.js`（とけい性質1〜12） |
 | `src/rewards.js` | `pickReward`（純粋関数） | `tests/rewards.test.js`（性質10） |
 | `src/storage.js` | localStorage（`hataraku-manabi:v1`）。`normalize` で壊れたデータを補正、使えなければメモリのみ | `tests/storage.test.js` |
 | `src/vehicles.js` | 乗り物の絵。hataraku-drop `src/render.js` の `draw[1..11]` と部品をコピー（対応は冒頭コメント） | 目視 |
