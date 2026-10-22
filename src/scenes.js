@@ -120,7 +120,7 @@
   Stage.prototype.setProblem = function (p) {
     this.prob = p; this.marks = []; this.bounceIdx = -1; this.word = null; this.reveal = false;
     if (p && p.kind === 'letter') {
-      var ws = root.Manabi.data.WORDS;
+      var ws = root.Manabi.data.ALL_WORDS;
       for (var i = 0; i < ws.length; i++) if (ws[i].id === p.wordId) this.word = ws[i];
     }
     this.layout();

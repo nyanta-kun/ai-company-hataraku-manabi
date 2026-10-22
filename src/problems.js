@@ -8,7 +8,7 @@
   var PROMOTE_AT = 4;              // 1 回目正解がこれ以上なら昇級
   var DEMOTE_AT = 1;               // 1 回目正解がこれ以下なら降級
 
-  var LEVELS = { math: ['M1', 'M2', 'M3', 'M4', 'M5'], letter: ['K1', 'K2', 'K3'], clock: ['T1', 'T2', 'T3'] };
+  var LEVELS = { math: ['M1', 'M2', 'M3', 'M4', 'M5'], letter: ['K1', 'K2', 'K3', 'K4', 'K5', 'K6'], clock: ['T1', 'T2', 'T3'] };
   // 数のレベル: max = 選択肢の範囲の上限、choices = 選択肢の数
   var MATH = {
     M1: { kind: 'count', max: 3,  choices: 3 },
@@ -17,7 +17,11 @@
     M4: { kind: 'add',   max: 5,  choices: 3 },
     M5: { kind: 'add',   max: 10, choices: 4 }
   };
-  var LETTER = { K1: { choices: 2 }, K2: { choices: 3 }, K3: { choices: 4 } };
+  // sim = 形が似た文字を 1 つ混ぜてよい。script = 出す文字種（K6 は問題ごとに語の表記で決まる）
+  var LETTER = {
+    K1: { choices: 2 }, K2: { choices: 3 }, K3: { choices: 4, sim: true },
+    K4: { choices: 2, script: 'kata' }, K5: { choices: 4, script: 'kata', sim: true }, K6: { choices: 4, script: 'mixed', sim: true }
+  };
 
   // とけい: form = read（時計を見て数字）/ pick（読み上げを聞いて時計を選ぶ）、half = ○じはんを出す
   var CLOCK = {
@@ -77,12 +81,15 @@
   }
 
   function wordPool(level) {
+    if (level === 'K4' || level === 'K5') return D.KATA_WORDS;
+    if (level === 'K6') return D.ALL_WORDS;
     return D.WORDS.filter(function (w) { return level === 'K1' ? w.group === 'A' : true; });
   }
+  function scriptOf(w) { return w.script === 'kata' ? 'kata' : 'hira'; }
   // 形が似た文字（複数ありうる。は → ほ・け）
   function confusablesOf(ch) {
     var out = [];
-    D.CONFUSABLE.forEach(function (p) {
+    D.CONFUSABLE.concat(D.CONFUSABLE_KATA).forEach(function (p) {
       if (p[0] === ch) out.push(p[1]);
       else if (p[1] === ch) out.push(p[0]);
     });
@@ -93,13 +100,15 @@
   // 指定の語で国語の問題を作る（選択肢を決める）。誤答は単語表の頭文字から選び、正解の頭文字は混ぜない
   function buildLetter(level, word, rng) {
     var L = LETTER[level];
-    var pool = wordPool(level), ans = word.head;
+    var script = scriptOf(word), ans = word.head;
+    // 選択肢の文字種は問題の語の表記にそろえる（K6 でも だ と ダ を同時に出さない）
+    var pool = wordPool(level).filter(function (w) { return scriptOf(w) === script; });
     var letters = uniq(pool.map(function (w) { return w.head; }));
     var need = L.choices - 1, out = [], sims = confusablesOf(ans);
     function clash(c) { return c === ans || sims.indexOf(c) >= 0 || out.some(function (o) { return confusablesOf(o).indexOf(c) >= 0; }); }
-    if (level === 'K3') {
-      // 形が似た文字を 1 つ混ぜてよい（半分の確率）。それ以外の誤答は、正解や互いに似た文字を避ける
-      var simIn = shuffle(sims.filter(function (c) { return letters.indexOf(c) >= 0; }), rng);
+    if (L.sim) {
+      // 形が似た文字を 1 つ混ぜてよい（半分の確率）。それ以外の誤答は、正解や互いに似た文字を避ける。カタカナは頭文字にならない追加文字も相手にできる
+      var simIn = shuffle(sims.filter(function (c) { return letters.indexOf(c) >= 0 || (script === 'kata' && D.EXTRA_KATA[c]); }), rng);
       if (simIn.length && rng() < 0.5) out.push(simIn[0]);
       shuffle(letters, rng).forEach(function (c) {
         if (out.length >= need || out.indexOf(c) >= 0 || (c === ans || sims.indexOf(c) >= 0)) return;
@@ -115,7 +124,7 @@
       });
     }
     out.push(ans);
-    return { kind: 'letter', level: level, script: 'hira', wordId: word.id, word: word.label, pic: word.pic,
+    return { kind: 'letter', level: level, script: script, wordId: word.id, word: word.label, pic: word.pic,
       choices: shuffle(out, rng), answer: ans };
   }
 
@@ -148,19 +157,21 @@
     }
     for (; n > 0 && candsFor(n).length < QUESTIONS_PER_SESSION; n--);
     function attempt(cands, stage) {
-      var mix = level === 'K3' && cands.some(isFire) && cands.some(function (w) { return !isFire(w); });
+      var mix = (level === 'K3' || level === 'K5' || level === 'K6') && pool.some(isFire) && pool.some(function (w) { return !isFire(w); });   // 候補ではなく出題元全体で決める（直近の除外で消防が候補から消えても、除外を解いて入れる）
       for (var tries = 0; tries < 300; tries++) {
         var chosen = [], fam = {}, cat = {}, ans = {}, pics = {};
+        var needKata = level === 'K6';
         var order = shuffle(cands, rng);
         order.forEach(function (w) {
           if (chosen.length >= QUESTIONS_PER_SESSION || pics[w.pic]) return;
-          var f = D.FAMILY[w.head];
-          if (stage < 3 && ans[w.head]) return;
+          var f = D.FAMILY[w.head], key = D.toHira(w.head);   // だ と ダ は同じ音なので同じ答え扱い
+          if (stage < 3 && ans[key]) return;
           if (stage < 2 && (fam[f] || 0) >= 2) return;
           if (stage < 1 && (cat[w.cat] || 0) >= 3) return;
-          chosen.push(w); pics[w.pic] = true; ans[w.head] = true; fam[f] = (fam[f] || 0) + 1; cat[w.cat] = (cat[w.cat] || 0) + 1;
+          chosen.push(w); pics[w.pic] = true; ans[key] = true; fam[f] = (fam[f] || 0) + 1; cat[w.cat] = (cat[w.cat] || 0) + 1;
         });
         if (chosen.length < QUESTIONS_PER_SESSION) continue;
+        if (needKata && !(chosen.some(function (w) { return scriptOf(w) === 'kata'; }) && chosen.some(function (w) { return scriptOf(w) === 'hira'; }))) continue;
         if (stage < 1 && mix && !(chosen.some(isFire) && chosen.some(function (w) { return !isFire(w); }))) continue;
         return chosen;
       }
