@@ -198,7 +198,7 @@
   }
   function promptText(p) {
     if (p.kind === 'count') return 'いくつあるかな？';
-    if (p.kind === 'add') return p.a + 'たす' + p.b + 'は、いくつ？';   // 数字で渡す（「に たす」の「に」が助詞に読まれないように）
+    if (p.kind === 'add') return NUMK[p.a] + 'たす' + NUMK[p.b] + 'は、いくつ？';   // 数字で渡すと「1たす4」などの読みが揺れるので、数の読み（よん・なな）で渡す
     if (p.kind === 'clock') return p.form === 'read' ? '時計を見てね。出動の時間は、何時かな？' : '出動は、' + P.readTime(p.h, p.m) + '。どの時計かな？';
     if (p.kind === 'english') return 'どれかな？';   // 英語の意味は日本語で言わない（言うと英語を聞かなくても答えられる）
     return yomiOf(wordOf(p.wordId)) + '。最初の文字は、どれかな？';
