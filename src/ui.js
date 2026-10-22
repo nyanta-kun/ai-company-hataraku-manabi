@@ -21,6 +21,9 @@
   var titleStart = now();
   var debugMode = false;
 
+  // 現場ごとに出動する車の stage（scenes.js の drawKaji=8, drawTakai=10, drawMichi=4）
+  var DISPATCH_STAGE = { kaji: 8, takai: 10, michi: 4 };
+
   function later(ms, fn) { var id = root.setTimeout(function () { fn(); }, ms); timers.push(id); return id; }
   function clearTimers() { timers.forEach(root.clearTimeout); timers = []; }
   function save() { S.save(data); }
@@ -158,7 +161,7 @@
     stage.setScene(run.scene); stage.setProgress(0);
     updateLamps(0);
     stage.resize();
-    sfx('siren');
+    sfx(A.carSound(DISPATCH_STAGE[run.scene]));   // 出動する車の音（現場ごと）
     say('しゅつどう！');
     stage.setProblem(null); stage.draw(now());
     later(opts.fast ? 0 : 1500, function () { presentQuestion(); });
@@ -274,9 +277,11 @@
     else if (q.kind === 'clock') say('そう！ ' + P.readTime(q.h, q.m) + '！');
     else say('そう！ ' + NUMK[q.answer] + '！');
     updateLamps(done);
+    var my0 = run.token;
     later(700, function () {
       sfx(run.scene === 'kaji' ? 'water' : run.scene === 'takai' ? 'ladder' : 'dig');
       sfx('horn');
+      if (done === P.QUESTIONS_PER_SESSION && run.scene === 'michi') later(900, function () { if (run && run.token === my0) sfx(A.carSound(7)); });   // きゅうきゅうしゃ到着
     });
     stage.advance(done, now(), done === P.QUESTIONS_PER_SESSION ? 2.4 : 1.6);
     kick();
@@ -368,7 +373,7 @@
       el.addEventListener('click', function () {
         unlockOnce();
         if (!slot.n) { sfx('tap'); return; }
-        slot.drive = now(); sfx('pipoo'); say(car.name); kick();
+        slot.drive = now(); sfx(A.carSound(car.stage)); say(car.name); kick();
       });
     });
     $('g-count').textContent = have + ' / 11';
@@ -386,7 +391,7 @@
         var u = (t - s.drive) / 1.5;
         if (u >= 1) s.drive = -1; else { x = -sz * 0.5 + (c.w + sz) * u; busy = true; }
       }
-      V.drawVehicle(ctx, s.car.stage, x, c.h * 0.5, sz);
+      V.drawVehicle(ctx, s.car.stage, x, c.h * 0.5, sz);   // 既定の向き=右(走る向きと同じ)
     });
     return busy;
   }

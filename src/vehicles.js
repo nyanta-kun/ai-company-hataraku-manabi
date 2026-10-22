@@ -237,19 +237,27 @@
   }
 
   // ---- 公開 API ----
-  // 乗り物 stage(1..11) を、中心 (x, y)・おおよそ size px 四方に収めて描く
-  function drawVehicle(ctx, stage, x, y, size) {
-    var s = size / 1.8;
+  // 絵そのものの「前（運転席・先頭）」の向き。1=右、-1=左。ねこぐるま(1)・フォークリフト(2)・しょべるかー(4)は右向きに描いてある。
+  // 新しい乗り物は左向き(-1)に描く（FRONT に載せなければ -1 とみなす）。
+  var FRONT = { 1: 1, 2: 1, 4: 1 };
+  function frontOf(stage) { return FRONT[stage] === 1 ? 1 : -1; }
+  // 乗り物 stage(1..11) を、中心 (x, y)・おおよそ size px 四方に収めて描く。
+  // facing: 前を向ける向き。1(既定)=右、-1=左。絵の前の向きと違うときだけ左右反転する。
+  //   反転は絵の中だけ（呼び出し側の座標・文字は反転しない）。車体に文字を描くときは反転の外で描くこと。
+  function drawVehicle(ctx, stage, x, y, size, facing) {
+    var s = size / 1.8, f = facing === -1 ? -1 : 1, flip = frontOf(stage) !== f;
     ctx.save();
-    ctx.translate(x - 0.05 * s, y + 0.14 * s);
+    ctx.translate(x, y);
+    if (flip) ctx.scale(-1, 1);
+    ctx.translate(-0.05 * s, 0.14 * s);
     ctx.scale(s, s);
     ctx.lineJoin = 'round';
     draw[stage](ctx);
     ctx.restore();
   }
   // 絵の種類('v1'..'v11' / 'hose' / 'flame')から描く
-  function drawPic(ctx, pic, x, y, size, t) {
-    if (pic.charAt(0) === 'v') return drawVehicle(ctx, +pic.slice(1), x, y, size);
+  function drawPic(ctx, pic, x, y, size, t, facing) {
+    if (pic.charAt(0) === 'v') return drawVehicle(ctx, +pic.slice(1), x, y, size, facing);
     ctx.save();
     ctx.translate(x, y); ctx.scale(size / 1.8, size / 1.8);
     if (pic === 'hose') drawHose(ctx); else drawFlame(ctx, t);
@@ -257,7 +265,7 @@
   }
   // 未入手の黒いシルエット
   var tmp = null;
-  function drawSilhouette(ctx, stage, x, y, size, color) {
+  function drawSilhouette(ctx, stage, x, y, size, color, facing) {
     if (typeof document === 'undefined') return;
     if (!tmp) tmp = document.createElement('canvas');
     var w = Math.ceil(size * 1.3);
@@ -266,7 +274,7 @@
     var c = tmp.getContext('2d');
     c.setTransform(dpr, 0, 0, dpr, 0, 0);
     c.clearRect(0, 0, w, w);
-    drawVehicle(c, stage, w / 2, w / 2, size);
+    drawVehicle(c, stage, w / 2, w / 2, size, facing);
     c.globalCompositeOperation = 'source-in';
     c.fillStyle = color || '#3b3f4a';
     c.fillRect(0, 0, w, w);
@@ -275,7 +283,7 @@
   }
 
   var api = {
-    draw: draw, drawVehicle: drawVehicle, drawPic: drawPic, drawSilhouette: drawSilhouette,
+    draw: draw, drawVehicle: drawVehicle, frontOf: frontOf, drawPic: drawPic, drawSilhouette: drawSilhouette,
     drawFlame: drawFlame, drawHose: drawHose, star: star, rr: rr, circ: circ, poly: poly, line: line,
     OUT: OUT
   };
