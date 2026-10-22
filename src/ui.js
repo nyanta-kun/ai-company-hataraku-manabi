@@ -439,8 +439,9 @@
     var have = 0;
     D.CARS.forEach(function (car) {
       var n = data.cards[car.id] || 0; if (n) have++;
-      var el = doc.createElement('button');
-      el.type = 'button'; el.className = 'slot' + (n ? '' : ' none');
+      // button だと iOS Safari が中身の高さを枠に数えず、絵と名前が枠の外にはみ出すので div にする
+      var el = doc.createElement('div');
+      el.setAttribute('role', 'button'); el.className = 'slot' + (n ? '' : ' none');
       var stars = ''; for (var i = 1; i <= 3; i++) stars += i <= n ? '★' : '☆';
       el.innerHTML = '<canvas></canvas><div class="nm"></div><div class="st"></div>';
       el.querySelector('.nm').textContent = n ? car.name : '？';
@@ -460,16 +461,16 @@
   function drawGarage() {
     var t = now(), busy = false;
     slots.forEach(function (s) {
-      var c = sizeCanvas(s.cv), ctx = c.ctx, sz = Math.min(c.w * 0.9, c.h * 1.15);
+      var c = sizeCanvas(s.cv), ctx = c.ctx, sz = Math.min(c.w * 0.85, c.h * 1.1);   // 絵は単位座標で上 0.86・下 1.14 ほどまで出るので、枠に収まる大きさにする
       ctx.clearRect(0, 0, c.w, c.h);
-      ctx.fillStyle = 'rgba(0,0,0,.08)'; ctx.fillRect(0, c.h * 0.86, c.w, 4);
-      if (!s.n) { V.drawSilhouette(ctx, s.car.stage, c.w / 2, c.h * 0.5, sz, '#4a4f5c'); return; }
+      ctx.fillStyle = 'rgba(0,0,0,.08)'; ctx.fillRect(0, c.h * 0.9, c.w, 4);
+      if (!s.n) { V.drawSilhouette(ctx, s.car.stage, c.w / 2, c.h * 0.45, sz, '#4a4f5c'); return; }
       var x = c.w / 2;
       if (s.drive >= 0) {
         var u = (t - s.drive) / 1.5;
         if (u >= 1) s.drive = -1; else { x = -sz * 0.5 + (c.w + sz) * u; busy = true; }
       }
-      V.drawVehicle(ctx, s.car.stage, x, c.h * 0.5, sz);   // 既定の向き=右(走る向きと同じ)
+      V.drawVehicle(ctx, s.car.stage, x, c.h * 0.45, sz);   // 既定の向き=右(走る向きと同じ)
     });
     return busy;
   }
