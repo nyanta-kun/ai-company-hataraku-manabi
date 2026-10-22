@@ -117,7 +117,7 @@
   Stage.prototype.setScene = function (s) { this.scene = s; };
   Stage.prototype.setProgress = function (n) { this.shown = this.target = n; this.anim = null; };
   Stage.prototype.setProblem = function (p) {
-    this.prob = p; this.marks = []; this.bounceIdx = -1; this.word = null;
+    this.prob = p; this.marks = []; this.bounceIdx = -1; this.word = null; this.reveal = false;
     if (p && p.kind === 'letter') {
       var ws = root.Manabi.data.WORDS;
       for (var i = 0; i < ws.length; i++) if (ws[i].id === p.wordId) this.word = ws[i];
@@ -182,7 +182,9 @@
       if (u >= 1) { this.shown = a.to; this.anim = null; }
       else { this.shown = lerp(a.from, a.to, ease((u - 0.25) / 0.75)); fxT = u; }
     }
-    drawBackground(ctx, this.scene, this.shown, fxT, now, H);
+    var pr = this.prob;
+    var hide = !this.reveal && !!pr && (pr.kind !== 'letter' || (this.scene === 'kaji' && this.word && this.word.pic === 'flame'));
+    drawBackground(ctx, this.scene, this.shown, fxT, now, H, hide);
     // ボード
     var b = this.board();
     fillRR(ctx, b.x, b.y, b.w, b.h, 28, 'rgba(255,255,255,0.84)', 'rgba(58,43,36,0.35)', 3);
@@ -219,7 +221,7 @@
   // ---- 背景（進み具合つき） ----
   var ROCKS = [[0, 0, 1], [-0.7, 0.2, 0.8], [0.7, 0.2, 0.8], [-0.3, -0.5, 0.8], [0.35, -0.55, 0.8], [-1.1, 0.4, 0.6], [1.1, 0.4, 0.6], [0, -1.0, 0.7], [-0.6, -1.0, 0.6], [0.6, -1.0, 0.6]];
 
-  function drawBackground(ctx, scene, prog, fxT, now, H) {
+  function drawBackground(ctx, scene, prog, fxT, now, H, hide) {
     var gy = H * 0.86;
     var sky = ctx.createLinearGradient(0, 0, 0, gy);
     if (scene === 'kaji') { sky.addColorStop(0, '#ffd7a8'); sky.addColorStop(1, '#fff0d6'); }
@@ -236,22 +238,24 @@
     else { for (var d = 0; d < 6; d++) fillRR(ctx, W * (0.05 + d * 0.17), gy + (H - gy) * 0.45, W * 0.09, 6, 3, '#f5f5f5'); }
     var vs = clamp(Math.min(H * 0.27, W * 0.26), 70, 210), vy = gy - vs * 0.39 + 4;
     var Vh = V();
-    if (scene === 'kaji') drawKaji(ctx, prog, fxT, now, H, gy, vs, vy, Vh);
-    else if (scene === 'takai') drawTakai(ctx, prog, fxT, now, H, gy, vs, vy, Vh);
-    else drawMichi(ctx, prog, fxT, now, H, gy, vs, vy, Vh);
+    if (scene === 'kaji') drawKaji(ctx, prog, fxT, now, H, gy, vs, vy, Vh, hide);
+    else if (scene === 'takai') drawTakai(ctx, prog, fxT, now, H, gy, vs, vy, Vh, hide);
+    else drawMichi(ctx, prog, fxT, now, H, gy, vs, vy, Vh, hide);
     if (prog >= 3.99) { // クリアのきらめき
       for (var s = 0; s < 6; s++) sparkle(ctx, W * (0.15 + s * 0.14), H * (0.72 + 0.08 * Math.sin(now * 2 + s)), 14 + 4 * Math.sin(now * 3 + s), 0.5 + 0.4 * Math.sin(now * 2.5 + s * 1.7));
     }
   }
 
-  function drawKaji(ctx, prog, fxT, now, H, gy, vs, vy, Vh) {
+  function drawKaji(ctx, prog, fxT, now, H, gy, vs, vy, Vh, hide) {
     var bx = W * 0.68, bw = W * 0.28, by = Math.max(H * 0.28, gy - W * 0.62);
     fillRR(ctx, bx, by, bw, gy - by, 8, '#c9b6a0', OUT, 4);
     var wins = [[0.12, 0.08], [0.58, 0.08], [0.12, 0.38], [0.58, 0.38], [0.12, 0.68], [0.58, 0.68]];
     var wh = (gy - by) * 0.22, ww = bw * 0.3;
     wins.forEach(function (w) { fillRR(ctx, bx + bw * w[0], by + (gy - by) * w[1], ww, wh, 6, '#bfe6fb', OUT, 3); });
-    var fl = clamp(1 - prog / 4, 0, 1);
-    if (fl > 0.02) {
+    var fl = hide ? 0 : clamp(1 - prog / 4, 0, 1);
+    if (hide) {
+      circle(ctx, bx + bw * 0.5, by - 10, 14, 'rgba(110,110,110,0.35)');
+    } else if (fl > 0.02) {
       [[3, 0], [4, 1], [5, 2]].forEach(function (f, i) {
         var w = wins[f[0]], fx = bx + bw * w[0] + ww / 2, fy = by + (gy - by) * w[1] + wh * 0.9;
         ctx.save(); ctx.translate(fx, fy); var s = Math.min(wh * 1.6, ww * 1.5) * fl * (1 + 0.04 * Math.sin(now * 6 + i));
@@ -274,7 +278,7 @@
     }
   }
 
-  function drawTakai(ctx, prog, fxT, now, H, gy, vs, vy, Vh) {
+  function drawTakai(ctx, prog, fxT, now, H, gy, vs, vy, Vh, hide) {
     var trx = W * 0.84, cr = Math.min(W * 0.1, H * 0.11);
     var cs = clamp(H * 0.13, 46, 90);
     var boardBottom = H * 0.03 + Math.min(H * 0.53, W * 0.62);
@@ -292,7 +296,7 @@
     var nx = (ey - by), ny = -(ex - bx), nl = Math.hypot(nx, ny) || 1; nx = nx / nl * 9; ny = ny / nl * 9;
     lineExt(ctx, bx, by, lx, ly, nx, ny);
     if (prog >= 3.99) cy -= Math.abs(Math.sin(now * 5)) * 14;   // ねこがうれしくてぴょん
-    drawCat(ctx, trx, cy, cs, now);
+    if (!hide) drawCat(ctx, trx, cy, cs, now);
   }
   function lineExt(ctx, x1, y1, x2, y2, nx, ny) {
     linepx(ctx, x1 + nx, y1 + ny, x2 + nx, y2 + ny, 7, OUT); linepx(ctx, x1 - nx, y1 - ny, x2 - nx, y2 - ny, 7, OUT);
@@ -301,9 +305,9 @@
     for (var i = 1; i <= n; i++) { var t = i / n; linepx(ctx, lerp(x1, x2, t) + nx, lerp(y1, y2, t) + ny, lerp(x1, x2, t) - nx, lerp(y1, y2, t) - ny, 4, '#b9b9b9'); }
   }
 
-  function drawMichi(ctx, prog, fxT, now, H, gy, vs, vy, Vh) {
+  function drawMichi(ctx, prog, fxT, now, H, gy, vs, vy, Vh, hide) {
     var hx = W * 0.72, hy = gy - 4;
-    var cnt = Math.ceil(ROCKS.length * clamp(1 - prog / 4, 0, 1) - 0.001);
+    var cnt = hide ? 0 : Math.ceil(ROCKS.length * clamp(1 - prog / 4, 0, 1) - 0.001);
     var rs = clamp(H * 0.13, 36, 80);
     for (var i = 0; i < cnt; i++) {
       var r = ROCKS[i];

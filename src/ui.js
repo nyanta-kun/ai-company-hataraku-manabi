@@ -72,11 +72,16 @@
   function drawAllIcons() { [].forEach.call(doc.querySelectorAll('canvas[data-icon]'), function (cv) { drawIcon(cv, cv.getAttribute('data-icon')); }); }
 
   // ---- 画面切替 ----
+  var lockUntil = 0;
   function show(name) {
     screen = name;
+    if (name !== 'reward') clearTimers();   // ごほうびの「げっと」などを画面を離れたら止める
+    lockUntil = now() + 0.4;                // 遷移直後の二度押しを無視
+    if (name !== 'play' && name !== 'reward') SP.cancel();
     [].forEach.call(doc.querySelectorAll('.screen'), function (s) { s.classList.toggle('active', s.id === 's-' + name); });
     updateVoiceMark();
     if (name === 'title') { drawTitle(); kick(); }
+    if (name === 'pick') later(300, function () { say('どっちで しゅつどう？'); });
     if (name === 'garage') buildGarage();
     if (name === 'parent') fillParent();
     if (name === 'play' && stage) { stage.resize(); stage.draw(now()); }
@@ -166,7 +171,7 @@
 
   function presentQuestion() {
     var q = run.qs[run.idx];
-    run.wrong = 0; run.off = []; run.busy = false; run.t0 = now();
+    run.wrong = 0; run.off = []; run.busy = false; run.counting = false; run.t0 = now();
     stage.setProblem(q);
     renderAnswers(q);
     stage.draw(now());
@@ -199,7 +204,7 @@
     run.off.push(v);
     btn.classList.add('off', 'shake'); btn.classList.remove('glow');
     sfx('oshii');
-    say('おしい！もういちど');
+    say(q.kind === 'letter' ? exampleOf(v) + 'の ' + v + '。おしい！もういちど' : 'おしい！もういちど');
     var left = answerButtons().filter(function (b) { return !b.classList.contains('off'); });
     var voiceless = SP.isVoiceless() || !data.sound.voice;
     if (run.wrong >= 2 || left.length <= 1 || (q.kind === 'letter' && voiceless)) {
@@ -215,10 +220,13 @@
   }
   // 数えるものを 1 つずつ光らせて数え聞かせる
   function countAloud(q) {
+    if (run.counting) return;               // 数え聞かせ中は二重に始めない
+    run.counting = true;
     var my = run.token, total = stage.items.length;
     stage.clearMarks();
     var tick = function (i) {
-      if (!run || run.token !== my || run.busy || i >= total) return;
+      if (!run || run.token !== my) return;
+      if (run.busy || i >= total) { run.counting = false; return; }
       var n = stage.mark(i);
       stage.bounce(i, now());
       sfx('pon', n); say(NUMK[n]); kick();
@@ -228,7 +236,7 @@
   }
 
   function onCorrect(q, btn) {
-    run.busy = true;
+    run.busy = true; run.counting = false; stage.reveal = true;
     var first = run.wrong === 0;
     if (first) run.firstTry++;
     answerButtons().forEach(function (b) { b.classList.remove('glow'); });
@@ -394,7 +402,10 @@
     applySound();
     SP.onChange(function () { updateVoiceMark(); if (screen === 'parent') voiceNote(); });
     doc.addEventListener('pointerdown', unlockOnce, true);
-    doc.addEventListener('click', unlockOnce, true);
+    doc.addEventListener('click', function (e) {
+      if (now() < lockUntil) { e.stopPropagation(); e.preventDefault(); return; }
+      unlockOnce();
+    }, true);
     root.addEventListener('resize', function () {
       if (screen === 'play' && stage) { stage.resize(); stage.draw(now()); }
       if (screen === 'title') drawTitle();
