@@ -74,3 +74,22 @@ test('データ: 車は11種で id が重複しない、現場の関連車は実
   assert.deepEqual(D.CARS.map(c => c.stage), [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]);
   for (const s of D.SCENES) D.SCENE_CARS[s].forEach(i => assert.ok(IDS.includes(i)));
 });
+
+test('applyReward: 結果の★と反映後の cards が一致し、元の cards は書き換えない', () => {
+  for (let s = 1; s <= 300; s++) {
+    const rng = rngOf(s);
+    let cards = {};
+    for (let i = 0; i < 40; i++) {
+      const before = JSON.stringify(cards);
+      const a = R.applyReward(cards, D.SCENES[i % 3], rng);
+      assert.equal(JSON.stringify(cards), before);
+      if (a.r.sticker) assert.deepEqual(a.cards, cards);
+      else {
+        assert.equal(a.cards[a.r.id], a.r.stars);
+        assert.ok(a.r.stars >= 1 && a.r.stars <= 3);
+      }
+      cards = a.cards;
+    }
+    assert.ok(IDS.every(id => cards[id] === 3), 'seed ' + s);
+  }
+});

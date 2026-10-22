@@ -259,13 +259,19 @@
     });
   }
 
+  // ごほうびを抽選して data.cards に反映する（通常の流れと確認パネルで共通）
+  function grantReward(scene) {
+    var a = R.applyReward(data.cards, scene, Math.random);
+    data.cards = a.cards;
+    return a.r;
+  }
+
   function finishSession() {
     var game = run.game, st = data.stats;
     st.sessions++; st[game].sessions++;
     st[game].questions += P.QUESTIONS_PER_SESSION; st[game].firstTry += run.firstTry;
     data.levels[game] = P.nextLevel(game, run.level, run.firstTry, data.locked[game]);
-    var r = R.pickReward(data.cards, run.scene, Math.random);
-    if (!r.sticker) data.cards[r.id] = r.stars;
+    var r = grantReward(run.scene);
     data.lastPlayed = todayStr();
     save();
     reward = { r: r, t0: 0 };
@@ -477,11 +483,11 @@
     get data() { return data; },
     setData: function (d) { data = d; applySound(); save(); },
     gotoReward: function (scene) {
-      var r = R.pickReward(data.cards, scene || 'kaji', Math.random);
+      var r = grantReward(scene || 'kaji');
+      save();
       reward = { r: r, t0: 0 }; show('reward');
     },
     previewGarage: function () {
-      if (!Object.keys(data.cards).length) { ['shoubousha', 'mizutank', 'hashigo', 'shovel', 'dump'].forEach(function (id, i) { data.cards[id] = (i % 3) + 1; }); }
       show('garage');
     },
     current: function () { return run ? run.qs[run.idx] : null; },
