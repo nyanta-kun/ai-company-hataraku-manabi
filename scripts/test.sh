@@ -1,5 +1,5 @@
 #!/bin/bash
-# この案件のテストをここに書く。失敗したら 0 以外で終わること。
-# 実装が始まったら worker がこのファイルを更新する。
+# この案件のテスト。失敗したら 0 以外で終わる。
 set -euo pipefail
-echo "テストはまだありません"
+cd "$(dirname "$0")/.."
+node --test tests/*.test.js
