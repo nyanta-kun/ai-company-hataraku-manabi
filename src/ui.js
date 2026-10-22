@@ -443,7 +443,9 @@
       var n = data.cards[car.id] || 0; if (n) have++;
       // button だと iOS Safari が中身の高さを枠に数えず、絵と名前が枠の外にはみ出すので div にする
       var el = doc.createElement('div');
-      el.setAttribute('role', 'button'); el.className = 'slot' + (n ? '' : ' none');
+      el.setAttribute('role', 'button'); el.tabIndex = 0; el.className = 'slot' + (n ? '' : ' none');
+      el.setAttribute('aria-label', n ? car.name : 'まだ いない くるま');
+      el.addEventListener('keydown', function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); el.click(); } });
       var stars = ''; for (var i = 1; i <= 3; i++) stars += i <= n ? '★' : '☆';
       el.innerHTML = '<canvas></canvas><div class="nm"></div><div class="st"></div>';
       el.querySelector('.nm').textContent = n ? car.name : '？';

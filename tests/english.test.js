@@ -161,4 +161,6 @@ test('E1: 聞き分けにくい「〜 truck」同士（truck・fire truck・dump
 test('読み上げ用の表記 YOMI / CAR_YOMI は実在する語・車だけを指し、空でない', () => {
   for (const [id, y] of Object.entries(D.YOMI)) { assert.ok(D.WORDS.find(w => w.id === id), id); assert.ok(y.length > 0); }
   for (const [id, y] of Object.entries(D.CAR_YOMI)) { assert.ok(D.CARS.find(c => c.id === id), id); assert.ok(y.length > 0); }
+  // 「はしご車」「ごみ収集車」などは端末の読み上げで「くるま」になる。しゃ と読まれることを確かめた語（救急車・消防車・電車・機関車）だけ漢字の「車」を使う
+  for (const y of [...Object.values(D.YOMI), ...Object.values(D.CAR_YOMI)]) assert.ok(!/車/.test(y.replace(/救急車|消防車|電車|機関車/g, '')), y);
 });
