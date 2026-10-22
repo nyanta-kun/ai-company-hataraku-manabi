@@ -125,8 +125,7 @@
   function applySound() { A.setEnabled(data.sound.sfx); SP.setEnabled(data.sound.voice); }
   function sfx(name, arg) { A.play(name, arg); }
   function say(text, opts) { return SP.speak(text, opts); }
-  function sayEn(text) { return SP.speak(text, { lang: 'en' }); }
-  function seq(items) { return SP.speakSeq(items); }
+  function seq(items, opts) { return SP.speakSeq(items, opts); }
   var unlocked = false;
   function unlockOnce() {
     A.unlock();                       // タップのたびに resume を試みる（タッチは pointerup/click で許可されるため）
@@ -201,7 +200,7 @@
     if (p.kind === 'count') return 'いくつ あるかな？';
     if (p.kind === 'add') return NUMK[p.a] + ' たす ' + NUMK[p.b] + ' は？';
     if (p.kind === 'clock') return p.form === 'read' ? 'とけいを みてね。しゅつどうの じかんは なんじ？' : 'しゅつどうは ' + P.readTime(p.h, p.m) + '。どの とけい？';
-    if (p.kind === 'english') return p.ja + 'は どれ？';
+    if (p.kind === 'english') return p.form === 'number' ? 'かずが ' + p.ja + ' の ものは どれ？' : p.ja + 'は どれ？';
     var w = wordOf(p.wordId);
     return w.speech + '。さいしょのもじは？';
   }
@@ -231,6 +230,8 @@
     if (!run || run.game !== 'english' || !stage) return;
     var q = run.qs[run.idx], want = q && enOff() ? q.en : '';
     if ((stage.caption || '') !== want) { stage.setCaption(want); kick(); }
+    // 1回目の誤答のあとで英語の失敗が確定したときも、その問題の正解を光らせる
+    if (want && run.wrong >= 1 && !run.busy) answerButtons().forEach(function (b) { if (b.getAttribute('data-v') === String(q.answer)) b.classList.add('glow'); });
   }
   function presentQuestion() {
     var q = run.qs[run.idx];
@@ -340,17 +341,18 @@
     if (first) run.firstTry++;
     answerButtons().forEach(function (b) { b.classList.remove('glow'); });
     sfx('correct');
-    var done = run.idx + 1;
+    var done = run.idx + 1, my0 = run.token;
+    run.countWait = false;
     if (q.kind === 'letter') say('そう！ ' + D.toHira(q.answer) + '！ ' + correctExample(q) + 'の ' + D.toHira(q.answer));
     else if (q.kind === 'clock') say('そう！ ' + P.readTime(q.h, q.m) + '！');
     else if (q.kind === 'english') {
       var ok = [{ text: 'そう！', lang: 'ja' }, { text: q.en + '!', lang: 'en' }];
       if (q.form === 'number') ok.push({ text: D.NUM_EN.slice(1, q.n + 1).join(', '), lang: 'en', gap: 300 });   // 数のものを 1 つずつ数える（1 回の読み上げ）
-      seq(ok);
+      if (q.form === 'number') { run.countWait = true; if (!seq(ok, { onend: function () { if (run && run.token === my0) run.countWait = false; } })) run.countWait = false; }
+      else seq(ok);
     }
     else say('そう！ ' + NUMK[q.answer] + '！');
     updateLamps(done);
-    var my0 = run.token;
     later(700, function () {
       sfx(run.scene === 'kaji' ? 'water' : run.scene === 'takai' ? 'ladder' : 'dig');
       sfx('horn');
@@ -359,11 +361,14 @@
     stage.advance(done, now(), done === P.QUESTIONS_PER_SESSION ? 2.4 : 1.6);
     kick();
     var my = run.token;
-    later(done === P.QUESTIONS_PER_SESSION ? 3300 : 2300, function () {
+    var t0 = now(), minMs = done === P.QUESTIONS_PER_SESSION ? 3300 : 2300;
+    function advanceWhenReady() {   // えいごの数え上げ（one, two, ...）は最後まで聞かせる。終わらなくても 15 秒で進む
       if (!run || run.token !== my) return;
+      if (run.countWait && now() - t0 < 15) { later(200, advanceWhenReady); return; }
       run.idx++;
       if (run.idx >= P.QUESTIONS_PER_SESSION) finishSession(); else presentQuestion();
-    });
+    }
+    later(minMs, advanceWhenReady);
   }
 
   // ごほうびを抽選して data.cards に反映する（通常の流れと確認パネルで共通）
@@ -575,8 +580,8 @@
       var q = run.qs[run.idx]; if (!q) return;
       var r = this.getBoundingClientRect();
       if (q.kind === 'letter') { stage.bouncePic(now()); say(promptText(q)); kick(); return; }
-      if (q.kind === 'clock') { say(promptText(q)); kick(); return; }
-      if (q.kind === 'english') { sayPrompt(q); stage.bouncePic(now()); kick(); return; }   // スピーカーをタップ: もう一度きく   // 時計をタップ: 問題をもう一度（答えは言わない）
+      if (q.kind === 'clock') { say(promptText(q)); kick(); return; }   // 時計をタップ: 問題をもう一度（答えは言わない）
+      if (q.kind === 'english') { sayPrompt(q); stage.bouncePic(now()); kick(); return; }   // スピーカーをタップ: もう一度きく
       var i = stage.hit(e.clientX - r.left, e.clientY - r.top);
       var n = stage.mark(i);
       if (n) { stage.bounce(i, now()); sfx('pon', n); say(NUMK[n]); kick(); }

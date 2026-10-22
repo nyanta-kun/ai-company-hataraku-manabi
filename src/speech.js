@@ -4,9 +4,10 @@
 (function (root) {
   'use strict';
 
-  // macOS などに入っている、効果音のような声（ノベルティボイス）。英語の声として選ばない
-  var NOVELTY = /(^|\s)(Albert|Bad News|Bahh|Bells|Boing|Bubbles|Cellos|Deranged|Good News|Hysterical|Jester|Organ|Pipe Organ|Superstar|Trinoids|Whisper|Wobble|Zarvox)(\s|$)/i;
-  var SEQ_FALLBACK_MS = 6000;   // 連続読み上げで onend が来ないときに、次へ進むまでの保険
+  // macOS などに入っている、効果音のような声・機械的な古い声・Eloquence 系の声（ノベルティボイス）。英語の声として選ばない
+  var NOVELTY = /(^|\s)(Albert|Bad News|Bahh|Bells|Boing|Bubbles|Cellos|Deranged|Good News|Hysterical|Jester|Organ|Pipe Organ|Superstar|Trinoids|Whisper|Wobble|Zarvox|Fred|Junior|Ralph|Kathy|Eddy|Flo|Grandma|Grandpa|Reed|Rocko|Sandy|Shelley)(\s|$)/i;
+  var SEQ_START_MS = 3000;    // 連続読み上げで、発話が始まらない（開始失敗の判定と同じ 3 秒）ときに、次へ進むまでの保険
+  var SEQ_MAX_MS = 15000;     // 始まったのに onend が来ないときの上限
 
   function isEn(v) { return /^en([-_]|$)/i.test(v.lang || ''); }
   // 英語の声を選ぶ。en-US かつ端末内 → en-* かつ端末内 → en-US の端末外 → en-*（端末外）。ノベルティボイスは除く
@@ -36,6 +37,7 @@
       en: { voice: null, failed: false, reason: '', noStart: 0 }
     };
     var seq = 0;               // 発話の通し番号。cancel や次の発話で古いものは無効になる
+    var epoch = 0, busy = 0;   // busy = 終わっていない発話の数（epoch が変わると数え直す）。前の発話の後ろに並んだ発話は開始失敗に数えない
     var listeners = [];
 
     function notify() { listeners.forEach(function (f) { try { f(); } catch (e) {} }); }
@@ -83,12 +85,14 @@
     function available() { return avail('ja'); }
     function isVoiceless() { return !available(); }
     function enAvailable() { return avail('en'); }
-    function cancel() { seq++; if (synth) { try { synth.cancel(); } catch (e) {} } }
+    // 出した発話を全部止める（seq は進めない）。連鎖の途中で止まった発話を捨てて次へ進むときに使う
+    function flush() { epoch++; busy = 0; if (synth) { try { synth.cancel(); } catch (e) {} } }
+    function cancel() { seq++; flush(); }
     function setEnabled(v) { enabled = !!v; if (!enabled) cancel(); }
     function onChange(f) { listeners.push(f); }
 
     // 1 つの発話を出す（cancel しない・seq を進めない）。戻り値: 読み上げを試みたか
-    function speakRaw(text, lang, onend) {
+    function speakRaw(text, lang, onend, hooks) {
       var st = L[lang];
       if (!avail(lang) || !text) return false;
       try {
@@ -97,11 +101,14 @@
         if (lang === 'en') { u.lang = (st.voice && st.voice.lang) || 'en-US'; u.rate = 0.8; u.pitch = 1.0; }
         else { u.lang = 'ja-JP'; u.rate = 0.85; u.pitch = 1.1; }
         if (st.voice) u.voice = st.voice;
-        var started = false;
-        u.onstart = function () { started = true; st.noStart = 0; };
-        u.onend = function () { if (onend) onend(); };
+        var started = false, behind = busy > 0, ep = epoch, fin = false;
+        busy++;
+        function done() { if (fin) return; fin = true; if (ep === epoch && busy > 0) busy--; }
+        u.onstart = function () { started = true; st.noStart = 0; if (hooks && hooks.onstart) hooks.onstart(); };
+        u.onend = function () { done(); if (onend) onend(); };
+        u.onerror = function () { done(); if (hooks && hooks.onerror) hooks.onerror(); };
         later(function () {
-          if (started || st.failed || my !== seq) return;   // 開始した／後続の発話で置き換わった
+          if (started || st.failed || my !== seq || behind || fin && ep !== epoch) return;   // 開始した／後続の発話で置き換わった／前の発話の後ろで待っていた
           st.noStart++;
           if (st.noStart >= 2) setFailed(lang, 'nostart');
         }, 3000);
@@ -138,9 +145,12 @@
         function go() {
           if (my !== seq) return;
           var moved = false;
+          var started = false;
           function next() { if (moved || my !== seq) return; moved = true; step(i + 1); }
-          if (!speakRaw(it.text, it.lang, next)) { next(); return; }
-          later(next, SEQ_FALLBACK_MS);   // onend が来ない端末でも止まらない
+          function skip() { if (moved || my !== seq) return; flush(); next(); }   // 止まった発話を捨てて次へ（日本語がその後ろで待たされない）
+          if (!speakRaw(it.text, it.lang, next, { onstart: function () { started = true; }, onerror: next })) { next(); return; }
+          later(function () { if (!started) skip(); }, SEQ_START_MS);   // 始まらない
+          later(skip, SEQ_MAX_MS);                                       // 終わらない
         }
         if (it.gap) later(go, it.gap); else go();
       }
@@ -149,7 +159,11 @@
     }
 
     function forceVoiceless() { setFailed('ja', 'forced'); }
-    function forceNoEnglish() { setFailed('en', 'forced'); }
+    // 英語を使えなくする（確認用）。on===false で元に戻す
+    function forceNoEnglish(on) {
+      if (on === false) { if (L.en.failed) { L.en.failed = false; L.en.reason = ''; L.en.noStart = 0; notify(); } }
+      else setFailed('en', 'forced');
+    }
 
     return {
       init: init, speak: speak, speakSeq: speakSeq, cancel: cancel, available: available, isVoiceless: isVoiceless,

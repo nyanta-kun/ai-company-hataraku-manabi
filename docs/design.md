@@ -54,6 +54,15 @@
 - 答えボタンを出したあとに `stage.resize()` で現場の Canvas を測り直す（時計ボタンが高く、測り直さないと縦に伸びて時計が楕円になる）。
 - 保存データは `levels.clock`・`locked.clock`・`stats.clock` を足しただけ（バージョン 1 のまま、`normalize` が旧データを補完）。
 
+## えいご（4つめのミニゲーム）の実装メモ
+- 構成: 語彙 `data.ENGLISH_WORDS`（14語）・`NUM_EN`、問題生成 `problems.generateEnglish / generateSession('english')`（`tests/english.test.js`）、読み上げ `speech.speakSeq`（`tests/speech.test.js`）。E1=乗り物の英語→絵3択、E2=英語の数1〜5→3択、E3=1〜10→4択。1出動は答えが重複しない4問。`seen.english` は持たない（出動内の重複回避のみ）。
+- 英語の声の選び方: en-US かつ端末内 → en-* かつ端末内 → en-US の端末外 → en-*。**端末外の声は日本語と同じく最後の手段として許可する（暫定判断。企画 U6 は未決）**。ノベルティ・機械的な声・Eloquence 系（Zarvox・Bells・Fred・Junior・Ralph・Kathy・Eddy・Flo・Grandma・Grandpa・Reed・Rocko・Sandy・Shelley など）は名前で除外する。実機での確認は未了（U7）。
+- 判定は言語ごとに分離（`failed` / `noStart` / `reason`）。英語が失敗しても日本語は声なしにならない。連続読み上げ `speakSeq` は、発話が3秒始まらなければ synth.cancel() で捨てて次へ進み（seq は進めない）、日本語を詰まった英語の後ろで待たせない。前の発話の後ろで待っていた発話は開始失敗に数えない。
+- 英語の声が使えないとき（声なし・失敗・保護者が読み上げオフ）は、出動えらびの「えいご」をグレー＋スピーカー×にして出動させない（タップで「おしい」音と、日本語の声があれば「えいごの こえが ないよ」）。判定は画面を開くたびと声の状態が変わるたびに見直す。出動の途中で失敗したら続行し、英語を字幕で出して、1回目の誤答で正解を光らせる。
+- E2/E3 は正解後の数え上げ（one, two, ...）を最後まで読ませてから次の問題へ進む（上限15秒）。数のものは正解時に一度に表示する（1つずつは出さない）。
+- E1 の選択肢は `group` が違う語だけ。「〜 truck」系（truck・fire truck・dump truck・garbage truck）は同じ group にして並べない。
+- 出動えらびは4ボタン（縦 2×2・横 4列）。`#debug:play-english-E1-kaji-0`、確認パネルに E1〜E3 と「えいご声なし」（切替）。
+
 ## 確認方法
 - `scripts/test.sh`（`node --test tests/*.test.js`）。
 - `index.html#debug` で確認パネル（レベル切替・全車★3・声なしモード・エラー表示 `#errlog`）。`#debug:play-math-M3-kaji-2`（画面-ゲーム-レベル-現場-進み）、`#debug:play-letter-K3-takai`、`#debug:play-clock-T3-kaji-0`、`#debug:reward-kaji`、`#debug:garage`、`#debug:parent`、`#debug:pick` で画面へ直接移動。

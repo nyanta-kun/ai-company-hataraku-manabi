@@ -43,7 +43,10 @@
     ['K1', 'K2', 'K3', 'K4', 'K5', 'K6'].forEach(function (lv) { btn(lv, function () { ui.data.levels.letter = lv; ui.data.locked.letter = true; ui.setData(ui.data); ui.startSession('letter', { fast: true }); }); });
     ['T1', 'T2', 'T3'].forEach(function (lv) { btn(lv, function () { ui.data.levels.clock = lv; ui.data.locked.clock = true; ui.setData(ui.data); ui.startSession('clock', { fast: true }); }); });
     ['E1', 'E2', 'E3'].forEach(function (lv) { btn(lv, function () { ui.data.levels.english = lv; ui.data.locked.english = true; ui.setData(ui.data); ui.startSession('english', { fast: true }); }); });
-    btn('えいご声なし', function () { M.speech.forceNoEnglish(); });
+    btn('えいご声なし', function (e) {   // 切り替え（もう一度押すと戻る）
+      var off = M.speech.enAvailable(); M.speech.forceNoEnglish(off ? undefined : false);
+      e.target.textContent = off ? 'えいご声あり' : 'えいご声なし';
+    });
     btn('ごほうび', function () { ui.gotoReward('kaji'); });
     btn('全車★3', function () { D.CARS.forEach(function (c) { ui.data.cards[c.id] = 3; }); ui.setData(ui.data); });
     btn('全車なし', function () { ui.data.cards = {}; ui.setData(ui.data); });

@@ -142,3 +142,12 @@ test('保存: english が無い旧データでは E1・未固定・stats 0。不
   assert.equal(S.normalize({ locked: { english: true } }).locked.english, true);
   assert.deepEqual(S.normalize(S.defaults()), S.defaults());
 });
+
+test('E1: 聞き分けにくい「〜 truck」同士（truck・fire truck・dump truck・garbage truck）を同じ問題に並べない', () => {
+  const trucks = ['truck', 'fire', 'dump', 'garbage'];
+  const r = rngOf(41);
+  for (let i = 0; i < N; i++) {
+    const p = P.generateEnglish('E1', r);
+    assert.ok(p.choices.filter(c => trucks.includes(c)).length <= 1, JSON.stringify(p.choices));
+  }
+});

@@ -132,9 +132,9 @@
   var TIME_KANA = ['', 'いちじ', 'にじ', 'さんじ', 'よじ', 'ごじ', 'ろくじ', 'しちじ', 'はちじ', 'くじ', 'じゅうじ', 'じゅういちじ', 'じゅうにじ'];
 
   // えいご E1 の語彙（plan 3.2。14語）。en は読み上げ用（小文字の英字とスペースだけ）、ja は日本語の補助（ひらがな）。
-  // group が同じ語は同じ問題の選択肢に並べない（重機／救助／バス系／空・海・レール）
+  // group が同じ語は同じ問題の選択肢に並べない（truck / fire truck / dump truck など「〜 truck」は聞き分けにくいので重機と同じ group）
   var ENGLISH_WORDS = [
-    { id: 'fire',      en: 'fire truck',    ja: 'しょうぼうしゃ',       pic: 'v8',       group: 'rescue' },
+    { id: 'fire',      en: 'fire truck',    ja: 'しょうぼうしゃ',       pic: 'v8',       group: 'heavy' },
     { id: 'ambulance', en: 'ambulance',     ja: 'きゅうきゅうしゃ',     pic: 'v7',       group: 'rescue' },
     { id: 'police',    en: 'police car',    ja: 'ぱとかー',             pic: 'patrol',   group: 'rescue' },
     { id: 'dump',      en: 'dump truck',    ja: 'だんぷかー',           pic: 'v6',       group: 'heavy' },
