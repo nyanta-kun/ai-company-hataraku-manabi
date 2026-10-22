@@ -8,7 +8,7 @@
   var PROMOTE_AT = 4;              // 1 回目正解がこれ以上なら昇級
   var DEMOTE_AT = 1;               // 1 回目正解がこれ以下なら降級
 
-  var LEVELS = { math: ['M1', 'M2', 'M3', 'M4', 'M5'], letter: ['K1', 'K2', 'K3', 'K4', 'K5', 'K6'], clock: ['T1', 'T2', 'T3'] };
+  var LEVELS = { math: ['M1', 'M2', 'M3', 'M4', 'M5'], letter: ['K1', 'K2', 'K3', 'K4', 'K5', 'K6'], clock: ['T1', 'T2', 'T3'], english: ['E1', 'E2', 'E3'] };
   // 数のレベル: max = 選択肢の範囲の上限、choices = 選択肢の数
   var MATH = {
     M1: { kind: 'count', max: 3,  choices: 3 },
@@ -28,6 +28,13 @@
     T1: { form: 'read', half: false, choices: 2 },
     T2: { form: 'pick', half: false, choices: 4 },
     T3: { form: 'pick', half: true,  choices: 4 }
+  };
+
+  // えいご: form = word（乗り物の英語を聞いて絵を選ぶ）/ number（英語の数を聞いて数を選ぶ）
+  var ENGLISH = {
+    E1: { form: 'word',   choices: 3 },
+    E2: { form: 'number', max: 5,  choices: 3 },
+    E3: { form: 'number', max: 10, choices: 4 }
   };
 
   function defRng(rng) { return typeof rng === 'function' ? rng : Math.random; }
@@ -243,11 +250,49 @@
     return { kind: 'clock', level: level, form: 'pick', h: h, m: m, choices: shuffle(choices, rng), answer: ans };
   }
 
+  // ---- えいご ----
+  // 指定の答え（E1 は語の id、E2/E3 は数）で 1 問作る。E1 の誤答は、正解や互いに違う group の語から選ぶ
+  function buildEnglish(level, answer, rng) {
+    var L = ENGLISH[level];
+    if (L.form === 'number') {
+      return { kind: 'english', level: level, form: 'number', n: answer, en: D.NUM_EN[answer], ja: D.NUM_KANA[answer],
+        choices: numberChoices(answer, L.max, L.choices, rng), answer: answer };
+    }
+    var word = D.ENGLISH_WORDS.filter(function (w) { return w.id === answer; })[0];
+    var out = [], groups = {}; groups[word.group] = true;
+    shuffle(D.ENGLISH_WORDS, rng).forEach(function (w) {
+      if (out.length >= L.choices - 1 || groups[w.group]) return;
+      groups[w.group] = true; out.push(w.id);
+    });
+    out.push(word.id);
+    return { kind: 'english', level: level, form: 'word', wordId: word.id, en: word.en, ja: word.ja, pic: word.pic,
+      choices: shuffle(out, rng), answer: word.id };
+  }
+  function englishKeys(level) {
+    var L = ENGLISH[level], out = [], i;
+    if (L.form === 'number') for (i = 1; i <= L.max; i++) out.push(i);
+    else D.ENGLISH_WORDS.forEach(function (w) { out.push(w.id); });
+    return out;
+  }
+  // 1 問だけ作る。prevKey（直前の語の id または数）は避ける
+  function generateEnglish(level, rng, prevKey) {
+    rng = defRng(rng);
+    if (!ENGLISH[level]) throw new RangeError('english level: ' + level);
+    var keys = englishKeys(level).filter(function (k) { return k !== prevKey; });
+    return buildEnglish(level, keys[randInt(rng, 0, keys.length - 1)], rng);
+  }
+  // 1 回の出動の 4 問。答えは重複させない（語・数とも 4 通り以上ある）。順番は無作為だが連続は起きない
+  function generateEnglishSession(level, rng) {
+    if (!ENGLISH[level]) throw new RangeError('english level: ' + level);
+    return shuffle(englishKeys(level), rng).slice(0, QUESTIONS_PER_SESSION).map(function (k) { return buildEnglish(level, k, rng); });
+  }
+
   function sameProblem(p, q) {
     if (!p || !q || p.kind !== q.kind) return false;
     if (p.kind === 'count') return p.n === q.n;
     if (p.kind === 'add') return p.a === q.a && p.b === q.b;
     if (p.kind === 'clock') return p.h === q.h && p.m === q.m;
+    if (p.kind === 'english') return p.form === 'number' ? p.n === q.n : p.wordId === q.wordId;
     return p.wordId === q.wordId;
   }
 
@@ -258,6 +303,7 @@
       if (!LETTER[level]) throw new RangeError('letter level: ' + level);
       return pickWords(level, rng, D.cleanSeen(recentPics)).map(function (w) { return buildLetter(level, w, rng); });
     }
+    if (game === 'english') return generateEnglishSession(level, rng);
     var list = [], tries = 0;
     while (list.length < QUESTIONS_PER_SESSION) {
       var prev = list[list.length - 1], p;
@@ -287,7 +333,8 @@
 
   var api = {
     QUESTIONS_PER_SESSION: QUESTIONS_PER_SESSION, PROMOTE_AT: PROMOTE_AT, DEMOTE_AT: DEMOTE_AT,
-    LEVELS: LEVELS, MATH: MATH, LETTER: LETTER, CLOCK: CLOCK,
+    LEVELS: LEVELS, MATH: MATH, LETTER: LETTER, CLOCK: CLOCK, ENGLISH: ENGLISH,
+    generateEnglish: generateEnglish, buildEnglish: buildEnglish,
     generateCounting: generateCounting, generateAddition: generateAddition,
     generateLetter: generateLetter, buildLetter: buildLetter, generateClock: generateClock, handAngles: handAngles, readTime: readTime,
     clockKey: clockKey, sameProblem: sameProblem, generateSession: generateSession, nextLevel: nextLevel
