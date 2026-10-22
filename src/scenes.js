@@ -303,7 +303,7 @@
       circle(ctx, bx + bw * 0.5, by + 14, 9, 'rgba(255,255,255,0.0)');
     }
     var tx = W * 0.2;
-    Vh.drawVehicle(ctx, 8, tx, vy, vs);
+    Vh.drawVehicle(ctx, 8, tx, vy, vs, -1);   // 現場に止めた車は、放水口・はしごなど付属物のある側(絵の向き)を保つ
     var nozX = tx + vs * 0.3, nozY = vy - vs * 0.28, tgtX = bx + bw * 0.5, tgtY = by + (gy - by) * 0.4;
     if (fxT >= 0 && fxT < 0.85) {
       for (var i = 0; i < 26; i++) {
@@ -324,7 +324,7 @@
     circle(ctx, trx, crownY, cr, '#4aa04a', OUT, 4); circle(ctx, trx - cr * 0.6, crownY + cr * 0.4, cr * 0.65, '#55b155', OUT, 4);
     circle(ctx, trx + cr * 0.6, crownY + cr * 0.4, cr * 0.65, '#55b155', OUT, 4);
     var tx = W * 0.2;
-    Vh.drawVehicle(ctx, 10, tx, vy, vs);
+    Vh.drawVehicle(ctx, 10, tx, vy, vs, -1);   // はしごの根もと(bx)が車の向きと合う側
     // はしご: 車のうしろの根もとから、ねこへ。長さが進み具合で伸びる
     var bx = tx - vs * 0.05, by = vy - vs * 0.25, ex = trx - cr * 0.3, ey = cy + cs * 0.4;
     var f = 0.3 + 0.7 * clamp(prog / 4, 0, 1);

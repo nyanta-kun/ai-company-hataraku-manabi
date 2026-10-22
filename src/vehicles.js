@@ -237,15 +237,18 @@
   }
 
   // ---- 公開 API ----
+  // 絵そのものの「前（運転席・先頭）」の向き。1=右、-1=左。ねこぐるま(1)・フォークリフト(2)・しょべるかー(4)は右向きに描いてある。
+  // 新しい乗り物は左向き(-1)に描く（FRONT に載せなければ -1 とみなす）。
+  var FRONT = { 1: 1, 2: 1, 4: 1 };
+  function frontOf(stage) { return FRONT[stage] === 1 ? 1 : -1; }
   // 乗り物 stage(1..11) を、中心 (x, y)・おおよそ size px 四方に収めて描く。
-  // facing: 進む向き。1(既定)=右、-1=左。絵そのものは「運転席側が左」で描いてあるので、
-  //   右向きのときは左右反転する（常に運転席が進む側＝前進して見える）。
+  // facing: 前を向ける向き。1(既定)=右、-1=左。絵の前の向きと違うときだけ左右反転する。
   //   反転は絵の中だけ（呼び出し側の座標・文字は反転しない）。車体に文字を描くときは反転の外で描くこと。
   function drawVehicle(ctx, stage, x, y, size, facing) {
-    var s = size / 1.8;
+    var s = size / 1.8, f = facing === -1 ? -1 : 1, flip = frontOf(stage) !== f;
     ctx.save();
     ctx.translate(x, y);
-    if (facing !== -1) ctx.scale(-1, 1);
+    if (flip) ctx.scale(-1, 1);
     ctx.translate(-0.05 * s, 0.14 * s);
     ctx.scale(s, s);
     ctx.lineJoin = 'round';
@@ -280,7 +283,7 @@
   }
 
   var api = {
-    draw: draw, drawVehicle: drawVehicle, drawPic: drawPic, drawSilhouette: drawSilhouette,
+    draw: draw, drawVehicle: drawVehicle, frontOf: frontOf, drawPic: drawPic, drawSilhouette: drawSilhouette,
     drawFlame: drawFlame, drawHose: drawHose, star: star, rr: rr, circ: circ, poly: poly, line: line,
     OUT: OUT
   };

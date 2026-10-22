@@ -21,6 +21,9 @@
   var titleStart = now();
   var debugMode = false;
 
+  // 現場ごとに出動する車の stage（scenes.js の drawKaji=8, drawTakai=10, drawMichi=4）
+  var DISPATCH_STAGE = { kaji: 8, takai: 10, michi: 4 };
+
   function later(ms, fn) { var id = root.setTimeout(function () { fn(); }, ms); timers.push(id); return id; }
   function clearTimers() { timers.forEach(root.clearTimeout); timers = []; }
   function save() { S.save(data); }
@@ -262,9 +265,6 @@
     };
     later(1200, function () { tick(0); });
   }
-
-  // 現場ごとに出動する車の stage（scenes.js の drawKaji=8, drawTakai=10, drawMichi=4）
-  var DISPATCH_STAGE = { kaji: 8, takai: 10, michi: 4 };
 
   function onCorrect(q, btn) {
     run.busy = true; run.counting = false; stage.reveal = true;
