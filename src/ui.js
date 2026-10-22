@@ -76,7 +76,7 @@
     screen = name;
     [].forEach.call(doc.querySelectorAll('.screen'), function (s) { s.classList.toggle('active', s.id === 's-' + name); });
     updateVoiceMark();
-    if (name === 'title') drawTitle();
+    if (name === 'title') { drawTitle(); kick(); }
     if (name === 'garage') buildGarage();
     if (name === 'parent') fillParent();
     if (name === 'play' && stage) { stage.resize(); stage.draw(now()); }
@@ -285,8 +285,8 @@
         $('reward-sub').textContent = r.isNew ? 'あたらしい くるま！' : '★が ふえたよ！';
         say(car.name + 'を げっと！');
       } else {
-        $('reward-text').textContent = 'ごほうびステッカー！';
-        say('ごほうびステッカー！');
+        $('reward-text').textContent = 'ごほうびすてっかー！';
+        say('ごほうびすてっかー！');
       }
     });
     kick();
