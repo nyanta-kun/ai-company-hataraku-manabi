@@ -185,17 +185,17 @@
     var w = wordOf(p.wordId);
     return w.speech + '。さいしょのもじは？';
   }
-  function wordOf(id) { for (var i = 0; i < D.WORDS.length; i++) if (D.WORDS[i].id === id) return D.WORDS[i]; return null; }
+  function wordOf(id) { for (var i = 0; i < D.ALL_WORDS.length; i++) if (D.ALL_WORDS[i].id === id) return D.ALL_WORDS[i]; return null; }
   // 文字の例語（「ひこうきの ひ」）。同じ頭文字の語が複数ある文字は、文字そのものでない例語を優先する
   function exampleOf(ch) {
     var hit = null;
-    for (var i = 0; i < D.WORDS.length; i++) {
-      var w = D.WORDS[i];
+    for (var i = 0; i < D.ALL_WORDS.length; i++) {
+      var w = D.ALL_WORDS[i];
       if (w.head !== ch) continue;
       if (w.example !== ch) return w.example;
       hit = hit || w.example;
     }
-    return hit || ch;
+    return hit || D.EXTRA_KATA[ch] || ch;
   }
 
   // 正解のときの例語。その語自身の例語を使うが、例語が文字そのもの（ひ）なら、別の語の例語（ひこうき）にする

@@ -70,3 +70,9 @@ test('seen.letter: 旧データは空配列。配列でない値・文字列以�
   const d = S.normalize({ seen: { letter: ['v6', 'bus'] } });
   assert.deepEqual(S.normalize(JSON.parse(JSON.stringify(d))).seen.letter, ['v6', 'bus']);   // 保存して読み直しても同じ
 });
+
+test('letter レベル K4〜K6 を保存・読み込みでき、範囲外（K7）は K1 に戻る', () => {
+  for (const lv of ['K4', 'K5', 'K6']) assert.equal(S.normalize({ levels: { letter: lv } }).levels.letter, lv);
+  assert.equal(S.normalize({ levels: { letter: 'K7' } }).levels.letter, 'K1');
+  assert.equal(S.normalize({ levels: { letter: 'K2' }, locked: { letter: true } }).locked.letter, true);
+});

@@ -5,7 +5,7 @@
   // 国語の単語表（plan-katakana-english.md 2.3。ひらがな 31語・頭文字 26種）。speech は読み上げ用（すべてひらがな）。
   // pic は絵の種類: 'v1'..'v11' / 'hose' / 'flame' / 新しい絵の id（vehicles.js の pics）
   // cat は分類（偏り防止に使う）: road 道路の車 / rail 電車 / sky 空 / sea 水 / fire 消防・救助 / work その他の働く車
-  // kata はカタカナで書く語のカタカナ表記（カタカナ段階 K4〜K6 で使う予定。今は出題に使わない）
+  // kata はカタカナで書く語のカタカナ表記（K4〜K6 で KATA_WORDS として使う）
   var WORDS = [
     { id: 'hashigo',    label: 'はしごしゃ',           speech: 'はしごしゃ',           head: 'は', example: 'はしご',       pic: 'v10',        cat: 'fire', group: 'A' },
     { id: 'neko',       label: 'ねこぐるま',           speech: 'ねこぐるま',           head: 'ね', example: 'ねこ',         pic: 'v1',         cat: 'work', group: 'A' },
@@ -39,6 +39,17 @@
     { id: 'bus',        label: 'ばす',                 speech: 'ばす',                 head: 'ば', example: 'ばす',         pic: 'bus',        cat: 'road', group: 'A', kata: 'バス' },
     { id: 'roller',     label: 'ろーどろーらー',       speech: 'ろーどろーらー',       head: 'ろ', example: 'ろーどろーらー', pic: 'roller',   cat: 'work', group: 'B', kata: 'ロードローラー' }
   ];
+  // カタカナの単語表（K4〜K6。plan 2.3）。WORDS の kata 付きの語から作る。表記はカタカナ、読み上げ・例語はひらがな。id は _k、script は 'kata'
+  var KATA_WORDS = WORDS.filter(function (w) { return w.kata; }).map(function (w) {
+    return { id: w.id + '_k', label: w.kata, speech: w.speech, head: w.kata.charAt(0), example: w.example, pic: w.pic, cat: w.cat, group: w.group, script: 'kata' };
+  });
+  var ALL_WORDS = WORDS.concat(KATA_WORDS);
+  // 頭文字にならないが、まぎらわしい相手として出すカタカナ（plan 2.4）と、その例語
+  var EXTRA_KATA = { 'ケ': 'けーき', 'プ': 'ぷりん', 'ボ': 'ぼーる', 'ベ': 'べんち', 'ド': 'どあ', 'ツ': 'つみき' };
+  // カタカナ → ひらがな（同じ音かどうかの判定に使う）
+  function toHira(s) {
+    return String(s).replace(/[ァ-ヶ]/g, function (c) { return String.fromCharCode(c.charCodeAt(0) - 0x60); });
+  }
   var SEEN_MAX = 12;   // 国語で「直近に出した絵」を覚える数
   // 直近の絵の一覧（古い順・末尾が最新）を整える。配列でない値・文字列以外・未知の絵・重複は捨てて、最新 SEEN_MAX 個にする
   function cleanSeen(v) {
@@ -64,6 +75,10 @@
     ['は', 'ば'], ['は', 'ぱ'], ['ひ', 'び'], ['ひ', 'ぴ'], ['へ', 'べ'], ['へ', 'ぺ'], ['ほ', 'ぼ'], ['ふ', 'ぷ'],
     ['き', 'ぎ'], ['く', 'ぐ'], ['け', 'げ'], ['さ', 'ざ'], ['し', 'じ'], ['と', 'ど'], ['か', 'が']];
 
+  // カタカナで形が似た文字の組（plan 2.4）。ソ–ン は語が無いので出題には使われない
+  var CONFUSABLE_KATA = [['ク', 'ケ'], ['ダ', 'タ'], ['ブ', 'プ'], ['バ', 'パ'], ['ポ', 'ホ'], ['ポ', 'ボ'], ['ホ', 'ボ'],
+    ['ヘ', 'ベ'], ['ト', 'ド'], ['シ', 'ツ'], ['ソ', 'ン']];
+
   // 文字の「行」。清音・濁音・半濁音は別（K1・K2 では同じ行の文字を同時に出さない）
   var ROW = {
     'あ': 'a', 'い': 'a', 'う': 'a', 'え': 'a', 'お': 'a',
@@ -78,6 +93,14 @@
     'ね': 'na', 'は': 'ha', 'ひ': 'ha', 'ふ': 'ha', 'へ': 'ha', 'ほ': 'ha', 'ぶ': 'ha', 'ば': 'ha', 'ぱ': 'ha', 'ぽ': 'ha',
     'み': 'ma', 'ゆ': 'ya', 'ろ': 'ra'
   };
+
+  // カタカナの文字は、対応するひらがなと同じ行・行ファミリーにする。追加文字（ケ プ ボ ベ ド ツ）は下で足す
+  Object.keys(ROW).forEach(function (h) {
+    var k = String.fromCharCode(h.charCodeAt(0) + 0x60);
+    ROW[k] = ROW[h]; FAMILY[k] = FAMILY[h];
+  });
+  ROW['ケ'] = 'ka'; ROW['プ'] = 'pa'; ROW['ボ'] = 'ba'; ROW['ベ'] = 'ba'; ROW['ド'] = 'da'; ROW['ツ'] = 'ta';
+  FAMILY['ケ'] = 'ka'; FAMILY['プ'] = 'ha'; FAMILY['ボ'] = 'ha'; FAMILY['ベ'] = 'ha'; FAMILY['ド'] = 'ta'; FAMILY['ツ'] = 'ta';
 
   // はたらく車 11 種（stage は hataraku-drop の段階 = vehicles.js の draw[stage]）
   var CARS = [
@@ -109,7 +132,7 @@
   var TIME_KANA = ['', 'いちじ', 'にじ', 'さんじ', 'よじ', 'ごじ', 'ろくじ', 'しちじ', 'はちじ', 'くじ', 'じゅうじ', 'じゅういちじ', 'じゅうにじ'];
 
   var api = {
-    TIME_KANA: TIME_KANA, WORDS: WORDS, CATS: CATS, SEEN_MAX: SEEN_MAX, cleanSeen: cleanSeen, addSeen: addSeen, CONFUSABLE: CONFUSABLE, ROW: ROW, FAMILY: FAMILY, CARS: CARS,
+    TIME_KANA: TIME_KANA, WORDS: WORDS, KATA_WORDS: KATA_WORDS, ALL_WORDS: ALL_WORDS, EXTRA_KATA: EXTRA_KATA, CONFUSABLE_KATA: CONFUSABLE_KATA, toHira: toHira, CATS: CATS, SEEN_MAX: SEEN_MAX, cleanSeen: cleanSeen, addSeen: addSeen, CONFUSABLE: CONFUSABLE, ROW: ROW, FAMILY: FAMILY, CARS: CARS,
     SCENES: SCENES, SCENE_CARS: SCENE_CARS, NUM_KANA: NUM_KANA
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;

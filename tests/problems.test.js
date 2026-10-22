@@ -5,7 +5,7 @@ const D = require('../src/data.js');
 const { rngOf } = require('./helpers.js');
 
 const N = 1000;
-const CHOICES = { M1: 3, M2: 3, M3: 4, M4: 3, M5: 4, K1: 2, K2: 3, K3: 4 };
+const CHOICES = { M1: 3, M2: 3, M3: 4, M4: 3, M5: 4, K1: 2, K2: 3, K3: 4, K4: 2, K5: 4, K6: 4 };
 const MAXV = { M1: 3, M2: 5, M3: 10, M4: 5, M5: 10 };
 
 function gen(level, rng, prev) {
@@ -155,7 +155,12 @@ test('性質9: nextLevel（昇級・降級・同レベル・固定・上限下�
   assert.equal(P.nextLevel('math', 'M4', 4, false), 'M5');
   assert.equal(P.nextLevel('math', 'M5', 4, false), 'M5');
   assert.equal(P.nextLevel('letter', 'K2', 4, false), 'K3');
-  assert.equal(P.nextLevel('letter', 'K3', 4, false), 'K3');
+  assert.equal(P.nextLevel('letter', 'K3', 4, false), 'K4');
+  assert.equal(P.nextLevel('letter', 'K5', 4, false), 'K6');
+  assert.equal(P.nextLevel('letter', 'K6', 4, false), 'K6');
+  assert.equal(P.nextLevel('letter', 'K6', 0, false), 'K5');
+  assert.equal(P.nextLevel('letter', 'K4', 0, false), 'K3');
+  assert.equal(P.nextLevel('letter', 'K3', 4, true), 'K3');
   assert.equal(P.nextLevel('math', 'M3', 3, false), 'M3');
   assert.equal(P.nextLevel('math', 'M3', 2, false), 'M3');
   assert.equal(P.nextLevel('math', 'M3', 1, false), 'M2');
