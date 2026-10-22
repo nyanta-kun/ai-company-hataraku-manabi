@@ -2,7 +2,9 @@
 // ブラウザでは window.Manabi.storage、Node では module.exports（normalize はテスト対象）。
 (function (root) {
   'use strict';
+  var D = (typeof module !== 'undefined' && module.exports) ? require('./data.js') : root.Manabi.data;
   var KEY = 'hataraku-manabi:v1';
+  var SEEN_MAX = 12;   // 直近に出した絵を覚える数
   var MATH_LV = ['M1', 'M2', 'M3', 'M4', 'M5'], LETTER_LV = ['K1', 'K2', 'K3'], CLOCK_LV = ['T1', 'T2', 'T3'];
   var CAR_IDS = ['nekoguruma', 'forklift', 'gomi', 'shovel', 'bulldozer', 'dump', 'kyukyu', 'shoubousha', 'mizutank', 'hashigo', 'chodai'];
 
@@ -19,10 +21,24 @@
         letter: { sessions: 0, questions: 0, firstTry: 0 },
         clock: { sessions: 0, questions: 0, firstTry: 0 }
       },
+      seen: { letter: [] },
       lastPlayed: ''
     };
   }
   function num(v) { return (typeof v === 'number' && isFinite(v) && v >= 0) ? Math.floor(v) : 0; }
+  // 直近に出した絵（古い順・末尾が最新）。配列でない値・文字列以外・未知の絵・重複は捨てて、最新 SEEN_MAX 個にする
+  function cleanSeen(v) {
+    if (!Array.isArray(v)) return [];
+    var known = {};
+    D.WORDS.forEach(function (w) { known[w.pic] = true; });
+    var out = [];
+    v.forEach(function (x) {
+      if (typeof x !== 'string' || !known[x]) return;
+      var i = out.indexOf(x); if (i >= 0) out.splice(i, 1);
+      out.push(x);
+    });
+    return out.slice(-SEEN_MAX);
+  }
   function bool(v, d) { return typeof v === 'boolean' ? v : d; }
 
   // 壊れたデータ・欠損があってもデフォルトで埋めて返す
@@ -43,6 +59,7 @@
       var x = st[g] || {};
       d.stats[g] = { sessions: num(x.sessions), questions: num(x.questions), firstTry: num(x.firstTry) };
     });
+    d.seen.letter = cleanSeen(raw.seen && raw.seen.letter);
     d.lastPlayed = typeof raw.lastPlayed === 'string' ? raw.lastPlayed.slice(0, 10) : '';
     return d;
   }
@@ -70,7 +87,7 @@
   function clear() { try { var ls = store(); if (ls) ls.removeItem(KEY); } catch (e) {} }
   function isPersistent() { return persistent; }
 
-  var api = { KEY: KEY, defaults: defaults, normalize: normalize, load: load, save: save, clear: clear, isPersistent: isPersistent };
+  var api = { SEEN_MAX: SEEN_MAX, cleanSeen: cleanSeen, KEY: KEY, defaults: defaults, normalize: normalize, load: load, save: save, clear: clear, isPersistent: isPersistent };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else { root.Manabi = root.Manabi || {}; root.Manabi.storage = api; }
 })(typeof window !== 'undefined' ? window : globalThis);

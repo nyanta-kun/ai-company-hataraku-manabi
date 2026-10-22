@@ -7,7 +7,7 @@
 
 | ファイル | 役割 | テスト |
 |---|---|---|
-| `src/data.js` | 単語表8語・車11種・現場と関連車・数の読み | tests |
+| `src/data.js` | 単語表31語（cat・FAMILY つき）・車11種・現場と関連車・数の読み | tests |
 | `src/problems.js` | 問題生成・`generateSession`・`nextLevel`・`handAngles`・`readTime`（純粋関数） | `tests/problems.test.js`（性質1〜9）、`tests/clock.test.js`（とけい性質1〜12） |
 | `src/rewards.js` | `pickReward`（純粋関数） | `tests/rewards.test.js`（性質10） |
 | `src/storage.js` | localStorage（`hataraku-manabi:v1`）。`normalize` で壊れたデータを補正、使えなければメモリのみ | `tests/storage.test.js` |
@@ -29,6 +29,11 @@
 - 乗り物の向き（規約）: 絵の「前」の向きは `vehicles.js` の `FRONT`（既定は左向き=-1。ねこぐるま1・フォークリフト2・しょべるかー4 だけ右向き）。`drawVehicle(ctx, stage, x, y, size, facing)` の facing は前を向ける向きで、既定 1（右）。絵の前と違うときだけ内部で左右反転する。走る・動くときは進む側に前が来るようにする（しゃこ・タイトルは右へ走るので既定の右）。画面に止めた車は付属物（はしご・放水口）が目標に合う向きにする（kaji・takai の 8・10 は -1、michi に左へ来る救急車も -1）。新しい乗り物（plan-katakana-english.md 2.8）は前を左に描けば FRONT に載せず済む。反転は `drawVehicle` の ctx.save/restore の中だけで、車体に文字を描くなら反転しない側（呼び出し側）で重ねる（今の絵に文字は無い）。
 - 乗り物の音: `audio.js` の `car1`〜`car11` = `CARS.stage`（`carSound(stage)`）。しゃこのタップは車ごとの音、出動時は現場の車（kaji=8、takai=10、michi=4）、michi の最後に救急車(7)。しょうぼうしゃは長い「ウーーー」+ 鐘、きゅうきゅうしゃは「ピーポー」。乗り物の音は同時 2 つまで。
 - 全車★3 の後の「ごほうびステッカー」は、カード画面で文言だけ出す（U5: 未実装）。
+
+## もじの単語表の拡充（docs/plan-katakana-english.md 2.3・2.8・2.9。B1・B2）
+- 新しい絵 23 個は `vehicles.js` の `pics`（id は 'v' で始めない）。横から見る乗り物は前を左に描き、`drawPic` が facing で反転する。向きのない小物は反転しない。`#debug:pics`（または「えいちらん」ボタン）で全語の絵を一覧できる。
+- 出題は `generateSession('letter', level, rng, recentPics)`。同一出動の規則と、直近の絵（`seen.letter`、古い順・末尾が最新・最大12）の除外は 2.9 のとおり。直近の除外は、規則を満たせないとき直前の出動の4枚まで緩める（K1 は語が少ないため）。
+- 形が似た文字は、K1・K2 では誤答に混ぜず、K3 は最大1つ。plan にない け–は、く–へ を `CONFUSABLE` に足した。
 
 ## とけい（docs/plan-clock.md の実装。未決事項は推奨案で決めた）
 - C1: T1 の誤答は 12 を一周する数え方で 3 以上離す。C4: T3 は 12 時台（12:30）も含める。C6: 昇降級は4/4・0〜1/4 をそのまま使う。C9: アイコンは丸い時計、並びは かず・もじ・とけい。

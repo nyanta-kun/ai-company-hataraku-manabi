@@ -148,12 +148,23 @@
   }
   var NUMK = D.NUM_KANA;
 
+  // 国語で直近に出した絵（古い順・最大 12 個）。出動が始まって問題が決まった時点で記録する（途中でやめても「見た」とみなす）
+  function seenLetter() { return data.seen && Array.isArray(data.seen.letter) ? data.seen.letter : []; }
+  function rememberLetter(qs) {
+    data.seen = data.seen || { letter: [] };
+    var cur = seenLetter().slice();
+    qs.forEach(function (q) { var i = cur.indexOf(q.pic); if (i >= 0) cur.splice(i, 1); cur.push(q.pic); });
+    data.seen.letter = cur.slice(-12);
+    save();
+  }
   function startSession(game, opts) {
     opts = opts || {};
     clearTimers(); token++;
     var level = data.levels[game];
+    var qs = P.generateSession(game, level, Math.random, game === 'letter' ? seenLetter() : undefined);
+    if (game === 'letter') rememberLetter(qs);
     run = {
-      game: game, level: level, scene: opts.scene || pickScene(), qs: P.generateSession(game, level, Math.random),
+      game: game, level: level, scene: opts.scene || pickScene(), qs: qs,
       idx: 0, firstTry: 0, wrong: 0, off: [], busy: true, token: token
     };
     if (!stage) stage = new SC.Stage($('sceneCanvas'));
@@ -177,7 +188,17 @@
     return w.speech + '。さいしょのもじは？';
   }
   function wordOf(id) { for (var i = 0; i < D.WORDS.length; i++) if (D.WORDS[i].id === id) return D.WORDS[i]; return null; }
-  function exampleOf(ch) { for (var i = 0; i < D.WORDS.length; i++) if (D.WORDS[i].head === ch) return D.WORDS[i].example; return ch; }
+  // 文字の例語（「ひこうきの ひ」）。同じ頭文字の語が複数ある文字は、文字そのものでない例語を優先する
+  function exampleOf(ch) {
+    var hit = null;
+    for (var i = 0; i < D.WORDS.length; i++) {
+      var w = D.WORDS[i];
+      if (w.head !== ch) continue;
+      if (w.example !== ch) return w.example;
+      hit = hit || w.example;
+    }
+    return hit || ch;
+  }
 
   function presentQuestion() {
     var q = run.qs[run.idx];
@@ -273,7 +294,7 @@
     answerButtons().forEach(function (b) { b.classList.remove('glow'); });
     sfx('correct');
     var done = run.idx + 1;
-    if (q.kind === 'letter') say('そう！ ' + q.answer + '！ ' + exampleOf(q.answer) + 'の ' + q.answer);
+    if (q.kind === 'letter') say('そう！ ' + q.answer + '！ ' + wordOf(q.wordId).example + 'の ' + q.answer);
     else if (q.kind === 'clock') say('そう！ ' + P.readTime(q.h, q.m) + '！');
     else say('そう！ ' + NUMK[q.answer] + '！');
     updateLamps(done);
