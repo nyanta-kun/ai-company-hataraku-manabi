@@ -47,8 +47,11 @@
   // 数の読み（し ではなく よん）
   var NUM_KANA = ['', 'いち', 'に', 'さん', 'よん', 'ご', 'ろく', 'なな', 'はち', 'きゅう', 'じゅう'];
 
+  // 時刻の読み（数の読みとは別。よじ・しちじ・くじ）。index = 時 1..12
+  var TIME_KANA = ['', 'いちじ', 'にじ', 'さんじ', 'よじ', 'ごじ', 'ろくじ', 'しちじ', 'はちじ', 'くじ', 'じゅうじ', 'じゅういちじ', 'じゅうにじ'];
+
   var api = {
-    WORDS: WORDS, CONFUSABLE: CONFUSABLE, ROW: ROW, CARS: CARS,
+    TIME_KANA: TIME_KANA, WORDS: WORDS, CONFUSABLE: CONFUSABLE, ROW: ROW, CARS: CARS,
     SCENES: SCENES, SCENE_CARS: SCENE_CARS, NUM_KANA: NUM_KANA
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;

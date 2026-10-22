@@ -18,6 +18,7 @@
     function btn(label, fn) { var b = doc.createElement('button'); b.type = 'button'; b.textContent = label; b.addEventListener('click', fn); box.appendChild(b); }
     ['M1', 'M2', 'M3', 'M4', 'M5'].forEach(function (lv) { btn(lv, function () { ui.data.levels.math = lv; ui.data.locked.math = true; ui.setData(ui.data); ui.startSession('math', { fast: true }); }); });
     ['K1', 'K2', 'K3'].forEach(function (lv) { btn(lv, function () { ui.data.levels.letter = lv; ui.data.locked.letter = true; ui.setData(ui.data); ui.startSession('letter', { fast: true }); }); });
+    ['T1', 'T2', 'T3'].forEach(function (lv) { btn(lv, function () { ui.data.levels.clock = lv; ui.data.locked.clock = true; ui.setData(ui.data); ui.startSession('clock', { fast: true }); }); });
     btn('ごほうび', function () { ui.gotoReward('kaji'); });
     btn('全車★3', function () { D.CARS.forEach(function (c) { ui.data.cards[c.id] = 3; }); ui.setData(ui.data); });
     btn('全車なし', function () { ui.data.cards = {}; ui.setData(ui.data); });
@@ -30,7 +31,7 @@
     // 画面指定でのジャンプ（スクショ用）
     var g = goto.split('-');
     if (g[0] === 'play') {
-      var game = g[1] === 'letter' ? 'letter' : 'math';
+      var game = g[1] === 'letter' ? 'letter' : g[1] === 'clock' ? 'clock' : 'math';
       if (g[2]) ui.data.levels[game] = g[2];
       ui.startSession(game, { fast: true, scene: g[3] || undefined });
       if (g[4]) root.setTimeout(function () { ui.debugProgress(+g[4]); }, 50);

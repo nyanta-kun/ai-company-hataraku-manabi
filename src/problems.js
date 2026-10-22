@@ -8,7 +8,7 @@
   var PROMOTE_AT = 4;              // 1 回目正解がこれ以上なら昇級
   var DEMOTE_AT = 1;               // 1 回目正解がこれ以下なら降級
 
-  var LEVELS = { math: ['M1', 'M2', 'M3', 'M4', 'M5'], letter: ['K1', 'K2', 'K3'] };
+  var LEVELS = { math: ['M1', 'M2', 'M3', 'M4', 'M5'], letter: ['K1', 'K2', 'K3'], clock: ['T1', 'T2', 'T3'] };
   // 数のレベル: max = 選択肢の範囲の上限、choices = 選択肢の数
   var MATH = {
     M1: { kind: 'count', max: 3,  choices: 3 },
@@ -18,6 +18,13 @@
     M5: { kind: 'add',   max: 10, choices: 4 }
   };
   var LETTER = { K1: { choices: 2 }, K2: { choices: 3 }, K3: { choices: 4 } };
+
+  // とけい: form = read（時計を見て数字）/ pick（読み上げを聞いて時計を選ぶ）、half = ○じはんを出す
+  var CLOCK = {
+    T1: { form: 'read', half: false, choices: 2 },
+    T2: { form: 'pick', half: false, choices: 4 },
+    T3: { form: 'pick', half: true,  choices: 4 }
+  };
 
   function defRng(rng) { return typeof rng === 'function' ? rng : Math.random; }
   function randInt(rng, lo, hi) { return lo + Math.floor(rng() * (hi - lo + 1)); }   // lo..hi
@@ -109,10 +116,68 @@
     return { kind: 'letter', level: level, wordId: word.id, word: word.label, choices: shuffle(out, rng), answer: ans };
   }
 
+  // ---- とけい ----
+  function readTime(h, m) { return D.TIME_KANA[h] + (m === 30 ? 'はん' : ''); }
+  function clockKey(h, m) { return h + ':' + (m === 30 ? '30' : '00'); }
+  function parseKey(key) { var a = key.split(':'); return { h: +a[0], m: +a[1] }; }
+  // 'h:mm' または 'swap:N' -> 短針・長針の角度（12時方向が 0 度、時計回り）
+  function handAngles(key) {
+    if (key.indexOf('swap:') === 0) return { hour: 0, minute: (+key.slice(5)) * 30 };
+    var t = parseKey(key);
+    return { hour: (t.h % 12) * 30 + t.m / 2, minute: t.m * 6 };
+  }
+  function angDiff(a, b) { var d = Math.abs(a - b) % 360; return Math.min(d, 360 - d); }
+  // 2 つの絵が「ほぼ同じ」でない（長針 60 度以上、または短針 30 度以上ちがう）
+  function distinctFaces(k1, k2) {
+    var a = handAngles(k1), b = handAngles(k2);
+    return angDiff(a.minute, b.minute) >= 60 || angDiff(a.hour, b.hour) >= 30;
+  }
+  function wrapH(h) { return ((h - 1 + 12) % 12) + 1; }
+  function hourDist(a, b) { var d = Math.abs(a - b); return Math.min(d, 12 - d); }
+
+  function generateClock(level, rng, prevKey) {
+    rng = defRng(rng);
+    var L = CLOCK[level];
+    if (!L) throw new RangeError('clock level: ' + level);
+    var prev = prevKey ? parseKey(prevKey) : null, hs = [], i;
+    for (i = 1; i <= 12; i++) if (!prev || prev.h !== i) hs.push(i);
+    var h, m;
+    if (L.half) {
+      var cands = [];
+      for (i = 1; i <= 12; i++) [0, 30].forEach(function (mm) { if (!prev || prev.h !== i || prev.m !== mm) cands.push([i, mm]); });
+      var c = cands[randInt(rng, 0, cands.length - 1)]; h = c[0]; m = c[1];
+    } else { h = hs[randInt(rng, 0, hs.length - 1)]; m = 0; }
+
+    if (L.form === 'read') {
+      // 誤答: 12 を一周する数え方で 3 以上はなれた数字
+      var far = [];
+      for (i = 1; i <= 12; i++) if (hourDist(i, h) >= 3) far.push(i);
+      var w = far[randInt(rng, 0, far.length - 1)];
+      return { kind: 'clock', level: level, form: 'read', h: h, m: 0, choices: shuffle([h, w], rng), answer: h };
+    }
+
+    var ans = clockKey(h, m), choices = [ans];
+    function tryAdd(key) {
+      if (choices.length >= L.choices || choices.indexOf(key) >= 0) return;
+      if (choices.every(function (k) { return distinctFaces(k, key); })) choices.push(key);
+    }
+    // 優先: 隣の時刻 → 長針と短針の取り違え → 同じ時で ○じ/はん ちがい → もう一方の隣 → 残り全部
+    var adj = shuffle([clockKey(wrapH(h - 1), m), clockKey(wrapH(h + 1), m)], rng);
+    tryAdd(adj[0]);
+    if (m === 0 && h !== 12) tryAdd('swap:' + h);
+    if (L.half) tryAdd(clockKey(h, m === 0 ? 30 : 0));
+    tryAdd(adj[1]);
+    var rest = [];
+    for (i = 1; i <= 12; i++) { rest.push(clockKey(i, 0)); if (L.half) rest.push(clockKey(i, 30)); }
+    shuffle(rest, rng).forEach(tryAdd);
+    return { kind: 'clock', level: level, form: 'pick', h: h, m: m, choices: shuffle(choices, rng), answer: ans };
+  }
+
   function sameProblem(p, q) {
     if (!p || !q || p.kind !== q.kind) return false;
     if (p.kind === 'count') return p.n === q.n;
     if (p.kind === 'add') return p.a === q.a && p.b === q.b;
+    if (p.kind === 'clock') return p.h === q.h && p.m === q.m;
     return p.wordId === q.wordId;
   }
 
@@ -127,6 +192,9 @@
       } else if (game === 'math') {
         p = MATH[level].kind === 'count' ? generateCounting(level, rng) : generateAddition(level, rng);
         if (sameProblem(prev, p) && ++tries < 1000) continue;
+      } else if (game === 'clock') {
+        p = generateClock(level, rng, prev && clockKey(prev.h, prev.m));
+        if (list.some(function (q) { return sameProblem(q, p); }) && ++tries < 1000) continue;
       } else throw new RangeError('game: ' + game);
       list.push(p);
     }
@@ -147,9 +215,10 @@
 
   var api = {
     QUESTIONS_PER_SESSION: QUESTIONS_PER_SESSION, PROMOTE_AT: PROMOTE_AT, DEMOTE_AT: DEMOTE_AT,
-    LEVELS: LEVELS, MATH: MATH, LETTER: LETTER,
+    LEVELS: LEVELS, MATH: MATH, LETTER: LETTER, CLOCK: CLOCK,
     generateCounting: generateCounting, generateAddition: generateAddition,
-    generateLetter: generateLetter, generateSession: generateSession, nextLevel: nextLevel
+    generateLetter: generateLetter, generateClock: generateClock, handAngles: handAngles, readTime: readTime,
+    clockKey: clockKey, sameProblem: sameProblem, generateSession: generateSession, nextLevel: nextLevel
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else { root.Manabi = root.Manabi || {}; root.Manabi.problems = api; }

@@ -2,7 +2,7 @@
 (function (root) {
   'use strict';
   var M = root.Manabi, D = M.data, P = M.problems, R = M.rewards, S = M.storage;
-  var A = M.audio, SP = M.speech, V = M.vehicles, SC = M.scenes;
+  var A = M.audio, SP = M.speech, V = M.vehicles, SC = M.scenes, CF = M.clockface;
   var doc = root.document;
 
   function $(id) { return doc.getElementById(id); }
@@ -48,6 +48,12 @@
       ctx.fillStyle = '#fff'; ctx.font = 'bold ' + h * .85 + 'px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('あ', w / 2, h * .54);
       return;
     }
+    if (kind === 'tokei') {  // 丸い時計（短針は太く短く、長針は細く長く）
+      ctx.beginPath(); ctx.arc(w / 2, h / 2, w * .42, 0, 7); ctx.fillStyle = '#fff'; ctx.fill();
+      ln(.5, .5, .5, .2, .06, '#e53935'); ln(.5, .5, .72, .6, .12, '#1e5bd8');
+      ctx.beginPath(); ctx.arc(w / 2, h / 2, w * .06, 0, 7); ctx.fillStyle = dark; ctx.fill();
+      return;
+    }
     if (kind === 'speaker' || kind === 'speakerx') {
       var c = /replay/.test(cv.parentNode.className) ? '#fff' : dark;
       ctx.fillStyle = c; ctx.beginPath();
@@ -81,7 +87,7 @@
     [].forEach.call(doc.querySelectorAll('.screen'), function (s) { s.classList.toggle('active', s.id === 's-' + name); });
     updateVoiceMark();
     if (name === 'title') { drawTitle(); kick(); }
-    if (name === 'pick') later(300, function () { say('どっちで しゅつどう？'); });
+    if (name === 'pick') later(300, function () { say('どれで しゅつどう？'); });
     if (name === 'garage') buildGarage();
     if (name === 'parent') fillParent();
     if (name === 'play' && stage) { stage.resize(); stage.draw(now()); }
@@ -163,6 +169,7 @@
   function promptText(p) {
     if (p.kind === 'count') return 'いくつ あるかな？';
     if (p.kind === 'add') return NUMK[p.a] + ' たす ' + NUMK[p.b] + ' は？';
+    if (p.kind === 'clock') return p.form === 'read' ? 'とけいを みてね。しゅつどうの じかんは なんじ？' : 'しゅつどうは ' + P.readTime(p.h, p.m) + '。どの とけい？';
     var w = wordOf(p.wordId);
     return w.speech + '。さいしょのもじは？';
   }
@@ -174,6 +181,7 @@
     run.wrong = 0; run.off = []; run.busy = false; run.counting = false; run.t0 = now();
     stage.setProblem(q);
     renderAnswers(q);
+    stage.resize();   // 答えボタンの高さで現場の領域が変わる（時計ボタンは高い）ので測り直す
     stage.draw(now());
     say(promptText(q));
     if (q.kind === 'letter') stage.bouncePic(now() + 0.3);
@@ -181,10 +189,14 @@
   }
   function renderAnswers(q) {
     var box = $('answers'); box.innerHTML = '';
+    var pickClock = q.kind === 'clock' && q.form === 'pick';
+    box.className = pickClock ? 'clocks' : '';
     q.choices.forEach(function (c) {
       var b = doc.createElement('button');
-      b.type = 'button'; b.className = 'ans'; b.setAttribute('data-v', String(c));
-      if (q.kind === 'letter') b.innerHTML = '<span class="kana">' + c + '</span>';
+      b.type = 'button'; b.className = pickClock ? 'ans clk' : 'ans'; b.setAttribute('data-v', String(c));
+      if (pickClock) b.innerHTML = '<canvas></canvas>';
+      else if (q.kind === 'clock') b.innerHTML = '<span class="num">' + c + '</span>';
+      else if (q.kind === 'letter') b.innerHTML = '<span class="kana">' + c + '</span>';
       else {
         var dots = '';
         for (var i = 0; i < c; i++) { dots += '<i></i>'; if (i === 4 && c > 5) dots += '<b></b>'; }
@@ -192,28 +204,44 @@
       }
       box.appendChild(b);
     });
+    if (pickClock) drawAnswerClocks(0);
+  }
+  // 小さい時計の答えボタンを描く。pulseKey の時計だけ短針をふくらませる（ヒント）
+  function drawAnswerClocks(pulse, pulseKey) {
+    if (!CF) return;
+    [].forEach.call($('answers').querySelectorAll('.ans.clk'), function (b) {
+      var cv = b.querySelector('canvas'), c = sizeCanvas(cv), key = b.getAttribute('data-v');
+      c.ctx.clearRect(0, 0, c.w, c.h);
+      CF.drawClock(c.ctx, c.w / 2, c.h / 2, Math.min(c.w, c.h) / 2 - 2, key, { numbers: 12, pulse: key === pulseKey ? pulse : 0 });
+    });
   }
   function answerButtons() { return [].slice.call($('answers').children); }
 
   function onAnswer(btn) {
     if (!run || run.busy || btn.classList.contains('off')) return;
     var q = run.qs[run.idx], raw = btn.getAttribute('data-v');
-    var v = q.kind === 'letter' ? raw : +raw;
+    var v = (q.kind === 'letter' || (q.kind === 'clock' && q.form === 'pick')) ? raw : +raw;
     if (v === q.answer) return onCorrect(q, btn);
     run.wrong++;
     run.off.push(v);
     btn.classList.add('off', 'shake'); btn.classList.remove('glow');
     sfx('oshii');
-    say(q.kind === 'letter' ? exampleOf(v) + 'の ' + v + '。おしい！もういちど' : 'おしい！もういちど');
+    var said = 'おしい！もういちど';
+    if (q.kind === 'letter') said = exampleOf(v) + 'の ' + v + '。おしい！もういちど';
+    else if (q.kind === 'clock' && q.form === 'pick' && v.indexOf('swap:') !== 0) { var tk = v.split(':'); said = P.readTime(+tk[0], +tk[1]) + '。おしい！もういちど'; }
+    say(said);
     var left = answerButtons().filter(function (b) { return !b.classList.contains('off'); });
     var voiceless = SP.isVoiceless() || !data.sound.voice;
-    if (run.wrong >= 2 || left.length <= 1 || (q.kind === 'letter' && voiceless)) {
+    if (run.wrong >= 2 || left.length <= 1 || ((q.kind === 'letter' || (q.kind === 'clock' && q.level === 'T3')) && voiceless)) {
       later(900, function () {
         if (!run || run.busy) return;
         answerButtons().forEach(function (b) { if (b.getAttribute('data-v') === String(q.answer)) b.classList.add('glow'); });
-        say('こっちかな？');
+        if (q.kind === 'clock') {
+          say(q.form === 'read' ? 'こっちかな？ みじかい はりを みてね' : 'こっちかな？');
+          if (q.form === 'read') stage.pulseHour(now()); else run.pulse = { key: q.answer, t0: now() };
+        } else say('こっちかな？');
         if (q.kind === 'count' || q.kind === 'add') countAloud(q);
-        else stage.bouncePic(now());
+        else if (q.kind === 'letter') stage.bouncePic(now());
         kick();
       });
     }
@@ -243,6 +271,7 @@
     sfx('correct');
     var done = run.idx + 1;
     if (q.kind === 'letter') say('そう！ ' + q.answer + '！ ' + exampleOf(q.answer) + 'の ' + q.answer);
+    else if (q.kind === 'clock') say('そう！ ' + P.readTime(q.h, q.m) + '！');
     else say('そう！ ' + NUMK[q.answer] + '！');
     updateLamps(done);
     later(700, function () {
@@ -372,9 +401,10 @@
       '<div class="prow"><span>しゅつどうの かいすう</span><b>' + st.sessions + '</b></div>' +
       '<div class="prow"><span>かず：いまのレベル</span><b>' + data.levels.math + '（1かいめで せいかい ' + pct('math') + '）</b></div>' +
       '<div class="prow"><span>もじ：いまのレベル</span><b>' + data.levels.letter + '（1かいめで せいかい ' + pct('letter') + '）</b></div>' +
+      '<div class="prow"><span>とけい：いまのレベル</span><b>' + data.levels.clock + '（1かいめで せいかい ' + pct('clock') + '）</b></div>' +
       '<div class="prow"><span>あつめた くるま</span><b>' + have + ' / 11（★ ' + stars + '）</b></div>';
     $('p-sfx').checked = data.sound.sfx; $('p-voice').checked = data.sound.voice;
-    ['math', 'letter'].forEach(function (g) {
+    ['math', 'letter', 'clock'].forEach(function (g) {
       var sel = $('p-lv-' + g);
       if (!sel.options.length) P.LEVELS[g].forEach(function (lv) { var o = doc.createElement('option'); o.value = lv; o.textContent = lv; sel.appendChild(o); });
       sel.value = data.levels[g]; $('p-lock-' + g).checked = data.locked[g];
@@ -385,7 +415,7 @@
   }
   function voiceNote() {
     var n = $('p-voice-note');
-    if (SP.isVoiceless()) n.textContent = 'この たんまつでは にほんごの よみあげが つかえません。こうかおんと えだけで すすみますが、「もじ」の がくしゅうこうかは さがります。';
+    if (SP.isVoiceless()) n.textContent = 'この たんまつでは にほんごの よみあげが つかえません。こうかおんと えだけで すすみますが、「もじ」と「とけい」（T3の「はん」）の がくしゅうこうかは さがります。';
     else n.textContent = '「よみあげテスト」で にほんごが きこえるか たしかめてください。きこえない ときは、たんまつの おんりょうと にほんごの おんせいを かくにんしてください。';
   }
 
@@ -395,7 +425,14 @@
   function loop() {
     var t = now(), keep = false;
     if (screen === 'title') { drawTitle(); keep = true; }
-    else if (screen === 'play' && stage) { stage.draw(t); keep = true; }
+    else if (screen === 'play' && stage) {
+      stage.draw(t); keep = true;
+      if (run && run.pulse) {   // 時計ボタンのヒント（短針ふくらまし）
+        var bt = t - run.pulse.t0;
+        if (bt < 1.8) drawAnswerClocks(Math.abs(Math.sin(bt / 0.9 * Math.PI)), run.pulse.key);
+        else { drawAnswerClocks(0); run.pulse = null; }
+      }
+    }
     else if (screen === 'reward' && reward) { drawReward(); keep = true; }
     else if (screen === 'garage') { keep = drawGarage(); }
     looping = false;
@@ -413,7 +450,7 @@
       unlockOnce();
     }, true);
     root.addEventListener('resize', function () {
-      if (screen === 'play' && stage) { stage.resize(); stage.draw(now()); }
+      if (screen === 'play' && stage) { stage.resize(); stage.draw(now()); drawAnswerClocks(0); }
       if (screen === 'title') drawTitle();
       if (screen === 'reward' && reward) drawReward();
       if (screen === 'garage') drawGarage();
@@ -431,6 +468,7 @@
     $('btn-pick-back').addEventListener('click', function () { sfx('tap'); show('title'); });
     $('btn-math').addEventListener('click', function () { startSession('math'); });
     $('btn-letter').addEventListener('click', function () { startSession('letter'); });
+    $('btn-clock').addEventListener('click', function () { startSession('clock'); });
     holdButton($('btn-quit'), 2000, quitSession);
     $('answers').addEventListener('click', function (e) {
       var b = e.target.closest ? e.target.closest('.ans') : null;
@@ -446,6 +484,7 @@
       var q = run.qs[run.idx]; if (!q) return;
       var r = this.getBoundingClientRect();
       if (q.kind === 'letter') { stage.bouncePic(now()); say(promptText(q)); kick(); return; }
+      if (q.kind === 'clock') { say(promptText(q)); kick(); return; }   // 時計をタップ: 問題をもう一度（答えは言わない）
       var i = stage.hit(e.clientX - r.left, e.clientY - r.top);
       var n = stage.mark(i);
       if (n) { stage.bounce(i, now()); sfx('pon', n); say(NUMK[n]); kick(); }
@@ -462,7 +501,7 @@
       unlockOnce();
       if (!say('こんにちは。はたらくまなびです', { force: true })) $('p-voice-note').textContent = 'よみあげが つかえません（このたんまつは こえなしモードです）。';
     });
-    ['math', 'letter'].forEach(function (g) {
+    ['math', 'letter', 'clock'].forEach(function (g) {
       $('p-lv-' + g).addEventListener('change', function () { data.levels[g] = this.value; save(); fillParent(); });
       $('p-lock-' + g).addEventListener('change', function () { data.locked[g] = this.checked; save(); });
     });

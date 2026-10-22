@@ -3,20 +3,21 @@
 (function (root) {
   'use strict';
   var KEY = 'hataraku-manabi:v1';
-  var MATH_LV = ['M1', 'M2', 'M3', 'M4', 'M5'], LETTER_LV = ['K1', 'K2', 'K3'];
+  var MATH_LV = ['M1', 'M2', 'M3', 'M4', 'M5'], LETTER_LV = ['K1', 'K2', 'K3'], CLOCK_LV = ['T1', 'T2', 'T3'];
   var CAR_IDS = ['nekoguruma', 'forklift', 'gomi', 'shovel', 'bulldozer', 'dump', 'kyukyu', 'shoubousha', 'mizutank', 'hashigo', 'chodai'];
 
   function defaults() {
     return {
       version: 1,
       sound: { sfx: true, voice: true },
-      levels: { math: 'M1', letter: 'K1' },
-      locked: { math: false, letter: false },
+      levels: { math: 'M1', letter: 'K1', clock: 'T1' },
+      locked: { math: false, letter: false, clock: false },
       cards: {},
       stats: {
         sessions: 0,
         math: { sessions: 0, questions: 0, firstTry: 0 },
-        letter: { sessions: 0, questions: 0, firstTry: 0 }
+        letter: { sessions: 0, questions: 0, firstTry: 0 },
+        clock: { sessions: 0, questions: 0, firstTry: 0 }
       },
       lastPlayed: ''
     };
@@ -32,11 +33,13 @@
     d.sound.sfx = bool(s.sfx, true); d.sound.voice = bool(s.voice, true);
     d.levels.math = MATH_LV.indexOf(l.math) >= 0 ? l.math : 'M1';
     d.levels.letter = LETTER_LV.indexOf(l.letter) >= 0 ? l.letter : 'K1';
+    d.levels.clock = CLOCK_LV.indexOf(l.clock) >= 0 ? l.clock : 'T1';
+    d.locked.clock = bool(k.clock, false);
     d.locked.math = bool(k.math, false); d.locked.letter = bool(k.letter, false);
     var c = raw.cards || {};
     CAR_IDS.forEach(function (id) { var n = Math.min(3, num(c[id])); if (n > 0) d.cards[id] = n; });
     d.stats.sessions = num(st.sessions);
-    ['math', 'letter'].forEach(function (g) {
+    ['math', 'letter', 'clock'].forEach(function (g) {
       var x = st[g] || {};
       d.stats[g] = { sessions: num(x.sessions), questions: num(x.questions), firstTry: num(x.firstTry) };
     });
