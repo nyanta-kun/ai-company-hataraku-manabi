@@ -1,0 +1,5 @@
+{
+  "env": {
+    "OTEL_RESOURCE_ATTRIBUTES": "company=ai-company,project=hataraku-manabi"
+  }
+}
