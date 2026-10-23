@@ -206,7 +206,11 @@
   function promptText(p) {
     if (p.kind === 'count') return 'いくつあるかな？';
     if (p.kind === 'add') return NUMK[p.a] + 'たす' + NUMK[p.b] + 'は、いくつ？';   // 数字で渡すと「1たす4」などの読みが揺れるので、数の読み（よん・なな）で渡す
-    if (p.kind === 'clock') return p.form === 'read' ? '時計を見てね。出動の時間は、何時かな？' : '出動は、' + P.readTime(p.h, p.m) + '。どの時計かな？';
+    if (p.kind === 'clock') {
+      if (p.form === 'read') return '時計を見てね。出動の時間は、何時かな？';
+      if (p.form === 'elapsed') return '今は、' + P.readTime(p.h0, p.m0) + '。' + P.readMinutes(p.dm) + 'たったら、どの時計かな？';
+      return '出動は、' + P.readTime(p.h, p.m) + '。どの時計かな？';
+    }
     if (p.kind === 'english') return 'どれかな？';   // 英語の意味は日本語で言わない（言うと英語を聞かなくても答えられる）
     return yomiOf(wordOf(p.wordId)) + '。最初の文字は、どれかな？';
   }
@@ -256,7 +260,7 @@
   }
   function renderAnswers(q) {
     var box = $('answers'); box.innerHTML = '';
-    var pickClock = q.kind === 'clock' && q.form === 'pick', pickPic = q.kind === 'english' && q.form === 'word';
+    var pickClock = q.kind === 'clock' && (q.form === 'pick' || q.form === 'elapsed'), pickPic = q.kind === 'english' && q.form === 'word';
     box.className = pickClock || (pickPic && q.choices.length > 3) ? 'clocks' : '';   // 4択の絵は 1 列だと小さいので時計と同じ 2×2
     q.choices.forEach(function (c) {
       var b = doc.createElement('button');
@@ -286,10 +290,12 @@
   // 小さい時計の答えボタンを描く。pulseKey の時計だけ短針をふくらませる（ヒント）
   function drawAnswerClocks(pulse, pulseKey) {
     if (!CF) return;
+    var cq = run && run.qs && run.qs[run.idx], tk = cq && cq.ticks === 60 ? 60 : 12;
+    var both = !!cq && cq.kind === 'clock' && /^T[4-6]$/.test(cq.level);   // T4 以降は短針がほぼ同じ組が出るので、長針も一緒にふくらませる
     [].forEach.call($('answers').querySelectorAll('.ans.clk'), function (b) {
       var cv = b.querySelector('canvas'), c = sizeCanvas(cv), key = b.getAttribute('data-v');
       c.ctx.clearRect(0, 0, c.w, c.h);
-      CF.drawClock(c.ctx, c.w / 2, c.h / 2, Math.min(c.w, c.h) / 2 - 2, key, { numbers: 12, pulse: key === pulseKey ? pulse : 0 });
+      CF.drawClock(c.ctx, c.w / 2, c.h / 2, Math.min(c.w, c.h) / 2 - 2, key, { numbers: 12, ticks: tk, pulse: key === pulseKey ? pulse : 0, pulseMin: both && key === pulseKey ? pulse : 0 });
     });
   }
   function answerButtons() { return [].slice.call($('answers').children); }
@@ -297,7 +303,7 @@
   function onAnswer(btn) {
     if (!run || run.busy || btn.classList.contains('off')) return;
     var q = run.qs[run.idx], raw = btn.getAttribute('data-v');
-    var v = (q.kind === 'letter' || (q.kind === 'clock' && q.form === 'pick') || (q.kind === 'english' && q.form === 'word')) ? raw : +raw;
+    var v = (q.kind === 'letter' || (q.kind === 'clock' && (q.form === 'pick' || q.form === 'elapsed')) || (q.kind === 'english' && q.form === 'word')) ? raw : +raw;
     if (v === q.answer) return onCorrect(q, btn);
     run.wrong++;
     run.off.push(v);
@@ -305,12 +311,12 @@
     sfx('oshii');
     var said = 'おしい！もう一回。';
     if (q.kind === 'letter') said = exampleOf(v) + 'の ' + D.toHira(v) + '。おしい！もう一回。';
-    else if (q.kind === 'clock' && q.form === 'pick' && v.indexOf('swap:') !== 0) { var tk = v.split(':'); said = P.readTime(+tk[0], +tk[1]) + '。おしい！もう一回。'; }
+    else if (q.kind === 'clock' && (q.form === 'pick' || q.form === 'elapsed') && v.indexOf('swap:') !== 0) { var tk = v.split(':'); said = P.readTime(+tk[0], +tk[1]) + '。おしい！もう一回。'; }
     if (q.kind === 'english') seq([{ text: q.form === 'word' ? englishOf(v).en : D.NUM_EN[v], lang: 'en' }, { text: 'おしい！もう一回。', lang: 'ja', gap: 250 }]);
     else say(said);
     var left = answerButtons().filter(function (b) { return !b.classList.contains('off'); });
     var voiceless = SP.isVoiceless() || !data.sound.voice, enOff_ = enOff();
-    if (run.wrong >= 2 || left.length <= 1 || ((q.kind === 'letter' || (q.kind === 'clock' && q.level === 'T3')) && voiceless) || (q.kind === 'english' && enOff_)) {
+    if (run.wrong >= 2 || left.length <= 1 || ((q.kind === 'letter' || (q.kind === 'clock' && /^T[3-6]$/.test(q.level))) && voiceless) || (q.kind === 'english' && enOff_)) {
       later(900, function () {
         if (!run || run.busy) return;
         answerButtons().forEach(function (b) { if (b.getAttribute('data-v') === String(q.answer)) b.classList.add('glow'); });
@@ -511,7 +517,7 @@
   }
   function voiceNote() {
     var n = $('p-voice-note');
-    if (SP.isVoiceless()) n.textContent = 'この たんまつでは にほんごの よみあげが つかえません。こうかおんと えだけで すすみますが、「もじ」と「とけい」（T3の「はん」）の がくしゅうこうかは さがります。';
+    if (SP.isVoiceless()) n.textContent = 'この たんまつでは にほんごの よみあげが つかえません。こうかおんと えだけで すすみますが、「もじ」と「とけい」（T3〜T6の「はん」や こまかい ぷん）の がくしゅうこうかは さがります。';
     else n.textContent = '「よみあげテスト」で にほんごが きこえるか たしかめてください。きこえない ときは、たんまつの おんりょうと にほんごの おんせいを かくにんしてください。';
   }
 

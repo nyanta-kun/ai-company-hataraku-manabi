@@ -143,6 +143,14 @@
   // 時刻の読み（数の読みとは別。よじ・しちじ・くじ）。index = 時 1..12
   var TIME_KANA = ['', 'いちじ', 'にじ', 'さんじ', 'よじ', 'ごじ', 'ろくじ', 'しちじ', 'はちじ', 'くじ', 'じゅうじ', 'じゅういちじ', 'じゅうにじ'];
 
+  // 分の読み（5 ごふん・10 じゅっぷん…・60 いちじかん）。index = 分。5 の倍数以外は ''
+  var MIN_KANA = (function () {
+    var a = [], i; for (i = 0; i <= 60; i++) a.push('');
+    a[5] = 'ごふん'; a[10] = 'じゅっぷん'; a[15] = 'じゅうごふん'; a[20] = 'にじゅっぷん'; a[25] = 'にじゅうごふん'; a[30] = 'さんじゅっぷん';
+    a[35] = 'さんじゅうごふん'; a[40] = 'よんじゅっぷん'; a[45] = 'よんじゅうごふん'; a[50] = 'ごじゅっぷん'; a[55] = 'ごじゅうごふん'; a[60] = 'いちじかん';
+    return a;
+  })();
+
   // えいご E1 の語彙（plan 3.2。14語）。en は読み上げ用（小文字の英字とスペースだけ）、ja は日本語の補助（ひらがな）。
   // group が同じ語は同じ問題の選択肢に並べない（truck / fire truck / dump truck など「〜 truck」は聞き分けにくいので重機と同じ group）
   var ENGLISH_WORDS = [
@@ -165,7 +173,7 @@
   var NUM_EN = ['', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten'];
 
   var api = {
-    ENGLISH_WORDS: ENGLISH_WORDS, NUM_EN: NUM_EN, TIME_KANA: TIME_KANA, WORDS: WORDS, KATA_WORDS: KATA_WORDS, ALL_WORDS: ALL_WORDS, EXTRA_KATA: EXTRA_KATA, CONFUSABLE_KATA: CONFUSABLE_KATA, toHira: toHira, CATS: CATS, SEEN_MAX: SEEN_MAX, cleanSeen: cleanSeen, addSeen: addSeen, CONFUSABLE: CONFUSABLE, ROW: ROW, FAMILY: FAMILY, CARS: CARS,
+    ENGLISH_WORDS: ENGLISH_WORDS, NUM_EN: NUM_EN, TIME_KANA: TIME_KANA, MIN_KANA: MIN_KANA, WORDS: WORDS, KATA_WORDS: KATA_WORDS, ALL_WORDS: ALL_WORDS, EXTRA_KATA: EXTRA_KATA, CONFUSABLE_KATA: CONFUSABLE_KATA, toHira: toHira, CATS: CATS, SEEN_MAX: SEEN_MAX, cleanSeen: cleanSeen, addSeen: addSeen, CONFUSABLE: CONFUSABLE, ROW: ROW, FAMILY: FAMILY, CARS: CARS,
     SCENES: SCENES, SCENE_CARS: SCENE_CARS, NUM_KANA: NUM_KANA, YOMI: YOMI, CAR_YOMI: CAR_YOMI
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;

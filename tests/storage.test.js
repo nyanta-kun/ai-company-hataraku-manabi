@@ -57,6 +57,8 @@ test('clock の不正値（レベル・負数・文字列）は戻る', () => {
   assert.equal(d.locked.clock, false);
   assert.deepEqual(d.stats.clock, { sessions: 0, questions: 0, firstTry: 2 });
   assert.equal(S.normalize({ levels: { clock: 'T3' }, locked: { clock: true } }).levels.clock, 'T3');
+  ['T4', 'T5', 'T6'].forEach(t => assert.equal(S.normalize({ levels: { clock: t } }).levels.clock, t));
+  assert.equal(S.normalize({ levels: { clock: 'T7' } }).levels.clock, 'T1');
 });
 
 test('seen.letter: 旧データは空配列。配列でない値・文字列以外・未知の絵・重複・13個以上も正規化される', () => {
