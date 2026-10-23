@@ -4,7 +4,7 @@
   'use strict';
   var D = (typeof module !== 'undefined' && module.exports) ? require('./data.js') : root.Manabi.data;
   var KEY = 'hataraku-manabi:v1';
-  var MATH_LV = ['M1', 'M2', 'M3', 'M4', 'M5'], LETTER_LV = ['K1', 'K2', 'K3', 'K4', 'K5', 'K6'], CLOCK_LV = ['T1', 'T2', 'T3', 'T4', 'T5', 'T6'], ENGLISH_LV = ['E1', 'E2', 'E3'];
+  var MATH_LV = ['M1', 'M2', 'M3', 'M4', 'M5', 'M6', 'M7'], LETTER_LV = ['K1', 'K2', 'K3', 'K4', 'K5', 'K6'], CLOCK_LV = ['T1', 'T2', 'T3', 'T4', 'T5', 'T6'], ENGLISH_LV = ['E1', 'E2', 'E3'];
   var CAR_IDS = ['nekoguruma', 'forklift', 'gomi', 'shovel', 'bulldozer', 'dump', 'kyukyu', 'shoubousha', 'mizutank', 'hashigo', 'chodai'];
 
   function defaults() {

@@ -65,6 +65,11 @@
 - E1 の選択肢は `group` が違う語だけ。「〜 truck」系（truck・fire truck・dump truck・garbage truck）は同じ group にして並べない。
 - 出動えらびは4ボタン（縦 2×2・横 4列）。`#debug:play-english-E1-kaji-0`、確認パネルに E1〜E3 と「えいご声なし」（切替）。
 
+## ひきざん（M6・M7）の現場メモ
+- `Stage.layout` は `kind:'sub'` で a 個を 1 つのグリッド（かぞえと同じ列数）に並べ、前の a−b 個を `items`、うしろの b 個を `gone` に分ける。タップ・マーク・数え聞かせは `items` だけが対象。
+- 描画: 出題の最初の描画から 1 秒後に 0.6 秒かけて `gone` が 30% まで薄くなり、赤い×（白ぶち）が出る。そのあとも薄く残す。かじは水しぶき。時刻は `draw(now)` の値（`subT0` は最初の描画で決める）。
+- 出題文は `NUMK[a]+'ひく'+NUMK[b]+'は、いくつ？'`。ヒント（2回の誤答）は残りを数え聞かせ。確認は `#debug:play-math-M7-kaji-0`。
+
 ## 確認方法
 - `scripts/test.sh`（`node --test tests/*.test.js`）。
 - `index.html#debug` で確認パネル（レベル切替・全車★3・声なしモード・エラー表示 `#errlog`）。`#debug:play-math-M3-kaji-2`（画面-ゲーム-レベル-現場-進み）、`#debug:play-letter-K3-takai`、`#debug:play-clock-T3-kaji-0`、`#debug:reward-kaji`、`#debug:garage`、`#debug:parent`、`#debug:pick` で画面へ直接移動。

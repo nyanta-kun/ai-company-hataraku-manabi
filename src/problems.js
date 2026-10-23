@@ -8,14 +8,16 @@
   var PROMOTE_AT = 4;              // 1 回目正解がこれ以上なら昇級
   var DEMOTE_AT = 1;               // 1 回目正解がこれ以下なら降級
 
-  var LEVELS = { math: ['M1', 'M2', 'M3', 'M4', 'M5'], letter: ['K1', 'K2', 'K3', 'K4', 'K5', 'K6'], clock: ['T1', 'T2', 'T3', 'T4', 'T5', 'T6'], english: ['E1', 'E2', 'E3'] };
+  var LEVELS = { math: ['M1', 'M2', 'M3', 'M4', 'M5', 'M6', 'M7'], letter: ['K1', 'K2', 'K3', 'K4', 'K5', 'K6'], clock: ['T1', 'T2', 'T3', 'T4', 'T5', 'T6'], english: ['E1', 'E2', 'E3'] };
   // 数のレベル: max = 選択肢の範囲の上限、choices = 選択肢の数
   var MATH = {
     M1: { kind: 'count', max: 3,  choices: 3 },
     M2: { kind: 'count', max: 5,  choices: 3 },
     M3: { kind: 'count', max: 10, choices: 4 },
     M4: { kind: 'add',   max: 5,  choices: 3 },
-    M5: { kind: 'add',   max: 10, choices: 4 }
+    M5: { kind: 'add',   max: 10, choices: 4 },
+    M6: { kind: 'sub',   max: 5,  choices: 3 },
+    M7: { kind: 'sub',   max: 10, choices: 4 }
   };
   // sim = 形が似た文字を 1 つ混ぜてよい。script = 出す文字種（K6 は問題ごとに語の表記で決まる）
   var LETTER = {
@@ -90,6 +92,19 @@
     else sum = randInt(rng, 2, L.max);
     var a = randInt(rng, 1, sum - 1), b = sum - a;
     return { kind: 'add', level: level, a: a, b: b, choices: numberChoices(sum, L.max, L.choices, rng), answer: sum };
+  }
+
+  // ひきざん: a（引かれる数）を先に決め、b は 1〜a-1（答えは 1 以上）。M7 は a 6 以上を約 75% にする
+  function generateSubtraction(level, rng) {
+    rng = defRng(rng);
+    var L = MATH[level];
+    if (!L || L.kind !== 'sub') throw new RangeError('sub level: ' + level);
+    var a;
+    if (level === 'M7' && rng() < 0.75) a = randInt(rng, 6, L.max);   // はずれても 2〜max から選ぶので、a≥6 は全体で約9割
+    else a = randInt(rng, 2, L.max);
+    var b = randInt(rng, 1, a - 1), ans = a - b;
+    // 選択肢は 1〜a（a は「引き忘れ」の誤答）。a より大きい数は答えになりえず消去法で当たるので出さない。a が小さく足りないときだけ広げる
+    return { kind: 'sub', level: level, a: a, b: b, choices: numberChoices(ans, Math.max(a, L.choices), L.choices, rng), answer: ans };
   }
 
   function wordPool(level) {
@@ -352,7 +367,7 @@
   function sameProblem(p, q) {
     if (!p || !q || p.kind !== q.kind) return false;
     if (p.kind === 'count') return p.n === q.n;
-    if (p.kind === 'add') return p.a === q.a && p.b === q.b;
+    if (p.kind === 'add' || p.kind === 'sub') return p.a === q.a && p.b === q.b;
     if (p.kind === 'clock') {
       if (p.form === 'elapsed' || q.form === 'elapsed') {
         return p.form === q.form && ((p.h0 === q.h0 && p.m0 === q.m0 && p.dm === q.dm) || (p.h === q.h && p.m === q.m));
@@ -375,7 +390,7 @@
     while (list.length < QUESTIONS_PER_SESSION) {
       var prev = list[list.length - 1], p;
       if (game === 'math') {
-        p = MATH[level].kind === 'count' ? generateCounting(level, rng) : generateAddition(level, rng);
+        p = MATH[level].kind === 'count' ? generateCounting(level, rng) : MATH[level].kind === 'sub' ? generateSubtraction(level, rng) : generateAddition(level, rng);
         if (sameProblem(prev, p) && ++tries < 1000) continue;
       } else if (game === 'clock') {
         p = generateClock(level, rng, prev && clockKey(prev.h, prev.m));
@@ -402,7 +417,7 @@
     QUESTIONS_PER_SESSION: QUESTIONS_PER_SESSION, PROMOTE_AT: PROMOTE_AT, DEMOTE_AT: DEMOTE_AT,
     LEVELS: LEVELS, MATH: MATH, LETTER: LETTER, CLOCK: CLOCK, ENGLISH: ENGLISH,
     generateEnglish: generateEnglish, buildEnglish: buildEnglish,
-    generateCounting: generateCounting, generateAddition: generateAddition,
+    generateCounting: generateCounting, generateAddition: generateAddition, generateSubtraction: generateSubtraction,
     generateLetter: generateLetter, buildLetter: buildLetter, generateClock: generateClock, handAngles: handAngles, readTime: readTime, readMinutes: readMinutes,
     clockKey: clockKey, sameProblem: sameProblem, generateSession: generateSession, nextLevel: nextLevel
   };
