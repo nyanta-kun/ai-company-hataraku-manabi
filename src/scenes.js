@@ -126,7 +126,7 @@
     }
     this.layout();
   };
-  // えいご: 英語の字幕（英語の声が途中で使えなくなったときだけ）。null で消す
+  // えいご: 英語の字幕（つづり。いつも出す）。null で消す
   Stage.prototype.setCaption = function (text) { this.caption = text || ''; this.layout(); };
   Stage.prototype.board = function () {
     var H = this.H;
