@@ -78,3 +78,9 @@ test('letter レベル K4〜K6 を保存・読み込みでき、範囲外（K7�
   assert.equal(S.normalize({ levels: { letter: 'K7' } }).levels.letter, 'K1');
   assert.equal(S.normalize({ levels: { letter: 'K2' }, locked: { letter: true } }).locked.letter, true);
 });
+
+test('normalize: M6・M7 を受け入れ、M8 は M1 に戻す', () => {
+  assert.equal(S.normalize({ levels: { math: 'M6' } }).levels.math, 'M6');
+  assert.equal(S.normalize({ levels: { math: 'M7' } }).levels.math, 'M7');
+  assert.equal(S.normalize({ levels: { math: 'M8' } }).levels.math, 'M1');
+});

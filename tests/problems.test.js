@@ -5,11 +5,12 @@ const D = require('../src/data.js');
 const { rngOf } = require('./helpers.js');
 
 const N = 1000;
-const CHOICES = { M1: 3, M2: 3, M3: 4, M4: 3, M5: 4, K1: 2, K2: 3, K3: 4, K4: 2, K5: 4, K6: 4 };
-const MAXV = { M1: 3, M2: 5, M3: 10, M4: 5, M5: 10 };
+const CHOICES = { M1: 3, M2: 3, M3: 4, M4: 3, M5: 4, M6: 3, M7: 4, K1: 2, K2: 3, K3: 4, K4: 2, K5: 4, K6: 4 };
+const MAXV = { M1: 3, M2: 5, M3: 10, M4: 5, M5: 10, M6: 5, M7: 10 };
 
 function gen(level, rng, prev) {
   if (level === 'M1' || level === 'M2' || level === 'M3') return P.generateCounting(level, rng);
+  if (level === 'M6' || level === 'M7') return P.generateSubtraction(level, rng);
   if (level === 'M4' || level === 'M5') return P.generateAddition(level, rng);
   return P.generateLetter(level, rng, prev);
 }
@@ -153,7 +154,11 @@ test('性質8: 同じシードなら同じ結果', () => {
 test('性質9: nextLevel（昇級・降級・同レベル・固定・上限下限）', () => {
   assert.equal(P.nextLevel('math', 'M1', 4, false), 'M2');
   assert.equal(P.nextLevel('math', 'M4', 4, false), 'M5');
-  assert.equal(P.nextLevel('math', 'M5', 4, false), 'M5');
+  assert.equal(P.nextLevel('math', 'M5', 4, false), 'M6');
+  assert.equal(P.nextLevel('math', 'M6', 4, false), 'M7');
+  assert.equal(P.nextLevel('math', 'M7', 4, false), 'M7');
+  assert.equal(P.nextLevel('math', 'M6', 0, false), 'M5');
+  assert.equal(P.nextLevel('math', 'M7', 4, true), 'M7');
   assert.equal(P.nextLevel('letter', 'K2', 4, false), 'K3');
   assert.equal(P.nextLevel('letter', 'K3', 4, false), 'K4');
   assert.equal(P.nextLevel('letter', 'K5', 4, false), 'K6');
@@ -171,4 +176,65 @@ test('性質9: nextLevel（昇級・降級・同レベル・固定・上限下�
   assert.equal(P.nextLevel('math', 'M2', 4, true), 'M2');
   assert.equal(P.nextLevel('math', 'M2', 0, true), 'M2');
   assert.equal(P.nextLevel('letter', 'K2', 4, true), 'K2');
+});
+
+test('ひきざん: a・b の範囲、答えは 1 以上、M6 は全組、M7 は a 6 以上が半分以上', () => {
+  for (const lv of ['M6', 'M7']) {
+    const r = rngOf(21);
+    const max = lv === 'M6' ? 5 : 10;
+    const seen = new Set();
+    let big = 0;
+    for (let i = 0; i < N; i++) {
+      const p = P.generateSubtraction(lv, r);
+      assert.equal(p.kind, 'sub');
+      assert.equal(p.level, lv);
+      assert.ok(Number.isInteger(p.a) && Number.isInteger(p.b));
+      assert.ok(p.a >= 2 && p.a <= max && p.b >= 1 && p.a - p.b >= 1, `${p.a}-${p.b}`);
+      assert.equal(p.answer, p.a - p.b);
+      assert.ok(p.answer >= 1);
+      seen.add(p.a + '-' + p.b);
+      if (p.a >= 6) big++;
+    }
+    for (let a = 2; a <= max; a++) {
+      if (lv === 'M6' || a >= 6) for (let b = 1; b < a; b++) assert.ok(seen.has(a + '-' + b), lv + ' ' + a + '-' + b);
+    }
+    if (lv === 'M7') assert.ok(big >= N / 2, 'big=' + big);
+  }
+});
+
+test('ひきざん: 選択肢は昇順で、正解が 1 回だけ', () => {
+  for (const lv of ['M6', 'M7']) {
+    const r = rngOf(22);
+    for (let i = 0; i < N; i++) {
+      const p = P.generateSubtraction(lv, r);
+      assert.deepEqual(p.choices, p.choices.slice().sort((x, y) => x - y));
+    }
+  }
+});
+
+test('ひきざん: 出動は 4 問・連続して同じ問題なし・固定シードで再現', () => {
+  for (const lv of ['M6', 'M7']) {
+    for (let s = 1; s <= 300; s++) {
+      const list = P.generateSession('math', lv, rngOf(s));
+      assert.equal(list.length, P.QUESTIONS_PER_SESSION);
+      list.forEach((p, i) => {
+        assert.equal(p.kind, 'sub');
+        if (i > 0) assert.ok(!P.sameProblem(list[i - 1], p));
+      });
+    }
+    assert.deepEqual(P.generateSession('math', lv, rngOf(7)), P.generateSession('math', lv, rngOf(7)));
+  }
+});
+
+test('ひきざん: sameProblem は a・b で比べ、足し算とは別', () => {
+  const mk = (a, b) => ({ kind: 'sub', a, b });
+  assert.ok(P.sameProblem(mk(5, 2), { kind: 'sub', a: 5, b: 2, choices: [1] }));
+  assert.ok(!P.sameProblem(mk(5, 2), mk(5, 3)));
+  assert.ok(!P.sameProblem(mk(5, 2), { kind: 'add', a: 5, b: 2 }));
+});
+
+test('ひきざん: M1〜M5 の出力は従来のまま、LEVELS は M1〜M7', () => {
+  assert.deepEqual(P.LEVELS.math, ['M1', 'M2', 'M3', 'M4', 'M5', 'M6', 'M7']);
+  assert.throws(() => P.generateSubtraction('M5', rngOf(1)), RangeError);
+  assert.throws(() => P.generateAddition('M6', rngOf(1)), RangeError);
 });

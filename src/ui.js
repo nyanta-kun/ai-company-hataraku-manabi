@@ -206,6 +206,7 @@
   function promptText(p) {
     if (p.kind === 'count') return 'いくつあるかな？';
     if (p.kind === 'add') return NUMK[p.a] + 'たす' + NUMK[p.b] + 'は、いくつ？';   // 数字で渡すと「1たす4」などの読みが揺れるので、数の読み（よん・なな）で渡す
+    if (p.kind === 'sub') return NUMK[p.a] + 'ひく' + NUMK[p.b] + 'は、いくつ？';
     if (p.kind === 'clock') {
       if (p.form === 'read') return '時計を見てね。出動の時間は、何時かな？';
       if (p.form === 'elapsed') return '今は、' + P.readTime(p.h0, p.m0) + '。' + P.readMinutes(p.dm) + 'たったら、どの時計かな？';
@@ -327,7 +328,7 @@
           seq([{ text: q.en + '?', lang: 'en' }, { text: 'こっちかな？', lang: 'ja', gap: 250 }]);
           stage.bouncePic(now());
         } else say('こっちかな？');
-        if (q.kind === 'count' || q.kind === 'add') countAloud(q);
+        if (q.kind === 'count' || q.kind === 'add' || q.kind === 'sub') countAloud(q);
         else if (q.kind === 'letter') stage.bouncePic(now());
         kick();
       });

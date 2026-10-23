@@ -101,6 +101,8 @@
     this.anim = null;        // { t0, dur, from, to, kind }
     this.prob = null;
     this.items = [];
+    this.gone = [];          // ひきざん: いなくなる b 個（items には入れない）
+    this.subT0 = null;       // ひきざん: 出題の時刻（描画で最初に決める）
     this.marks = [];
     this.bounceIdx = -1; this.bounceT0 = 0;
     this.picBounceT0 = -9;
@@ -118,7 +120,7 @@
   Stage.prototype.setScene = function (s) { this.scene = s; };
   Stage.prototype.setProgress = function (n) { this.shown = this.target = n; this.anim = null; };
   Stage.prototype.setProblem = function (p) {
-    this.prob = p; this.marks = []; this.bounceIdx = -1; this.word = null; this.reveal = false;
+    this.prob = p; this.subT0 = null; this.marks = []; this.bounceIdx = -1; this.word = null; this.reveal = false;
     this.caption = '';
     if (p && p.kind === 'letter') {
       var ws = root.Manabi.data.ALL_WORDS;
@@ -135,6 +137,7 @@
   Stage.prototype.layout = function () {
     var p = this.prob, b = this.board(), it = [], pad = 14;
     var inner = { x: b.x + pad, y: b.y + pad, w: b.w - pad * 2, h: b.h - pad * 2 };
+    var gone = [];
     this.plus = null; this.pic = null; this.clock = null; this.speaker = null;
     if (p && p.kind === 'count') {
       it = grid(p.n, p.n <= 5 ? p.n : 5, inner, 150);
@@ -145,6 +148,9 @@
       var B = grid(p.b, colsFor(p.b), { x: inner.x + inner.w - half, y: inner.y, w: half, h: inner.h }, 130);
       it = A.concat(B);
       this.plus = { x: inner.x + inner.w / 2, y: inner.y + inner.h / 2, s: Math.min(inner.w * 0.12, 70) };
+    } else if (p && p.kind === 'sub') {
+      var all = grid(p.a, p.a <= 5 ? p.a : 5, inner, 150);
+      it = all.slice(0, p.a - p.b); gone = all.slice(p.a - p.b);   // うしろの b 個がいなくなる
     } else if (p && p.kind === 'clock') {
       this.clock = { x: inner.x + inner.w / 2, y: inner.y + inner.h / 2, r: Math.min(inner.w, inner.h) / 2 * 0.97, x0: inner.x, y0: inner.y, w: inner.w, h: inner.h };
     } else if (p && p.kind === 'english') {
@@ -156,7 +162,7 @@
       var s = Math.min(inner.w * 0.7, inner.h * 1.0);
       this.pic = { x: inner.x + inner.w / 2, y: inner.y + inner.h / 2, s: s };
     }
-    this.items = it;
+    this.items = it; this.gone = gone;
   };
   Stage.prototype.bounce = function (i, now) { this.bounceIdx = i; this.bounceT0 = now; };
   Stage.prototype.bouncePic = function (now) { this.picBounceT0 = now; };
@@ -235,6 +241,31 @@
           ctx.fillStyle = '#fff'; ctx.font = 'bold ' + Math.max(16, it.s * 0.24) + 'px sans-serif';
           ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
           ctx.fillText(String(this.marks[i]), it.x + it.s * 0.36, it.y - it.s * 0.36 + 1);
+        }
+      }
+      if (p && p.kind === 'sub' && this.gone.length) {   // いなくなる b 個: 1 秒後にうすくなって×。そのあともうすく残す
+        if (this.subT0 === null) this.subT0 = now;
+        var gu = Math.max(0, Math.min(1, (now - this.subT0 - 1) / 0.6)), gt = now - this.subT0 - 1;
+        for (i = 0; i < this.gone.length; i++) {
+          var g = this.gone[i];
+          ctx.save(); ctx.globalAlpha = 1 - 0.7 * gu;
+          drawItem(ctx, this.scene, g.x, g.y, g.s, now);
+          ctx.restore();
+          if (gu > 0) {
+            var xs = g.s * 0.34 * (0.5 + 0.5 * gu);
+            ctx.save(); ctx.globalAlpha = gu; ctx.lineCap = 'round';
+            ctx.strokeStyle = '#fff'; ctx.lineWidth = Math.max(9, g.s * 0.11);
+            ctx.beginPath(); ctx.moveTo(g.x - xs, g.y - xs); ctx.lineTo(g.x + xs, g.y + xs); ctx.moveTo(g.x + xs, g.y - xs); ctx.lineTo(g.x - xs, g.y + xs); ctx.stroke();
+            ctx.strokeStyle = '#e53935'; ctx.lineWidth = Math.max(6, g.s * 0.07);
+            ctx.beginPath(); ctx.moveTo(g.x - xs, g.y - xs); ctx.lineTo(g.x + xs, g.y + xs); ctx.moveTo(g.x + xs, g.y - xs); ctx.lineTo(g.x - xs, g.y + xs); ctx.stroke();
+            ctx.restore();
+          }
+          if (this.scene === 'kaji' && gt >= 0 && gt < 0.7) {   // 水しぶき
+            var sp = gt / 0.7;
+            ctx.save(); ctx.globalAlpha = 1 - sp; ctx.fillStyle = '#4aa3e8';
+            for (var d = 0; d < 5; d++) { var an = -Math.PI * (0.15 + 0.7 * d / 4); circle(ctx, g.x + Math.cos(an) * g.s * 0.5 * sp, g.y + Math.sin(an) * g.s * 0.6 * sp, g.s * 0.07 * (1 - sp * 0.4), '#4aa3e8', null, 0); }
+            ctx.restore();
+          }
         }
       }
       if (this.plus) { // ＋

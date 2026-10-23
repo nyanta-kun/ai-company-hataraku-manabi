@@ -39,7 +39,7 @@
     root.addEventListener('error', function (e) { log('ERROR: ' + e.message + ' @' + (e.filename || '').split('/').pop() + ':' + e.lineno); });
     root.addEventListener('unhandledrejection', function (e) { log('REJECT: ' + e.reason); });
     function btn(label, fn) { var b = doc.createElement('button'); b.type = 'button'; b.textContent = label; b.addEventListener('click', fn); box.appendChild(b); }
-    ['M1', 'M2', 'M3', 'M4', 'M5'].forEach(function (lv) { btn(lv, function () { ui.data.levels.math = lv; ui.data.locked.math = true; ui.setData(ui.data); ui.startSession('math', { fast: true }); }); });
+    ['M1', 'M2', 'M3', 'M4', 'M5', 'M6', 'M7'].forEach(function (lv) { btn(lv, function () { ui.data.levels.math = lv; ui.data.locked.math = true; ui.setData(ui.data); ui.startSession('math', { fast: true }); }); });
     ['K1', 'K2', 'K3', 'K4', 'K5', 'K6'].forEach(function (lv) { btn(lv, function () { ui.data.levels.letter = lv; ui.data.locked.letter = true; ui.setData(ui.data); ui.startSession('letter', { fast: true }); }); });
     ['T1', 'T2', 'T3', 'T4', 'T5', 'T6'].forEach(function (lv) { btn(lv, function () { ui.data.levels.clock = lv; ui.data.locked.clock = true; ui.setData(ui.data); ui.startSession('clock', { fast: true }); }); });
     ['E1', 'E2', 'E3'].forEach(function (lv) { btn(lv, function () { ui.data.levels.english = lv; ui.data.locked.english = true; ui.setData(ui.data); ui.startSession('english', { fast: true }); }); });
