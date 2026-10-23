@@ -63,7 +63,7 @@
     }
     // 外周の分の数字（5,10,…,55）。大きな現場の時計だけ。12,3,6,9 の位置は時の数字とかぶらない外側に置く
     if (mnum) {
-      ctx.font = 'bold ' + Math.max(8, Math.round(r * 0.075)) + 'px sans-serif';
+      ctx.font = 'bold ' + Math.max(10, Math.round(r * 0.085)) + 'px sans-serif';
       ctx.lineWidth = Math.max(2, r * 0.03);
       for (var mm = 5; mm < 60; mm += 5) {
         var am = mm * Math.PI / 30, rm = r * 0.975;
