@@ -222,7 +222,14 @@
     } else if (p && p.kind === 'clock' && this.clock) {
       var ck = this.clock;
       if (p.form === 'read') root.Manabi.clockface.drawClock(ctx, ck.x, ck.y, ck.r, p.h + ':00', { numbers: 12, pulse: this.pulseAt(now) });
-      else drawSign(ctx, ck, p);
+      else if (p.form === 'elapsed') {   // T6: 開始時刻を大きな時計で。経過は「+20」のふだ
+        // ふだは時計の右に並べる（時計に重ねると外周の分の数字が隠れる）。横幅が足りなければ時計を小さくする
+        var er = ck.r * 0.9, bs = er * 0.85, gap = er * 0.12;
+        if (2 * er + gap + bs > ck.w * 0.96) { er = ck.w * 0.96 / (2 + 0.12 + 0.85); bs = er * 0.85; gap = er * 0.12; }
+        var ecx = ck.x - (gap + bs) / 2, ecy = ck.y;
+        root.Manabi.clockface.drawClock(ctx, ecx, ecy, er, p.h0 + ':' + (p.m0 < 10 ? '0' : '') + p.m0, { numbers: 12, ticks: 60, minuteNums: true });
+        drawElapsedBadge(ctx, ecx + er + gap + bs / 2, ecy, bs, p.dm);
+      } else drawSign(ctx, ck, p);
     } else {
       for (i = 0; i < this.items.length; i++) {
         var it = this.items[i], sc = 1, dy2 = 0, bt2 = now - this.bounceT0;
@@ -266,8 +273,10 @@
     for (var i = 0; i < 3; i++) circle(ctx, x + w * (0.4 + i * 0.1), y + h * 0.085, h * 0.035, '#fff2a0', OUT, 2);
     var half = p.m === 30, body = h * 0.83, by = y + h * 0.17;
     ctx.fillStyle = OUT; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.font = 'bold ' + Math.round(body * (half ? 0.58 : 0.8)) + 'px sans-serif';
-    ctx.fillText(String(p.h), ck.x, by + body * (half ? 0.38 : 0.52), w * 0.9);
+    var fine = p.m !== 0 && !half;   // T4・T5 の細かい分は「3:15」のように出す（時だけだと別の時刻に見える）
+    var label = fine ? p.h + ':' + (p.m < 10 ? '0' : '') + p.m : String(p.h);
+    ctx.font = 'bold ' + Math.round(body * (half ? 0.58 : fine ? 0.5 : 0.8)) + 'px sans-serif';
+    ctx.fillText(label, ck.x, by + body * (half ? 0.38 : 0.52), w * 0.9);
     if (half) {
       var my = by + body * 0.84, mr = body * 0.1;
       // 半月: まる全体の外わく + 右半分だけ色
@@ -277,6 +286,23 @@
       ctx.fillStyle = OUT; ctx.font = 'bold ' + Math.round(body * 0.2) + 'px sans-serif'; ctx.textAlign = 'left';
       ctx.fillText('はん', ck.x - body * 0.25 + mr * 1.6, my + 2);
     }
+  }
+  // T6 の経過ふだ: 「+20」「+1じかん」。数字だけで分かる大きな丸
+  function drawElapsedBadge(ctx, x, y, s, dm) {
+    var hour = dm === 60, rr = s * 0.5;
+    ctx.save();
+    ctx.translate(x, y); ctx.rotate(-0.12);
+    circle(ctx, 0, 0, rr, '#ff9f1c', OUT, 5);
+    ctx.fillStyle = '#fff'; ctx.strokeStyle = OUT; ctx.lineJoin = 'round'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.font = 'bold ' + Math.round(rr * (hour ? 0.5 : 0.78)) + 'px sans-serif';
+    ctx.lineWidth = Math.max(3, rr * 0.12);
+    var t1 = '+' + (hour ? '1' : dm);
+    ctx.strokeText(t1, 0, hour ? -rr * 0.18 : 0); ctx.fillText(t1, 0, hour ? -rr * 0.18 : 0);
+    if (hour) {
+      ctx.font = 'bold ' + Math.round(rr * 0.4) + 'px sans-serif';
+      ctx.strokeText('じかん', 0, rr * 0.38, rr * 1.7); ctx.fillText('じかん', 0, rr * 0.38, rr * 1.7);
+    }
+    ctx.restore();
   }
   function linePlus(ctx, x, y, s) {
     linepx(ctx, x - s / 2, y, x + s / 2, y, s * 0.28, '#3a2b24');

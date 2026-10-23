@@ -4,12 +4,13 @@
   'use strict';
   var OUT = '#3a2b24', HOUR_COL = '#1e5bd8', MIN_COL = '#e53935';
 
-  // key: 'h:mm' または 'swap:N'。opts: { numbers: 12|4, pulse: 0..1（短針をふくらませる量）, face: 文字盤の色 }
+  // key: 'h:mm' または 'swap:N'。opts: { numbers: 12|4, pulse: 0..1（短針をふくらませる量）, pulseMin: 0..1（長針をふくらませる量）, ticks: 12|60（60 で分の目盛り）,
+  //        minuteNums: true（外周に 5,10,…,55 の小さい数字。大きい時計だけ）, face: 文字盤の色 }
   function drawClock(ctx, cx, cy, r, key, opts) {
     opts = opts || {};
     var ang = root.Manabi.problems.handAngles(key);
     var nums = opts.numbers === 4 ? 4 : 12;
-    var pulse = opts.pulse || 0;
+    var pulse = opts.pulse || 0, pulseMin = opts.pulseMin || 0, t60 = opts.ticks === 60, mnum = !!opts.minuteNums;
     ctx.save();
     ctx.lineCap = 'round'; ctx.lineJoin = 'round';
     // ふち・文字盤
@@ -18,6 +19,16 @@
     ctx.beginPath(); ctx.arc(cx, cy, r * 0.93, 0, Math.PI * 2);
     ctx.fillStyle = opts.face || '#fffdf5'; ctx.fill();
     ctx.lineWidth = Math.max(2, r * 0.05); ctx.strokeStyle = OUT; ctx.stroke();
+    // 分の目盛り（60 か所。5 分ごとは下の 12 か所の目盛りで太く描く）。小さい時計でも潰れないよう細い短線にする
+    if (t60) {
+      for (var j = 0; j < 60; j++) {
+        if (j % 5 === 0) continue;
+        var aj = j * Math.PI / 30, q1 = r * 0.855, q2 = r * 0.89;
+        ctx.beginPath();
+        ctx.moveTo(cx + Math.sin(aj) * q1, cy - Math.cos(aj) * q1); ctx.lineTo(cx + Math.sin(aj) * q2, cy - Math.cos(aj) * q2);
+        ctx.lineWidth = Math.max(1, r * 0.022); ctx.strokeStyle = OUT; ctx.stroke();
+      }
+    }
     // 目盛り（12 か所。3・6・9・12 は長く太く）
     for (var i = 0; i < 12; i++) {
       var a = i * Math.PI / 6, big = i % 3 === 0;
@@ -35,7 +46,7 @@
       ctx.beginPath(); ctx.moveTo(tx, ty); ctx.lineTo(x, y);
       ctx.lineWidth = w; ctx.strokeStyle = col; ctx.stroke();
     }
-    hand(ang.minute, 0.8, Math.max(2.5, r * 0.07), MIN_COL);
+    hand(ang.minute, 0.8 * (1 + 0.06 * pulseMin), Math.max(2.5, r * 0.07) * (1 + 0.8 * pulseMin), MIN_COL);
     var hs = 1 + 0.35 * pulse;
     hand(ang.hour, 0.4 * (1 + 0.12 * pulse), Math.max(5, r * 0.15) * hs, HOUR_COL);
     ctx.beginPath(); ctx.arc(cx, cy, Math.max(3, r * 0.09), 0, Math.PI * 2);
@@ -49,6 +60,16 @@
       var an = n * Math.PI / 6, rn = r * (nums === 4 ? 0.56 : 0.66);
       var nx = cx + Math.sin(an) * rn, ny = cy - Math.cos(an) * rn + r * 0.01;
       ctx.strokeText(String(n), nx, ny); ctx.fillText(String(n), nx, ny);
+    }
+    // 外周の分の数字（5,10,…,55）。大きな現場の時計だけ。12,3,6,9 の位置は時の数字とかぶらない外側に置く
+    if (mnum) {
+      ctx.font = 'bold ' + Math.max(8, Math.round(r * 0.075)) + 'px sans-serif';
+      ctx.lineWidth = Math.max(2, r * 0.03);
+      for (var mm = 5; mm < 60; mm += 5) {
+        var am = mm * Math.PI / 30, rm = r * 0.975;
+        var mx = cx + Math.sin(am) * rm, my = cy - Math.cos(am) * rm;
+        ctx.strokeText(String(mm), mx, my); ctx.fillText(String(mm), mx, my);
+      }
     }
     ctx.restore();
   }
