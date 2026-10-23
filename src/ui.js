@@ -147,8 +147,8 @@
       if (el.setPointerCapture && e.pointerId != null) { try { el.setPointerCapture(e.pointerId); } catch (er) {} }   // 指が少しずれても押したままにする
       id = root.setTimeout(function () { id = 0; el.classList.remove('holding'); cb(); }, ms);
     });
-    el.addEventListener('pointerup', function () { if (id) hint(); stop(); });
-    ['pointerleave', 'pointercancel'].forEach(function (ev) { el.addEventListener(ev, stop); });
+    ['pointerup', 'pointercancel'].forEach(function (ev) { el.addEventListener(ev, function () { if (id) hint(); stop(); }); });   // 端末に取り消されたときも案内を出す
+    el.addEventListener('pointerleave', stop);
     el.addEventListener('contextmenu', function (e) { e.preventDefault(); });
   }
 
