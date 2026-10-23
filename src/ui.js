@@ -134,14 +134,21 @@
   }
 
   // ---- 長押し（誤タップ防止） ----
+  // 短く離したら「ながおし」の吹き出しを出す（タップしても何も起きないと、こわれていると思われるため）
   function holdButton(el, ms, cb) {
-    var id = 0;
+    var id = 0, hintId = 0;
     function stop() { if (id) { root.clearTimeout(id); id = 0; } el.classList.remove('holding'); }
-    el.addEventListener('pointerdown', function () {
-      unlockOnce(); stop(); el.classList.add('holding');
+    function hint() {
+      el.classList.add('hint'); root.clearTimeout(hintId);
+      hintId = root.setTimeout(function () { el.classList.remove('hint'); }, 2500);
+    }
+    el.addEventListener('pointerdown', function (e) {
+      unlockOnce(); stop(); el.classList.remove('hint'); el.classList.add('holding');
+      if (el.setPointerCapture && e.pointerId != null) { try { el.setPointerCapture(e.pointerId); } catch (er) {} }   // 指が少しずれても押したままにする
       id = root.setTimeout(function () { id = 0; el.classList.remove('holding'); cb(); }, ms);
     });
-    ['pointerup', 'pointerleave', 'pointercancel'].forEach(function (ev) { el.addEventListener(ev, stop); });
+    el.addEventListener('pointerup', function () { if (id) hint(); stop(); });
+    ['pointerleave', 'pointercancel'].forEach(function (ev) { el.addEventListener(ev, stop); });
     el.addEventListener('contextmenu', function (e) { e.preventDefault(); });
   }
 

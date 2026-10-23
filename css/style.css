@@ -34,6 +34,10 @@ canvas { display: block; }
 .mini canvas { width: 32px; height: 32px; }
 .ring { position: absolute; inset: -4px; border-radius: 50%; border: 5px solid transparent; pointer-events: none; }
 .holding .ring { border-color: #ff9f1c; animation: hold 2s linear forwards; }
+/* 長押しボタン: 指が少し動いてもスクロール扱いで取り消されないように touch-action: none。短く離したら案内を出す */
+#btn-gear, #btn-quit { touch-action: none; }
+.hint::after { content: "2びょう ながおし"; position: absolute; top: calc(100% + 8px); right: 0; white-space: nowrap; padding: 6px 12px; border-radius: 12px; background: #3a2b24; color: #fff; font-size: 16px; font-weight: bold; pointer-events: none; z-index: 6; }
+.corner.tl.hint::after, .mini.hint::after { right: auto; left: 0; }
 @keyframes hold { from { clip-path: inset(0 100% 0 0); } to { clip-path: inset(0 0 0 0); } }
 .voice-x { position: absolute; left: 96px; top: 20px; opacity: .8; pointer-events: none; z-index: 4; }
 .voice-x canvas { width: 36px; height: 36px; }
