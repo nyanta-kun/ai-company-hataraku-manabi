@@ -592,7 +592,9 @@
     $('btn-replay').addEventListener('click', function () {
       if (!run || run.busy) return;
       var q = run.qs[run.idx]; sayPrompt(q);
-      if (q.kind === 'letter' || q.kind === 'english') stage.bouncePic(now()); kick();
+      if (q.kind === 'letter' || q.kind === 'english') stage.bouncePic(now());
+      if (q.kind === 'sub') stage.subT0 = null;   // ひきざん: 「いなくなる」ところをもう一度見せる
+      kick();
     });
     $('sceneCanvas').addEventListener('pointerdown', function (e) {
       if (!run || run.busy) return;

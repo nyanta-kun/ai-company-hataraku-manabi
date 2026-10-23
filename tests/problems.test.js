@@ -233,8 +233,18 @@ test('ひきざん: sameProblem は a・b で比べ、足し算とは別', () =>
   assert.ok(!P.sameProblem(mk(5, 2), { kind: 'add', a: 5, b: 2 }));
 });
 
-test('ひきざん: M1〜M5 の出力は従来のまま、LEVELS は M1〜M7', () => {
+test('ひきざん: LEVELS は M1〜M7、範囲外のレベルは RangeError', () => {
   assert.deepEqual(P.LEVELS.math, ['M1', 'M2', 'M3', 'M4', 'M5', 'M6', 'M7']);
   assert.throws(() => P.generateSubtraction('M5', rngOf(1)), RangeError);
   assert.throws(() => P.generateAddition('M6', rngOf(1)), RangeError);
+});
+
+test('ひきざん: 選択肢は 1〜max(a, 選択肢の数)。答えになりえない a より大きい数は（足りないとき以外）出さない', () => {
+  for (const lv of ['M6', 'M7']) {
+    const r = rngOf(61), n = lv === 'M6' ? 3 : 4;
+    for (let i = 0; i < 1000; i++) {
+      const p = P.generateSubtraction(lv, r);
+      p.choices.forEach(c => assert.ok(c >= 1 && c <= Math.max(p.a, n), lv + ' ' + JSON.stringify(p)));
+    }
+  }
 });

@@ -100,10 +100,11 @@
     var L = MATH[level];
     if (!L || L.kind !== 'sub') throw new RangeError('sub level: ' + level);
     var a;
-    if (level === 'M7' && rng() < 0.75) a = randInt(rng, 6, L.max);
+    if (level === 'M7' && rng() < 0.75) a = randInt(rng, 6, L.max);   // はずれても 2〜max から選ぶので、a≥6 は全体で約9割
     else a = randInt(rng, 2, L.max);
     var b = randInt(rng, 1, a - 1), ans = a - b;
-    return { kind: 'sub', level: level, a: a, b: b, choices: numberChoices(ans, L.max, L.choices, rng), answer: ans };
+    // 選択肢は 1〜a（a は「引き忘れ」の誤答）。a より大きい数は答えになりえず消去法で当たるので出さない。a が小さく足りないときだけ広げる
+    return { kind: 'sub', level: level, a: a, b: b, choices: numberChoices(ans, Math.max(a, L.choices), L.choices, rng), answer: ans };
   }
 
   function wordPool(level) {
