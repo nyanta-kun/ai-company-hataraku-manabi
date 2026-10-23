@@ -1,5 +1,5 @@
 // 読み上げ（Web Speech API）と声なしモード判定。日本語と英語は別々に声を選び、別々に失敗を数える。
-// 日本語の読み上げ文はすべてひらがな。最初のタップで init() を呼ぶ（iOS Safari 対策）。
+// 日本語の読み上げ文は、ひらがなだけだと平坦になるので漢字・カタカナまじり（文字の音そのものはひらがな）。最初のタップで init() を呼ぶ（iOS Safari 対策）。
 // create(env) で作る（env: speechSynthesis / SpeechSynthesisUtterance / setTimeout）。Node のテストは偽の env を渡す。
 (function (root) {
   'use strict';
@@ -101,7 +101,7 @@
         var u = new Utter(text);
         current = u;   // 参照を持っておく（Chrome で GC されると onend が来ない不具合の回避）
         if (lang === 'en') { u.lang = (st.voice && st.voice.lang) || 'en-US'; u.rate = 0.8; u.pitch = 1.0; }
-        else { u.lang = 'ja-JP'; u.rate = 0.85; u.pitch = 1.1; }
+        else { u.lang = 'ja-JP'; u.rate = 0.9; u.pitch = 1.0; }   // 高い声・遅すぎる速度は抑揚が機械的になるので、ほぼ標準に
         if (st.voice) u.voice = st.voice;
         var started = false, behind = busy > 0, ep = epoch, fin = false;
         busy++;

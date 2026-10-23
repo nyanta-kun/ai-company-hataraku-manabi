@@ -30,11 +30,12 @@
     T3: { form: 'pick', half: true,  choices: 4 }
   };
 
-  // えいご: form = word（乗り物の英語を聞いて絵を選ぶ）/ number（英語の数を聞いて数を選ぶ）
+  // えいご: 問題の form = word（乗り物の英語を聞いて絵を選ぶ）/ number（英語の数を聞いて数を選ぶ）
+  // E1 は乗り物だけ。E2・E3 は 1 回の出動に乗り物 words 問と数を混ぜる（数ばかりにならないように）
   var ENGLISH = {
-    E1: { form: 'word',   choices: 3 },
-    E2: { form: 'number', max: 5,  choices: 3 },
-    E3: { form: 'number', max: 10, choices: 4 }
+    E1: { words: 4, wordChoices: 3 },
+    E2: { words: 2, wordChoices: 3, max: 5,  choices: 3 },
+    E3: { words: 2, wordChoices: 4, max: 10, choices: 4 }
   };
 
   function defRng(rng) { return typeof rng === 'function' ? rng : Math.random; }
@@ -251,40 +252,39 @@
   }
 
   // ---- えいご ----
-  // 指定の答え（E1 は語の id、E2/E3 は数）で 1 問作る。E1 の誤答は、正解や互いに違う group の語から選ぶ
+  // 指定の答え（語の id または数）で 1 問作る。語の誤答は、正解や互いに違う group の語から選ぶ
   function buildEnglish(level, answer, rng) {
     var L = ENGLISH[level];
-    if (L.form === 'number') {
+    if (typeof answer === 'number') {
       return { kind: 'english', level: level, form: 'number', n: answer, en: D.NUM_EN[answer], ja: D.NUM_KANA[answer],
         choices: numberChoices(answer, L.max, L.choices, rng), answer: answer };
     }
     var word = D.ENGLISH_WORDS.filter(function (w) { return w.id === answer; })[0];
     var out = [], groups = {}; groups[word.group] = true;
     shuffle(D.ENGLISH_WORDS, rng).forEach(function (w) {
-      if (out.length >= L.choices - 1 || groups[w.group]) return;
+      if (out.length >= L.wordChoices - 1 || groups[w.group]) return;
       groups[w.group] = true; out.push(w.id);
     });
     out.push(word.id);
     return { kind: 'english', level: level, form: 'word', wordId: word.id, en: word.en, ja: word.ja, pic: word.pic,
       choices: shuffle(out, rng), answer: word.id };
   }
-  function englishKeys(level) {
-    var L = ENGLISH[level], out = [], i;
-    if (L.form === 'number') for (i = 1; i <= L.max; i++) out.push(i);
-    else D.ENGLISH_WORDS.forEach(function (w) { out.push(w.id); });
-    return out;
-  }
+  function wordKeys() { return D.ENGLISH_WORDS.map(function (w) { return w.id; }); }
+  function numberKeys(level) { var out = [], max = ENGLISH[level].max || 0; for (var i = 1; i <= max; i++) out.push(i); return out; }
   // 1 問だけ作る。prevKey（直前の語の id または数）は避ける
   function generateEnglish(level, rng, prevKey) {
     rng = defRng(rng);
     if (!ENGLISH[level]) throw new RangeError('english level: ' + level);
-    var keys = englishKeys(level).filter(function (k) { return k !== prevKey; });
+    var keys = wordKeys().concat(numberKeys(level)).filter(function (k) { return k !== prevKey; });
     return buildEnglish(level, keys[randInt(rng, 0, keys.length - 1)], rng);
   }
-  // 1 回の出動の 4 問。答えは重複させない（語・数とも 4 通り以上ある）。順番は無作為だが連続は起きない
+  // 1 回の出動の 4 問。乗り物 words 問＋残りは数。答えは重複させない。順番は無作為だが連続は起きない
   function generateEnglishSession(level, rng) {
+    rng = defRng(rng);
     if (!ENGLISH[level]) throw new RangeError('english level: ' + level);
-    return shuffle(englishKeys(level), rng).slice(0, QUESTIONS_PER_SESSION).map(function (k) { return buildEnglish(level, k, rng); });
+    var nw = ENGLISH[level].words;
+    var keys = shuffle(wordKeys(), rng).slice(0, nw).concat(shuffle(numberKeys(level), rng).slice(0, QUESTIONS_PER_SESSION - nw));
+    return shuffle(keys, rng).map(function (k) { return buildEnglish(level, k, rng); });
   }
 
   function sameProblem(p, q) {
@@ -292,7 +292,7 @@
     if (p.kind === 'count') return p.n === q.n;
     if (p.kind === 'add') return p.a === q.a && p.b === q.b;
     if (p.kind === 'clock') return p.h === q.h && p.m === q.m;
-    if (p.kind === 'english') return p.form === 'number' ? p.n === q.n : p.wordId === q.wordId;
+    if (p.kind === 'english') return p.form === q.form && (p.form === 'number' ? p.n === q.n : p.wordId === q.wordId);
     return p.wordId === q.wordId;
   }
 
