@@ -238,13 +238,13 @@
     if (q.kind === 'english') return seq([{ text: q.en, lang: 'en' }, { text: promptText(q), lang: 'ja', gap: 350 }]);
     return say(promptText(q));
   }
-  // 英語の声が途中で使えなくなったら、英語を字幕で出す（plan 3.4）
+  // 英語のつづりを字幕で出す。英語の声が途中で使えなくなったら、1回目の誤答で正解を光らせる（plan 3.4）
   function syncCaption() {
     if (!run || run.game !== 'english' || !stage) return;
-    var q = run.qs[run.idx], want = q && enOff() ? q.en : '';
+    var q = run.qs[run.idx], want = q ? q.en : '';   // つづりはいつも出す（発音と一緒に確かめられるように）
     if ((stage.caption || '') !== want) { stage.setCaption(want); kick(); }
     // 1回目の誤答のあとで英語の失敗が確定したときも、その問題の正解を光らせる
-    if (want && run.wrong >= 1 && !run.busy) answerButtons().forEach(function (b) { if (b.getAttribute('data-v') === String(q.answer)) b.classList.add('glow'); });
+    if (enOff() && run.wrong >= 1 && !run.busy) answerButtons().forEach(function (b) { if (b.getAttribute('data-v') === String(q.answer)) b.classList.add('glow'); });
   }
   function presentQuestion() {
     var q = run.qs[run.idx];

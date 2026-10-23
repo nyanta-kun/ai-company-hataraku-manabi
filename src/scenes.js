@@ -126,7 +126,7 @@
     }
     this.layout();
   };
-  // えいご: 英語の字幕（英語の声が途中で使えなくなったときだけ）。null で消す
+  // えいご: 英語の字幕（つづり。いつも出す）。null で消す
   Stage.prototype.setCaption = function (text) { this.caption = text || ''; this.layout(); };
   Stage.prototype.board = function () {
     var H = this.H;
@@ -148,10 +148,10 @@
     } else if (p && p.kind === 'clock') {
       this.clock = { x: inner.x + inner.w / 2, y: inner.y + inner.h / 2, r: Math.min(inner.w, inner.h) / 2 * 0.97, x0: inner.x, y0: inner.y, w: inner.w, h: inner.h };
     } else if (p && p.kind === 'english') {
-      var sp = Math.min(inner.w * 0.7, inner.h * (this.caption ? 0.78 : 0.95));   // 字幕があるときは少し小さくして下に字幕の場所を空ける
-      this.speaker = { x: inner.x + inner.w / 2, y: inner.y + (this.caption ? inner.h * 0.43 : inner.h * 0.5), s: sp };
+      var sp = Math.min(inner.w * 0.7, inner.h * (this.caption ? 0.66 : 0.95));   // 字幕（つづり）があるときは小さくして下に字幕の場所を空ける
+      this.speaker = { x: inner.x + inner.w / 2, y: inner.y + (this.caption ? inner.h * 0.38 : inner.h * 0.5), s: sp };
       this.pic = { x: this.speaker.x, y: this.speaker.y, s: sp };
-      if (p.form === 'number') it = grid(p.n, p.n <= 5 ? p.n : 5, inner, 150);
+      if (p.form === 'number') it = grid(p.n, p.n <= 5 ? p.n : 5, this.caption ? { x: inner.x, y: inner.y, w: inner.w, h: inner.h * 0.8 } : inner, 150);   // 字幕（つづり）の場所を下に空ける
     } else if (p && p.kind === 'letter') {
       var s = Math.min(inner.w * 0.7, inner.h * 1.0);
       this.pic = { x: inner.x + inner.w / 2, y: inner.y + inner.h / 2, s: s };
@@ -214,11 +214,6 @@
       var sk = this.speaker, ebt = now - this.picBounceT0, ek = ebt >= 0 && ebt < 0.6 ? 1 + 0.15 * Math.sin(ebt / 0.6 * Math.PI) : 1;
       if (this.reveal) V().drawPic(ctx, p.pic, sk.x, sk.y, sk.s, now);   // 正解のあと: 乗り物の絵を大きく
       else drawSpeaker(ctx, sk.x, sk.y, sk.s * ek, now);
-      if (this.caption) {
-        ctx.fillStyle = OUT; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-        ctx.font = 'bold 44px sans-serif';
-        ctx.fillText(this.caption, sk.x, b.y + b.h - 38, b.w * 0.9);
-      }
     } else if (p && p.kind === 'clock' && this.clock) {
       var ck = this.clock;
       if (p.form === 'read') root.Manabi.clockface.drawClock(ctx, ck.x, ck.y, ck.r, p.h + ':00', { numbers: 12, pulse: this.pulseAt(now) });
@@ -246,6 +241,12 @@
         var pl = this.plus;
         linePlus(ctx, pl.x, pl.y, pl.s);
       }
+    }
+    // えいご: 聞いた英語のつづりを下に出す（正解のあとも出したまま）
+    if (p && p.kind === 'english' && this.caption) {
+      ctx.fillStyle = OUT; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.font = 'bold ' + Math.round(Math.max(24, Math.min(48, b.h * 0.15))) + 'px sans-serif';
+      ctx.fillText(this.caption, b.x + b.w / 2, b.y + b.h - Math.max(22, b.h * 0.1), b.w * 0.9);
     }
   };
   // えいご: 大きなスピーカー（音が出ているように波がゆれる）
