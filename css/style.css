@@ -106,12 +106,14 @@ canvas { display: block; }
 
 /* ごほうび */
 #reward-box { margin: auto; width: 100%; max-height: 100%; display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 12px; }
-#cardCanvas { height: min(52vh, 105vw); aspect-ratio: 3 / 4; max-width: 94vw; }
+/* カードの高さは画面の残りから決める。vh は Safari のツールバーを含まない一番大きな高さなので、dvh（見えている高さ）を使う */
+#cardCanvas { height: min(calc(100vh - 270px), 52vh, 105vw); height: min(calc(100dvh - 270px), 52dvh, 105vw); min-height: 160px; aspect-ratio: 3 / 4; max-width: 94vw; }
 #reward-side { text-align: center; }
 #reward-text { font-size: clamp(26px, 6vmin, 44px); font-weight: bold; min-height: 1.3em; }
 #reward-sub { font-size: clamp(18px, 4vmin, 28px); color: #c0560a; min-height: 1.3em; margin-bottom: 10px; }
-#reward-side .big { min-height: 96px; flex-direction: row; gap: 10px; min-width: 150px; }
-#reward-side .big canvas { width: 56px; height: 56px; }
+#reward-side .row { flex-wrap: nowrap; gap: 14px; width: min(360px, 92vw); margin: 0 auto; }   /* 文言の長さでボタンの幅が変わらないよう、列の幅を固定する */
+#reward-side .big { flex: 1 1 0; min-width: 0; max-width: 220px; min-height: 92px; padding: 8px 6px; white-space: nowrap; }   /* 2つを横に並べる（縦に積むと画面からはみ出す） */
+#reward-side .big canvas { width: 44px; height: 44px; }
 
 /* しゃこ / 保護者 共通 */
 .bar { display: flex; align-items: center; gap: 14px; padding: 8px 14px; flex: none; }
@@ -152,7 +154,7 @@ canvas { display: block; }
   .ans .dots i { width: 8px; height: 8px; }
   .ans .num { font-size: 34px; } .ans .kana { font-size: 44px; }
   #reward-box { flex-direction: row; justify-content: center; }
-  #cardCanvas { height: 78vh; }
+  #cardCanvas { height: 78vh; height: 78dvh; }
   .title-box h1 { margin-bottom: 4px; }
   .big { min-height: 84px; }
   #lamps i { width: 26px; height: 26px; }
