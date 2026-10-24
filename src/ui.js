@@ -33,6 +33,14 @@
   function rebind() { dev = state.device; data = PR.currentProfile(state); }
   function useProfile(id) { state = PR.selectProfile(state, id); rebind(); relockAsk = ''; save(); }
 
+  // ---- ふりがな（design-elementary 3.7）。S1 以降の子ども向け画面（出動えらび・現場・ごほうび・昇格）だけ。S0 は全部ひらがな ----
+  function esc(t) { return String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+  // furigana() の結果 → <ruby> つきの HTML。文言は data.js の固定の表だけを通す（子どもの名前など外から来る文字は通さない）
+  function rubyHtml(segs) {
+    return segs.map(function (g) { return g.r ? '<ruby>' + esc(g.t) + '<rt>' + esc(g.r) + '</rt></ruby>' : esc(g.t); }).join('');
+  }
+  function kidText(markup) { return rubyHtml(D.furigana(markup, D.allowedKanji(LD.currentStage(data)))); }
+
   // ---- アイコン（Canvas で描く。画面の文字に頼らない） ----
   function drawIcon(cv, kind) {
     var ctx = cv.getContext('2d'), w = cv.width, h = cv.height;
@@ -168,13 +176,18 @@
       var ctx = cv.getContext('2d'); ctx.setTransform(dpr, 0, 0, dpr, 0, 0); SC.drawWappen(ctx, 17, 19, 30, i, 0);
       b.addEventListener('click', function () {
         if (i === stageIdx()) return;
-        sfx('tap'); replaceData(LD.selectStage(data, stg.id)); save(); buildStageTabs();
+        sfx('tap'); replaceData(LD.selectStage(data, stg.id)); save(); buildStageTabs(); updatePickSub();
       });
     });
   }
   function replaceData(np) { Object.keys(np).forEach(function (k) { data[k] = np[k]; }); }   // data は state.profiles の要素そのものなので、中身を差し替える
+  // 出動えらびの一行（S1 以降だけ。ふりがな付き）。S0 の子には今までと同じ画面。札で S0 に切り替えたときも消す
+  function updatePickSub() {
+    var sub = $('pick-sub'); sub.hidden = stageIdx() < 1;
+    sub.innerHTML = sub.hidden ? '' : kidText(D.TEXT.pickSub);
+  }
   function updatePick() {
-    buildStageTabs();
+    buildStageTabs(); updatePickSub();
     var b = $('btn-english'); if (!b) return;
     var off = enOff();
     b.classList.toggle('disabled', off); b.setAttribute('aria-disabled', off ? 'true' : 'false');
@@ -251,7 +264,7 @@
     clearTimers(); token++;
     var pl = LD.playLevel(data, game), level = pl.level;   // 下のステージで遊ぶとき（復習）は進み具合を変えない
     var qs = P.generateSession(game, level, Math.random, game === 'letter' ? seenLetter() : undefined);
-    if (game === 'letter') rememberLetter(qs);
+    if (game === 'letter' && !P.LETTER[level].form) rememberLetter(qs);   // K7・K8 の絵は「直近の絵」に入れない（K1〜K6 の出方を変えない）
     run = {
       game: game, level: level, review: pl.review, scene: opts.scene || pickScene(), qs: qs,
       idx: 0, firstTry: 0, wrong: 0, off: [], busy: true, token: token
@@ -275,12 +288,16 @@
     if (p.kind === 'sub') return NUMK[p.a] + 'ひく' + NUMK[p.b] + 'は、いくつ？';
     if (p.kind === 'clock') {
       if (p.form === 'read') return '時計を見てね。出動の時間は、何時かな？';
+      if (p.form === 'readmin') return '時計を見てね。出動の時間は、何時何分かな？';
       if (p.form === 'elapsed') return '今は、' + P.readTime(p.h0, p.m0) + '。' + P.readMinutes(p.dm) + 'たったら、どの時計かな？';
       return '出動は、' + P.readTime(p.h, p.m) + '。どの時計かな？';
     }
     if (p.kind === 'english') return 'どれかな？';   // 英語の意味は日本語で言わない（言うと英語を聞かなくても答えられる）
+    if (p.level === 'K7') return p.word + '。最初の音は、どれかな？';   // 拗音（しょ）を選ぶ。ひらがなの語をそのまま読む
+    if (p.level === 'K8') return p.speech + '。どの かんじかな？';             // 読み上げ文はひらがなだけ（漢字を渡さない）
     return yomiOf(wordOf(p.wordId)) + '。最初の文字は、どれかな？';
   }
+  function isSpecialLetter(q) { return q.kind === 'letter' && (q.level === 'K7' || q.level === 'K8'); }
   // 語の読み上げ（漢字・カタカナまじりで自然に読ませる。data.js の YOMI）
   function yomiOf(w) { var id = w.id.replace(/_k$/, ''); return D.YOMI[id] || w.kata || (w.script === 'kata' ? w.label : w.speech); }
   function carYomi(car) { return D.CAR_YOMI[car.id] || car.name; }
@@ -308,7 +325,8 @@
   // 英語のつづりを字幕で出す。英語の声が途中で使えなくなったら、1回目の誤答で正解を光らせる（plan 3.4）
   function syncCaption() {
     if (!run || run.game !== 'english' || !stage) return;
-    var q = run.qs[run.idx], want = q ? q.en : '';   // つづりはいつも出す（発音と一緒に確かめられるように）
+    // つづりは出す（発音と一緒に確かめられるように）。ただし E4（いろ）・E5（大文字）は つづりが答え（red・B）なので、正解するまで出さない
+    var q = run.qs[run.idx], hideUntilOk = !!q && (q.form === 'alpha' || q.form === 'color'), want = q && (!hideUntilOk || stage.reveal) ? q.en : '';
     if ((stage.caption || '') !== want) { stage.setCaption(want); kick(); }
     // 1回目の誤答のあとで英語の失敗が確定したときも、その問題の正解を光らせる
     if (enOff() && run.wrong >= 1 && !run.busy) answerButtons().forEach(function (b) { if (b.getAttribute('data-v') === String(q.answer)) b.classList.add('glow'); });
@@ -327,14 +345,15 @@
   }
   function renderAnswers(q) {
     var box = $('answers'); box.innerHTML = '';
-    var pickClock = q.kind === 'clock' && (q.form === 'pick' || q.form === 'elapsed'), pickPic = q.kind === 'english' && q.form === 'word';
-    box.className = pickClock || (pickPic && q.choices.length > 3) ? 'clocks' : '';   // 4択の絵は 1 列だと小さいので時計と同じ 2×2
+    var pickClock = q.kind === 'clock' && (q.form === 'pick' || q.form === 'elapsed'), pickPic = q.kind === 'english' && (q.form === 'word' || q.form === 'color');
+    box.className = pickClock || (pickPic && q.choices.length > 3) ? 'clocks' : ((q.kind === 'clock' && q.form === 'readmin') || q.level === 'K7' ? 'twocol' : '');   // 4択の絵は 1 列だと小さいので時計と同じ 2×2。「11:34」・拗音（しょ）は幅が狭い画面だけ 2×2
     q.choices.forEach(function (c) {
       var b = doc.createElement('button');
       b.type = 'button'; b.className = pickClock ? 'ans clk' : pickPic ? 'ans pic' : 'ans'; b.setAttribute('data-v', String(c));
       if (pickClock || pickPic) b.innerHTML = '<canvas></canvas>';
       else if (q.kind === 'clock') b.innerHTML = '<span class="num">' + c + '</span>';
-      else if (q.kind === 'letter') b.innerHTML = '<span class="kana">' + c + '</span>';
+      else if (q.kind === 'english' && q.form === 'alpha') b.innerHTML = '<span class="kana">' + c + '</span>';   // E5: 大文字
+      else if (q.kind === 'letter') b.innerHTML = '<span class="kana' + (c.length > 1 ? ' two' : '') + '">' + c + '</span>';   // 拗音（しょ）は 2 文字なので少し小さく
       else if (q.choices.some(function (v) { return v > 10; })) b.innerHTML = '<span class="num">' + c + '</span>';   // 11 以上は数字だけ（点は 10 まで。S1 の子は数字が読める）
       else {
         var dots = '';
@@ -350,8 +369,10 @@
   // えいご E1: 乗り物の絵の答えボタンを描く
   function drawAnswerPics() {
     [].forEach.call($('answers').querySelectorAll('.ans.pic'), function (b) {
-      var cv = b.querySelector('canvas'), c = sizeCanvas(cv), w = englishOf(b.getAttribute('data-v'));
+      var cv = b.querySelector('canvas'), c = sizeCanvas(cv), key = b.getAttribute('data-v'), q = run && run.qs && run.qs[run.idx];
       c.ctx.clearRect(0, 0, c.w, c.h);
+      if (q && q.form === 'color') { var col = P.colorOf(key); if (col) V.drawColorCar(c.ctx, c.w / 2, c.h / 2, Math.min(c.w, c.h) * 0.8, col.hex); return; }   // E4: 色ちがいの同じ車
+      var w = englishOf(key);
       if (w) V.drawPic(c.ctx, w.pic, c.w / 2, c.h / 2, Math.min(c.w, c.h) * 0.8, 0);
     });
   }
@@ -371,16 +392,16 @@
   function onAnswer(btn) {
     if (!run || run.busy || btn.classList.contains('off')) return;
     var q = run.qs[run.idx], raw = btn.getAttribute('data-v');
-    var v = (q.kind === 'letter' || (q.kind === 'clock' && (q.form === 'pick' || q.form === 'elapsed')) || (q.kind === 'english' && q.form === 'word')) ? raw : +raw;
+    var v = typeof q.answer === 'string' ? raw : +raw;   // 国語・時計の選ぶ形・時計の「3:17」・えいごの語は文字列、数は数
     if (v === q.answer) return onCorrect(q, btn);
     run.wrong++;
     run.off.push(v);
     btn.classList.add('off', 'shake'); btn.classList.remove('glow');
     sfx('oshii');
     var said = 'おしい！もう一回。';
-    if (q.kind === 'letter') said = exampleOf(v) + 'の ' + D.toHira(v) + '。おしい！もう一回。';
-    else if (q.kind === 'clock' && (q.form === 'pick' || q.form === 'elapsed') && v.indexOf('swap:') !== 0) { var tk = v.split(':'); said = P.readTime(+tk[0], +tk[1]) + '。おしい！もう一回。'; }
-    if (q.kind === 'english') seq([{ text: q.form === 'word' ? englishOf(v).en : D.NUM_EN[v], lang: 'en' }, { text: 'おしい！もう一回。', lang: 'ja', gap: 250 }]);
+    if (q.kind === 'letter' && !isSpecialLetter(q)) said = exampleOf(v) + 'の ' + D.toHira(v) + '。おしい！もう一回。';
+    else if (q.kind === 'clock' && (q.form === 'pick' || q.form === 'elapsed' || q.form === 'readmin') && v.indexOf('swap:') !== 0) { var tk = v.split(':'); said = P.readTime(+tk[0], +tk[1]) + '。おしい！もう一回。'; }
+    if (q.kind === 'english') seq([{ text: q.form === 'word' ? englishOf(v).en : q.form === 'color' ? P.colorOf(v).en : q.form === 'alpha' ? v : D.NUM_EN[v], lang: 'en' }, { text: 'おしい！もう一回。', lang: 'ja', gap: 250 }]);
     else say(said);
     var left = answerButtons().filter(function (b) { return !b.classList.contains('off'); });
     var voiceless = SP.isVoiceless() || !dev.sound.voice, enOff_ = enOff();
@@ -389,8 +410,8 @@
         if (!run || run.busy) return;
         answerButtons().forEach(function (b) { if (b.getAttribute('data-v') === String(q.answer)) b.classList.add('glow'); });
         if (q.kind === 'clock') {
-          say(q.form === 'read' ? 'こっちかな？短い針を見てね。' : 'こっちかな？');
-          if (q.form === 'read') stage.pulseHour(now()); else run.pulse = { key: q.answer, t0: now() };
+          say(q.form === 'read' ? 'こっちかな？短い針を見てね。' : q.form === 'readmin' ? 'こっちかな？短い針と、長い針を見てね。' : 'こっちかな？');
+          if (q.form === 'read' || q.form === 'readmin') stage.pulseHour(now()); else run.pulse = { key: q.answer, t0: now() };
         } else if (q.kind === 'english') {
           seq([{ text: q.en + '?', lang: 'en' }, { text: 'こっちかな？', lang: 'ja', gap: 250 }]);
           stage.bouncePic(now());
@@ -419,14 +440,16 @@
   }
 
   function onCorrect(q, btn) {
-    run.busy = true; run.counting = false; stage.reveal = true;
+    run.busy = true; run.counting = false; stage.reveal = true; syncCaption();
     var first = run.wrong === 0;
     if (first) run.firstTry++;
     answerButtons().forEach(function (b) { b.classList.remove('glow'); });
     sfx('correct');
     var done = run.idx + 1, my0 = run.token;
     run.countWait = false;
-    if (q.kind === 'letter') say('そう！' + D.toHira(q.answer) + '！ ' + correctExample(q) + 'の ' + D.toHira(q.answer) + '。');
+    if (q.level === 'K7') say('そう！' + q.answer + '！ ' + q.word + 'の ' + q.answer + '。');
+    else if (q.level === 'K8') say('そう！' + q.yomi + '！');
+    else if (q.kind === 'letter') say('そう！' + D.toHira(q.answer) + '！ ' + correctExample(q) + 'の ' + D.toHira(q.answer) + '。');
     else if (q.kind === 'clock') say('そう！' + P.readTime(q.h, q.m) + '！');
     else if (q.kind === 'english') {
       var ok = [{ text: 'そう！', lang: 'ja' }, { text: q.en + '!', lang: 'en' }];
@@ -492,7 +515,7 @@
       sfx('fanfare');
       if (car) {
         $('reward-text').textContent = car.name + ' をげっと！';
-        $('reward-sub').textContent = r.isNew ? 'あたらしい くるま！' : '★が ふえたよ！';
+        if (r.isNew) $('reward-sub').innerHTML = kidText(D.TEXT.rewardNew); else $('reward-sub').textContent = '★が ふえたよ！';   // S0 は「あたらしい くるま！」のまま
         say(carYomi(car) + 'を、ゲット！');
       } else {
         $('reward-text').textContent = 'ごほうびすてっかー！';

@@ -154,7 +154,7 @@
     { id: 'S0', rank: 'みならい しょうぼうし', short: 'みならい', grade: 'みしゅうがく',
       levels: { math: ['M1', 'M2', 'M3', 'M4', 'M5', 'M6', 'M7'], letter: ['K1', 'K2', 'K3', 'K4', 'K5', 'K6'], clock: ['T1', 'T2', 'T3', 'T4', 'T5', 'T6'], english: ['E1', 'E2', 'E3'] } },
     { id: 'S1', rank: 'しょうぼうし', short: 'しょうぼうし', grade: '小学1年生くらい',
-      levels: { math: ['M8', 'M9', 'M10'], letter: [], clock: [], english: [] } }   // もじ・とけい・えいごの S1 は R2-c 以降（それまでは S0 の範囲で遊ぶ）
+      levels: { math: ['M8', 'M9', 'M10'], letter: ['K7', 'K8'], clock: ['T7'], english: ['E4', 'E5'] } }
   ];
   var GAMES = ['math', 'letter', 'clock', 'english'];
   var GATE_GAMES = ['math', 'letter', 'clock'];   // えいごは関門に入れない（U2）
@@ -195,14 +195,95 @@
     return out;
   }
 
+  // ---- K7（S1）: 小さい「ゃゅょ」のある語の最初の音。head は 2 文字（しょ）。label・speech はひらがなのみ ----
+  // pic は絵の種類（乗り物の絵はすでにある）。同じ出動に同じ絵・同じ音を重ねない（problems.js）
+  var YOUON_WORDS = [
+    { id: 'kyukyu',   label: 'きゅうきゅうしゃ',   head: 'きゅ', pic: 'v7' },
+    { id: 'shobo',    label: 'しょうぼうしゃ',     head: 'しょ', pic: 'v8' },
+    { id: 'shoberu',  label: 'しょべるかー',       head: 'しょ', pic: 'v4' },
+    { id: 'chodai',   label: 'ちょうだいはしごしゃ', head: 'ちょ', pic: 'v11' },
+    { id: 'jouki',    label: 'じょうききかんしゃ', head: 'じょ', pic: 'steam' },
+    { id: 'kyakusen', label: 'きゃくせん',         head: 'きゃ', pic: 'ship' },
+    { id: 'ryokaku',  label: 'りょかくき',         head: 'りょ', pic: 'airplane' },
+    { id: 'junkan',   label: 'じゅんかんばす',     head: 'じゅ', pic: 'bus' }
+  ];
+  // 拗音の組み立てに使う: 小さい字と大きい字の対応、頭の子音（誤答用）
+  var YOUON_SMALL = { 'ゃ': 'や', 'ゅ': 'ゆ', 'ょ': 'よ' };
+  var YOUON_CONS = ['き', 'し', 'ち', 'に', 'ひ', 'み', 'り', 'ぎ', 'じ', 'び'];
+
+  // ---- K8（S1）: 絵と読み上げから漢字を選ぶ。小学1年の配当漢字（学年別漢字配当表）から 20 字。
+  // 方針: 絵で意味が決まり、読みが 1 つに決まる名詞だけ。読み上げ文（speech）はひらがなだけ。読みが同じ字（日と火）は入れない。
+  // sim = 形が似た字のグループ。同じ問題の選択肢に同じグループを 2 つ並べない
+  var KANJI_WORDS = [
+    { ch: '火', yomi: 'ひ',     pic: 'flame',    speech: 'ひ。もえる ひ' },
+    { ch: '水', yomi: 'みず',   pic: 'water',    speech: 'みず。のむ みず', sim: 'w' },
+    { ch: '木', yomi: 'き',     pic: 'tree',     speech: 'き。はっぱの ある き', sim: 'w' },
+    { ch: '山', yomi: 'やま',   pic: 'mountain', speech: 'やま。たかい やま' },
+    { ch: '川', yomi: 'かわ',   pic: 'river',    speech: 'かわ。ながれる かわ' },
+    { ch: '雨', yomi: 'あめ',   pic: 'rain',     speech: 'あめ。ふってくる あめ' },
+    { ch: '花', yomi: 'はな',   pic: 'flower',   speech: 'はな。さいた はな' },
+    { ch: '石', yomi: 'いし',   pic: 'stone',    speech: 'いし。ごろごろの いし' },
+    { ch: '犬', yomi: 'いぬ',   pic: 'dog',      speech: 'いぬ。わんわん いぬ' },
+    { ch: '虫', yomi: 'むし',   pic: 'bug',      speech: 'むし。ちいさな むし' },
+    { ch: '空', yomi: 'そら',   pic: 'sky',      speech: 'そら。あおい そら' },
+    { ch: '車', yomi: 'くるま', pic: 'taxi',     speech: 'くるま。はしる くるま' },
+    { ch: '口', yomi: 'くち',   pic: 'mouth',    speech: 'くち。ごはんを たべる くち', sim: 'b' },
+    { ch: '目', yomi: 'め',     pic: 'eye',      speech: 'め。ものを みる め', sim: 'b' },
+    { ch: '耳', yomi: 'みみ',   pic: 'ear',      speech: 'みみ。おとを きく みみ', sim: 'b' },
+    { ch: '手', yomi: 'て',     pic: 'hand',     speech: 'て。ばいばいの て' },
+    { ch: '足', yomi: 'あし',   pic: 'foot',     speech: 'あし。はしる あし' },
+    { ch: '糸', yomi: 'いと',   pic: 'thread',   speech: 'いと。ほそい いと' },
+    { ch: '森', yomi: 'もり',   pic: 'forest',   speech: 'もり。きが たくさんの もり', sim: 'w' },
+    { ch: '竹', yomi: 'たけ',   pic: 'bamboo',   speech: 'たけ。ながい たけ', sim: 'w' }
+  ];
+  // 子ども向け画面に出してよい漢字（教材で出した漢字だけ。U4）。S0 はひらがなのみ
+  var KANJI = { S0: [], S1: KANJI_WORDS.map(function (w) { return w.ch; }) };
+  // ステージ stageId まで（それ以下）で使ってよい漢字
+  function allowedKanji(stageId) {
+    var out = [], i = stageIndex(stageId);
+    for (var k = 0; k <= i; k++) out = out.concat(KANJI[STAGES[k].id] || []);
+    return out;
+  }
+
+  // ---- ふりがな（design-elementary 3.7）。文言は '{漢字|よみ}' の書き方で 1 つ持ち、表示のとき allowed（使ってよい漢字）に合わせて変える ----
+  // furigana(markup, allowed) → [{ t:'…' }（ひらがななど）, { t:'車', r:'くるま' }（漢字とふりがな）]。
+  // {漢字|よみ} の漢字が全部 allowed に入っていれば { t, r }、1 字でも入っていなければ読みのひらがな { t: よみ } にする（S0 は allowed が空＝全部ひらがな）
+  function furigana(markup, allowed) {
+    var set = {};
+    (typeof allowed === 'string' ? allowed.split('') : allowed || []).forEach(function (c) { set[c] = true; });
+    var out = [];
+    function push(seg) {
+      var last = out[out.length - 1];
+      if (!seg.r && last && !last.r) last.t += seg.t; else out.push(seg);
+    }
+    String(markup).split(/(\{[^{}|]+\|[^{}|]+\})/).forEach(function (part) {
+      if (!part) return;
+      var m = /^\{([^{}|]+)\|([^{}|]+)\}$/.exec(part);
+      if (!m) { push({ t: part }); return; }
+      var ok = m[1].split('').every(function (c) { return set[c]; });
+      push(ok ? { t: m[1], r: m[2] } : { t: m[2] });
+    });
+    return out;
+  }
+  // 子ども向け画面の文言（ふりがな付きの書き方）。固定の表だけ。子どもの名前など外から来る文字は通さない
+  var TEXT = {
+    pickSub: 'ぼくらは {火|ひ}を けす {車|くるま}の なかま！',   // 出動えらび（S1 以降だけ出す）
+    rewardNew: 'あたらしい {車|くるま}！'                       // ごほうび（S0 では今までと同じ「あたらしい くるま！」）
+  };
+
   // 時刻の読み（数の読みとは別。よじ・しちじ・くじ）。index = 時 1..12
   var TIME_KANA = ['', 'いちじ', 'にじ', 'さんじ', 'よじ', 'ごじ', 'ろくじ', 'しちじ', 'はちじ', 'くじ', 'じゅうじ', 'じゅういちじ', 'じゅうにじ'];
 
-  // 分の読み（5 ごふん・10 じゅっぷん…・60 いちじかん）。index = 分。5 の倍数以外は ''
+  // 分の読み（1 いっぷん…59。60 は いちじかん）。index = 分、0 は ''。5 の倍数の読みは S0（T4〜T6）から変えない。
+  // 一の位: いっぷん・にふん・さんぷん・よんぷん・ごふん・ろっぷん・ななふん・はっぷん・きゅうふん。十の位: じゅう・にじゅう…。ちょうど 10 の倍数は じゅっぷん
   var MIN_KANA = (function () {
-    var a = [], i; for (i = 0; i <= 60; i++) a.push('');
-    a[5] = 'ごふん'; a[10] = 'じゅっぷん'; a[15] = 'じゅうごふん'; a[20] = 'にじゅっぷん'; a[25] = 'にじゅうごふん'; a[30] = 'さんじゅっぷん';
-    a[35] = 'さんじゅうごふん'; a[40] = 'よんじゅっぷん'; a[45] = 'よんじゅうごふん'; a[50] = 'ごじゅっぷん'; a[55] = 'ごじゅうごふん'; a[60] = 'いちじかん';
+    var onesP = ['', 'いっぷん', 'にふん', 'さんぷん', 'よんぷん', 'ごふん', 'ろっぷん', 'ななふん', 'はっぷん', 'きゅうふん'];
+    var tens = ['', 'じゅう', 'にじゅう', 'さんじゅう', 'よんじゅう', 'ごじゅう'], a = [''], m;
+    for (m = 1; m <= 59; m++) {
+      var t = Math.floor(m / 10), o = m % 10;
+      a.push(o === 0 ? tens[t].replace(/う$/, '') + 'っぷん' : tens[t] + onesP[o]);
+    }
+    a.push('いちじかん');
     return a;
   })();
 
@@ -224,13 +305,33 @@
     { id: 'ship',      en: 'ship',          ja: 'ふね',                 pic: 'ship',     group: 'trip' },
     { id: 'train',     en: 'train',         ja: 'でんしゃ',             pic: 'train',    group: 'trip' }
   ];
+  // E4（S1）: いろ。同じ車を色ちがいで並べて選ぶ。en は読み上げ用、ja は日本語の補助（ひらがな）、hex は車の色
+  // clash = 並べると見分けにくい組（同じ選択肢に出さない）
+  var COLORS = [
+    { id: 'red',    en: 'red',    ja: 'あか',     hex: '#e53935' },
+    { id: 'blue',   en: 'blue',   ja: 'あお',     hex: '#1e6fe0' },
+    { id: 'yellow', en: 'yellow', ja: 'きいろ',   hex: '#f6c933' },
+    { id: 'green',  en: 'green',  ja: 'みどり',   hex: '#3f9b3f' },
+    { id: 'orange', en: 'orange', ja: 'おれんじ', hex: '#f08a24' },
+    { id: 'purple', en: 'purple', ja: 'むらさき', hex: '#8e44ad' },
+    { id: 'pink',   en: 'pink',   ja: 'ぴんく',   hex: '#ff8fb3' },
+    { id: 'black',  en: 'black',  ja: 'くろ',     hex: '#34384a' }
+  ];
+  var COLOR_CLASH = [['red', 'orange'], ['red', 'pink'], ['orange', 'yellow'], ['orange', 'pink'], ['blue', 'purple'], ['purple', 'pink']];   // どの色が答えでも、似ていない 4 色が残るようにしておく（テストで確かめる）
+  // E5（S1）: アルファベットの大文字。出す文字は 23 字（I・L・O は 1・l・0 に見えるので使わない）。形が似た組は同じ選択肢に出さない
+  var ALPHA_LETTERS = 'ABCDEFGHJKMNPQRSTUVWXYZ'.split('');
+  var ALPHA_CLASH = [['B', 'D'], ['B', 'P'], ['B', 'R'], ['P', 'R'], ['D', 'P'], ['D', 'Q'], ['C', 'G'], ['G', 'Q'], ['E', 'F'], ['F', 'P'], ['E', 'B'],
+    ['M', 'N'], ['M', 'W'], ['N', 'H'], ['N', 'Z'], ['U', 'V'], ['V', 'W'], ['V', 'Y'], ['K', 'X'], ['T', 'Y'], ['S', 'Z'], ['U', 'J'], ['H', 'M'], ['D', 'G'], ['C', 'Q'], ['R', 'K']];
+
   // 英語の数（index = 数 1..10）
   var NUM_EN = ['', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten'];
 
   var api = {
     ENGLISH_WORDS: ENGLISH_WORDS, NUM_EN: NUM_EN, TIME_KANA: TIME_KANA, MIN_KANA: MIN_KANA, WORDS: WORDS, KATA_WORDS: KATA_WORDS, ALL_WORDS: ALL_WORDS, EXTRA_KATA: EXTRA_KATA, CONFUSABLE_KATA: CONFUSABLE_KATA, toHira: toHira, CATS: CATS, SEEN_MAX: SEEN_MAX, cleanSeen: cleanSeen, addSeen: addSeen, CONFUSABLE: CONFUSABLE, ROW: ROW, FAMILY: FAMILY, CARS: CARS,
     SCENES: SCENES, SCENE_CARS: SCENE_CARS, NUM_KANA: NUM_KANA, YOMI: YOMI, CAR_YOMI: CAR_YOMI,
-    STAGES: STAGES, GAMES: GAMES, GATE_GAMES: GATE_GAMES, LEVELS: LEVELS, stageIndex: stageIndex, stageOf: stageOf, stageRange: stageRange, gateOf: gateOf, gateLevels: gateLevels, topLevelUpTo: topLevelUpTo
+    COLORS: COLORS, COLOR_CLASH: COLOR_CLASH, ALPHA_LETTERS: ALPHA_LETTERS, ALPHA_CLASH: ALPHA_CLASH,
+    STAGES: STAGES, GAMES: GAMES, YOUON_WORDS: YOUON_WORDS, YOUON_SMALL: YOUON_SMALL, YOUON_CONS: YOUON_CONS, KANJI_WORDS: KANJI_WORDS, KANJI: KANJI, allowedKanji: allowedKanji, furigana: furigana, TEXT: TEXT,
+     GATE_GAMES: GATE_GAMES, LEVELS: LEVELS, stageIndex: stageIndex, stageOf: stageOf, stageRange: stageRange, gateOf: gateOf, gateLevels: gateLevels, topLevelUpTo: topLevelUpTo
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else { root.Manabi = root.Manabi || {}; root.Manabi.data = api; }

@@ -547,6 +547,139 @@
     poly(ctx, [[-0.24, -0.2], [0.24, -0.2], [0.3, 0.1], [0, 0.18], [-0.3, 0.1]], '#f6c933');   // 前の板（マークなし）
   };
 
+  // ---- S1 の漢字の教材（K8）の絵。名前・文字は描かない。向きのない絵なので反転しない ----
+  pics.tree = function (ctx) {   // 木
+    rr(ctx, -0.13, 0.05, 0.26, 0.68, 0.05, '#8d5a34');
+    line(ctx, 0, 0.3, 0.22, 0.12, 0.06); line(ctx, 0, 0.42, -0.2, 0.26, 0.06);
+    circ(ctx, -0.32, 0.0, 0.3, '#4aa04a'); circ(ctx, 0.32, 0.0, 0.3, '#4aa04a');
+    circ(ctx, 0, -0.3, 0.38, '#55b155'); circ(ctx, 0, 0.0, 0.3, '#55b155');
+  };
+  pics.mountain = function (ctx) {   // 山
+    poly(ctx, [[-0.9, 0.55], [-0.2, -0.55], [0.5, 0.55]], '#7f9a6a');
+    poly(ctx, [[0.0, 0.55], [0.5, -0.2], [0.95, 0.55]], '#6a8a5a');
+    poly(ctx, [[-0.2, -0.55], [-0.38, -0.26], [-0.28, -0.3], [-0.2, -0.2], [-0.12, -0.3], [-0.02, -0.26]], '#fafafa');
+    line(ctx, -0.95, 0.58, 1.0, 0.58, 0.07, '#7bbf6a');
+  };
+  pics.river = function (ctx) {   // 川（草のあいだを流れる）
+    rr(ctx, -0.8, -0.65, 1.6, 1.3, 0.12, '#7bbf6a');
+    ctx.save(); ctx.beginPath(); ctx.rect(-0.8, -0.65, 1.6, 1.3); ctx.clip();
+    ctx.beginPath(); ctx.moveTo(-0.35, -0.8); ctx.bezierCurveTo(0.6, -0.3, -0.6, 0.2, 0.3, 0.8);
+    ctx.lineCap = 'round'; ctx.lineWidth = 0.5; ctx.strokeStyle = OUT; ctx.stroke();
+    ctx.lineWidth = 0.4; ctx.strokeStyle = '#3aa6e8'; ctx.stroke();
+    ctx.lineWidth = 0.05; ctx.strokeStyle = '#d6f0ff'; ctx.beginPath(); ctx.moveTo(-0.15, -0.5); ctx.bezierCurveTo(0.4, -0.2, -0.3, 0.1, 0.35, 0.5); ctx.stroke();
+    ctx.restore();
+    rr(ctx, -0.8, -0.65, 1.6, 1.3, 0.12, null);
+  };
+  pics.rain = function (ctx, t) {   // 雨
+    t = t || 0;
+    circ(ctx, -0.34, -0.12, 0.26, '#9aa6b3'); circ(ctx, 0.36, -0.12, 0.26, '#9aa6b3');
+    circ(ctx, -0.05, -0.3, 0.36, '#aab5c1'); rr(ctx, -0.55, -0.14, 1.1, 0.24, 0.1, '#aab5c1');
+    for (var i = 0; i < 4; i++) {
+      var u = ((t * 0.8 + i * 0.25) % 1), x = -0.42 + i * 0.28, y = 0.2 + u * 0.4;
+      line(ctx, x, y, x - 0.07, y + 0.2, 0.07, '#3aa6e8');
+    }
+  };
+  pics.flower = function (ctx) {   // 花
+    line(ctx, 0, 0.05, 0, 0.75, 0.09, '#3f9b3f');
+    ell(ctx, -0.2, 0.5, 0.2, 0.09, '#55b155'); ell(ctx, 0.2, 0.36, 0.2, 0.09, '#55b155');
+    for (var i = 0; i < 5; i++) { var a = i * Math.PI * 2 / 5 - Math.PI / 2; circ(ctx, Math.cos(a) * 0.3, -0.22 + Math.sin(a) * 0.3, 0.2, '#ff8fb3'); }
+    circ(ctx, 0, -0.22, 0.16, '#ffd23f');
+  };
+  pics.stone = function (ctx) {   // 石
+    poly(ctx, [[-0.62, 0.38], [-0.7, 0.02], [-0.36, -0.4], [0.2, -0.5], [0.66, -0.1], [0.58, 0.38]], '#9a8f84');
+    poly(ctx, [[-0.36, -0.4], [0.2, -0.5], [0.04, -0.06], [-0.44, -0.06]], '#b9afa4');
+    line(ctx, -0.2, 0.2, 0.1, 0.12, 0.04, '#7d746b');
+  };
+  pics.dog = function (ctx) {   // 犬
+    ell(ctx, -0.5, -0.1, 0.17, 0.34, '#8d5a34'); ell(ctx, 0.5, -0.1, 0.17, 0.34, '#8d5a34');
+    circ(ctx, 0, 0, 0.5, '#d9a066');
+    ell(ctx, 0, 0.18, 0.25, 0.19, '#f3d9b5');
+    circ(ctx, -0.18, -0.1, 0.06, OUT); circ(ctx, 0.18, -0.1, 0.06, OUT);
+    ell(ctx, 0, 0.1, 0.09, 0.06, OUT);
+    ctx.beginPath(); ctx.moveTo(0, 0.16); ctx.lineTo(0, 0.24); ctx.arc(-0.08, 0.24, 0.08, 0, Math.PI * 0.6); ctx.moveTo(0, 0.24); ctx.arc(0.08, 0.24, 0.08, Math.PI, Math.PI * 0.4, true);
+    ctx.lineWidth = 0.035; ctx.strokeStyle = OUT; ctx.stroke();
+  };
+  pics.bug = function (ctx) {   // 虫（てんとうむし）
+    line(ctx, -0.12, -0.5, -0.26, -0.75, 0.04); line(ctx, 0.12, -0.5, 0.26, -0.75, 0.04);
+    [[-0.5, -0.1], [-0.55, 0.15], [-0.45, 0.4]].forEach(function (p) { line(ctx, p[0] * 0.5, p[1], p[0], p[1] + 0.05, 0.05); line(ctx, -p[0] * 0.5, p[1], -p[0], p[1] + 0.05, 0.05); });
+    circ(ctx, 0, -0.42, 0.2, OUT);
+    ctx.beginPath(); ctx.ellipse(0, 0.1, 0.5, 0.55, 0, 0, Math.PI * 2); ctx.fillStyle = '#e53935'; ctx.fill(); ctx.lineWidth = LW; ctx.strokeStyle = OUT; ctx.stroke();
+    line(ctx, 0, -0.44, 0, 0.64, 0.045);
+    [[-0.25, -0.05], [0.25, -0.05], [-0.26, 0.3], [0.26, 0.3]].forEach(function (p) { circ(ctx, p[0], p[1], 0.09, OUT); });
+  };
+  pics.sky = function (ctx, t) {   // 空
+    t = t || 0;
+    rr(ctx, -0.8, -0.62, 1.6, 1.24, 0.12, '#8fd0f5');
+    var d = Math.sin(t * 0.8) * 0.04;
+    circ(ctx, 0.42, -0.3, 0.2, '#ffd23f');
+    circ(ctx, -0.4 + d, 0.12, 0.2, '#fff'); circ(ctx, -0.1 + d, 0.06, 0.26, '#fff'); circ(ctx, 0.2 + d, 0.14, 0.2, '#fff'); rr(ctx, -0.55 + d, 0.12, 0.9, 0.2, 0.1, '#fff');
+  };
+  pics.mouth = function (ctx) {   // 口
+    ell(ctx, 0, 0, 0.62, 0.4, '#e5566b');
+    ctx.save(); ctx.beginPath(); ctx.ellipse(0, 0.02, 0.46, 0.27, 0, 0, Math.PI * 2); ctx.fillStyle = '#7a2a35'; ctx.fill(); ctx.clip();
+    ell(ctx, 0, 0.26, 0.28, 0.16, '#ff8fa0'); ctx.restore();
+    rr(ctx, -0.3, -0.25, 0.6, 0.12, 0.04, '#fff');
+    ctx.beginPath(); ctx.ellipse(0, 0.02, 0.46, 0.27, 0, 0, Math.PI * 2); ctx.lineWidth = 0.04; ctx.strokeStyle = OUT; ctx.stroke();
+  };
+  pics.eye = function (ctx) {   // 目
+    ctx.beginPath(); ctx.moveTo(-0.7, 0); ctx.quadraticCurveTo(0, -0.7, 0.7, 0); ctx.quadraticCurveTo(0, 0.7, -0.7, 0); ctx.closePath();
+    ctx.fillStyle = '#fff'; ctx.fill(); ctx.lineWidth = LW; ctx.strokeStyle = OUT; ctx.stroke();
+    circ(ctx, 0, 0, 0.28, '#3a7bd5'); circ(ctx, 0, 0, 0.13, OUT); circ(ctx, -0.07, -0.08, 0.05, '#fff');
+    ctx.beginPath(); ctx.moveTo(-0.6, -0.34); ctx.quadraticCurveTo(0, -0.8, 0.6, -0.34); ctx.lineWidth = 0.07; ctx.lineCap = 'round'; ctx.strokeStyle = OUT; ctx.stroke();
+  };
+  pics.ear = function (ctx) {   // 耳
+    ell(ctx, 0, 0, 0.4, 0.58, '#f2c9a0');
+    ctx.beginPath(); ctx.ellipse(0.04, -0.04, 0.2, 0.36, 0, 0, Math.PI * 2); ctx.fillStyle = '#e8a97e'; ctx.fill(); ctx.lineWidth = 0.04; ctx.strokeStyle = OUT; ctx.stroke();
+    ctx.beginPath(); ctx.arc(0.04, 0.08, 0.1, Math.PI * 1.1, Math.PI * 0.2); ctx.stroke();
+    circ(ctx, 0.0, 0.5, 0.12, '#f2c9a0');
+  };
+  pics.hand = function (ctx) {   // 手
+    rr(ctx, -0.32, -0.02, 0.64, 0.62, 0.16, '#f2c9a0');
+    [[-0.32, -0.62], [-0.11, -0.74], [0.1, -0.7], [0.3 - 0.0, -0.52]].forEach(function (f, i) { rr(ctx, f[0] - (i === 3 ? 0.08 : 0), f[1], 0.2, 0.7, 0.1, '#f2c9a0'); });
+    ctx.save(); ctx.translate(-0.34, 0.28); ctx.rotate(-0.9); rr(ctx, -0.1, -0.5, 0.2, 0.52, 0.1, '#f2c9a0'); ctx.restore();
+    rr(ctx, -0.32, -0.02, 0.64, 0.62, 0.16, '#f2c9a0');
+  };
+  pics.foot = function (ctx) {   // 足（はだし）
+    ctx.beginPath(); ctx.moveTo(-0.28, -0.1); ctx.bezierCurveTo(-0.34, 0.4, -0.2, 0.7, 0.05, 0.7); ctx.bezierCurveTo(0.3, 0.7, 0.36, 0.45, 0.32, 0.1); ctx.bezierCurveTo(0.3, -0.2, 0.2, -0.3, 0, -0.3); ctx.closePath();
+    ctx.fillStyle = '#f2c9a0'; ctx.fill(); ctx.lineWidth = LW; ctx.strokeStyle = OUT; ctx.stroke();
+    [[-0.22, -0.42, 0.12], [-0.04, -0.5, 0.1], [0.12, -0.46, 0.09], [0.25, -0.38, 0.085], [0.34, -0.26, 0.075]].forEach(function (c) { circ(ctx, c[0], c[1], c[2], '#f2c9a0'); });
+  };
+  pics.thread = function (ctx) {   // 糸（糸巻き）
+    ctx.beginPath(); ctx.moveTo(0.18, 0.28); ctx.bezierCurveTo(0.7, 0.3, 0.5, 0.7, 0.8, 0.6); ctx.lineCap = 'round'; ctx.lineWidth = 0.05; ctx.strokeStyle = '#d33a3a'; ctx.stroke();
+    rr(ctx, -0.42, -0.62, 0.84, 0.14, 0.04, '#d9a066'); rr(ctx, -0.42, 0.48, 0.84, 0.14, 0.04, '#d9a066');
+    rr(ctx, -0.34, -0.48, 0.68, 0.96, 0.05, '#e5566b');
+    for (var i = 0; i < 7; i++) line(ctx, -0.34, -0.38 + i * 0.14, 0.34, -0.3 + i * 0.14, 0.03, '#b83a50');
+    rr(ctx, -0.34, -0.48, 0.68, 0.96, 0.05, null);
+  };
+  pics.forest = function (ctx) {   // 森（木が 3 本）
+    [[-0.45, 0.1, 0.7], [0.45, 0.1, 0.7], [0, -0.05, 0.9]].forEach(function (t) {
+      rr(ctx, t[0] - 0.07 * t[2], t[1] + 0.2 * t[2], 0.14 * t[2], 0.5 * t[2], 0.03, '#8d5a34');
+      circ(ctx, t[0], t[1] - 0.05 * t[2], 0.36 * t[2], '#4aa04a'); circ(ctx, t[0], t[1] - 0.2 * t[2], 0.26 * t[2], '#55b155');
+    });
+  };
+  pics.bamboo = function (ctx) {   // 竹
+    [[-0.7, -0.2], [-0.2, 0.3], [0.3, 0.75]].forEach(function (s) { rr(ctx, -0.13, s[0], 0.26, s[1] - s[0] + 0.05, 0.05, '#6fb04a'); });
+    [-0.2, 0.3].forEach(function (y) { line(ctx, -0.17, y, 0.17, y, 0.06, '#3f7a2a'); });
+    poly(ctx, [[0.1, -0.3], [0.6, -0.5], [0.3, -0.2]], '#55b155'); poly(ctx, [[-0.1, 0.2], [-0.6, 0.0], [-0.3, 0.3]], '#55b155'); poly(ctx, [[0.1, 0.25], [0.55, 0.15], [0.3, 0.42]], '#55b155');
+  };
+
+  // E4（いろ）: 色を変えられる車（バスの形）。col = 車体の色。向きは bus と同じ（前が左）
+  function colorCar(ctx, col) {
+    rr(ctx, -0.82, -0.46, 1.64, 0.84, 0.14, col);
+    ctx.fillStyle = '#fafafa'; ctx.fillRect(-0.78, 0.08, 1.56, 0.08); rr(ctx, -0.82, -0.46, 1.64, 0.84, 0.14, null);
+    rr(ctx, -0.76, -0.38, 0.2, 0.4, 0.04, '#bfe6fb');
+    rr(ctx, -0.48, -0.38, 0.2, 0.7, 0.03, '#bfe6fb'); line(ctx, -0.38, -0.38, -0.38, 0.32, 0.03);
+    for (var i = 0; i < 4; i++) win(ctx, -0.16 + i * 0.24, -0.38, 0.19, 0.3);
+    headlamp(ctx, -0.79, 0.26);
+    wheel(ctx, -0.5, 0.4, 0.17); wheel(ctx, 0.5, 0.4, 0.17);
+  }
+  function drawColorCar(ctx, x, y, size, col) {
+    var s = size / 1.8;
+    ctx.save(); ctx.translate(x - 0.05 * s, y + 0.14 * s); ctx.scale(s, s); ctx.lineJoin = 'round';
+    colorCar(ctx, col);
+    ctx.restore();
+  }
+
   var DIRECTIONAL = { airplane: 1, train: 1, shinkansen: 1, ship: 1, steam: 1, postcar: 1, taxi: 1, motorbike: 1, crane: 1,
     truck: 1, patrol: 1, heli: 1, bus: 1, roller: 1 };
   // 絵の id 一覧（出題に使える絵）
@@ -604,7 +737,7 @@
   }
 
   var api = {
-    draw: draw, pics: pics, PICS: PICS, hasPic: hasPic, drawVehicle: drawVehicle, frontOf: frontOf, drawPic: drawPic, drawSilhouette: drawSilhouette,
+    draw: draw, pics: pics, PICS: PICS, hasPic: hasPic, drawVehicle: drawVehicle, frontOf: frontOf, drawPic: drawPic, drawColorCar: drawColorCar, drawSilhouette: drawSilhouette,
     drawFlame: drawFlame, drawHose: drawHose, star: star, rr: rr, circ: circ, poly: poly, line: line,
     OUT: OUT
   };

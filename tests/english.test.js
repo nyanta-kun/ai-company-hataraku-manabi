@@ -165,3 +165,97 @@ test('読み上げ用の表記 YOMI / CAR_YOMI は実在する語・車だけを
   // 「はしご車」「ごみ収集車」などは端末の読み上げで「くるま」になる。しゃ と読まれることを確かめた語（救急車・消防車・電車・機関車）だけ漢字の「車」を使う
   for (const y of [...Object.values(D.YOMI), ...Object.values(D.CAR_YOMI)]) assert.ok(!/車/.test(y.replace(/救急車|消防車|電車|機関車/g, '')), y);
 });
+
+// ---- E4（いろ）・E5（アルファベットの大文字）。S1。design-elementary 3.8 ----
+const clashed = (clash, a, b) => clash.some(p => (p[0] === a && p[1] === b) || (p[1] === a && p[0] === b));
+const ENDS = (s) => s.map(q => q.answer);
+
+test('E4 性質: 1000 問。選択肢は 4 つ・重複なし・正解ちょうど 1 つ・全部 COLORS の id・見分けにくい組が並ばない・どの色も答えになる', () => {
+  const r = rngOf(91), seen = new Set(), ids = D.COLORS.map(c => c.id);
+  for (let i = 0; i < N; i++) {
+    const p = P.generateEnglish('E4', r);
+    assert.equal(p.kind, 'english'); assert.equal(p.form, 'color'); assert.equal(p.level, 'E4');
+    assert.equal(p.choices.length, 4);
+    assert.equal(new Set(p.choices).size, 4);
+    assert.equal(p.choices.filter(c => c === p.answer).length, 1);
+    p.choices.forEach(c => assert.ok(ids.includes(c), c));
+    for (const a of p.choices) for (const b of p.choices) assert.ok(a === b || !clashed(D.COLOR_CLASH, a, b), a + ' と ' + b);
+    const col = D.COLORS.find(c => c.id === p.answer);
+    assert.equal(p.en, col.en); assert.equal(p.hex, col.hex); assert.equal(p.colorId, p.answer);
+    seen.add(p.answer);
+  }
+  assert.equal(seen.size, D.COLORS.length);
+});
+
+test('E4 データ: 色の id・英語・色コード（重複なし）。どの色が答えでも、並べてよい 4 色が残る', () => {
+  assert.equal(new Set(D.COLORS.map(c => c.id)).size, D.COLORS.length);
+  assert.equal(new Set(D.COLORS.map(c => c.hex)).size, D.COLORS.length);
+  D.COLORS.forEach(c => { assert.ok(/^[a-z]+$/.test(c.en)); assert.ok(/^#[0-9a-f]{6}$/.test(c.hex)); assert.ok(/^[ぁ-ん]+$/.test(c.ja)); });
+  for (const ans of D.COLORS) {
+    const p = P.buildEnglish('E4', ans.id, rngOf(1));
+    assert.equal(p.choices.length, 4, ans.id);
+  }
+});
+
+test('E4 出動: 4 問で答えの色が重複しない。同じシードなら同じ', () => {
+  const r = rngOf(92);
+  for (let i = 0; i < N; i++) { const s = P.generateSession('english', 'E4', r); assert.equal(s.length, 4); assert.equal(new Set(ENDS(s)).size, 4); }
+  assert.deepEqual(P.generateSession('english', 'E4', rngOf(3)), P.generateSession('english', 'E4', rngOf(3)));
+});
+
+test('E5 性質: 1000 問。選択肢は 4 つの大文字・重複なし・正解ちょうど 1 つ・正解は語の頭文字・似た形が並ばない・I L O を使わない', () => {
+  const r = rngOf(93), seen = new Set();
+  for (let i = 0; i < N; i++) {
+    const p = P.generateEnglish('E5', r);
+    const w = wordOf(p.wordId);
+    assert.equal(p.kind, 'english'); assert.equal(p.form, 'alpha'); assert.equal(p.level, 'E5');
+    assert.equal(p.choices.length, 4);
+    assert.equal(new Set(p.choices).size, 4);
+    assert.equal(p.choices.filter(c => c === p.answer).length, 1);
+    assert.equal(p.answer, w.en[0].toUpperCase());
+    assert.equal(p.letter, p.answer);
+    assert.equal(p.en, p.answer + ', ' + w.en);
+    assert.equal(p.pic, w.pic);
+    p.choices.forEach(c => { assert.ok(/^[A-Z]$/.test(c)); assert.ok(!'ILO'.includes(c)); });
+    for (const a of p.choices) for (const b of p.choices) assert.ok(a === b || !clashed(D.ALPHA_CLASH, a, b), a + ' と ' + b);
+    seen.add(p.answer);
+  }
+  assert.equal(seen.size, new Set(D.ENGLISH_WORDS.map(w => w.en[0].toUpperCase())).size, '語彙の頭文字がすべて出る');
+});
+
+test('E5 出動: 4 問で頭文字が重複しない（F・A・P・D・B・G・T・H・S から）。同じシードなら同じ', () => {
+  const r = rngOf(94);
+  for (let i = 0; i < N; i++) {
+    const s = P.generateSession('english', 'E5', r);
+    assert.equal(s.length, 4);
+    assert.equal(new Set(ENDS(s)).size, 4);
+    assert.equal(new Set(s.map(q => q.wordId)).size, 4);
+  }
+  assert.deepEqual(P.generateSession('english', 'E5', rngOf(4)), P.generateSession('english', 'E5', rngOf(4)));
+});
+
+test('E4・E5: 英語の読み上げ文は英字・スペース・カンマだけ。E1〜E3 の出題は変わらない', () => {
+  [['E4', 95], ['E5', 96]].forEach(([lv, seed]) => {
+    const r = rngOf(seed);
+    for (let i = 0; i < 100; i++) P.generateSession('english', lv, r).forEach(q => assert.ok(/^[A-Za-z, ]+$/.test(q.en), q.en));
+  });
+  for (const lv of ['E1', 'E2', 'E3']) P.generateSession('english', lv, rngOf(5)).forEach(q => assert.ok(q.form === 'word' || q.form === 'number'));
+});
+
+test('E4・E5: 昇降級は S1 の範囲（E4〜E5）で止まる。えいごは関門に入らない', () => {
+  const R = D.stageRange('S1', 'english');
+  assert.deepEqual(R, ['E4', 'E5']);
+  assert.equal(P.nextLevel('english', 'E4', 4, false, R), 'E5');
+  assert.equal(P.nextLevel('english', 'E5', 4, false, R), 'E5');
+  assert.equal(P.nextLevel('english', 'E4', 0, false, R), 'E4');
+  assert.equal(P.nextLevel('english', 'E5', 0, false, R), 'E4');
+  assert.equal(D.gateOf('S1').english, undefined);
+});
+
+test('E4: 色ちがいの車の絵を描ける（同じ車・色だけ変わる）', () => {
+  const calls = [];
+  const ctx = new Proxy({}, { get: (_, k) => (k === 'canvas' ? {} : (...a) => { calls.push(k); }), set: (_, k, v) => { if (k === 'fillStyle') calls.push('fill:' + v); return true; } });
+  V.drawColorCar(ctx, 10, 10, 100, '#e53935');
+  assert.ok(calls.includes('fill:#e53935'));
+  assert.ok(calls.length > 20);
+});

@@ -26,7 +26,9 @@
   // sim = 形が似た文字を 1 つ混ぜてよい。script = 出す文字種（K6 は問題ごとに語の表記で決まる）
   var LETTER = {
     K1: { choices: 2 }, K2: { choices: 3 }, K3: { choices: 4, sim: true },
-    K4: { choices: 2, script: 'kata' }, K5: { choices: 4, script: 'kata', sim: true }, K6: { choices: 4, script: 'mixed', sim: true }
+    K4: { choices: 2, script: 'kata' }, K5: { choices: 4, script: 'kata', sim: true }, K6: { choices: 4, script: 'mixed', sim: true },
+    // S1: K7 = 小さい「ゃゅょ」のある語の最初の音（2 文字）。K8 = 絵と読み上げから漢字を選ぶ（小1 の 20 字）。どちらも専用の生成関数
+    K7: { choices: 4, form: 'youon' }, K8: { choices: 4, form: 'kanji' }
   };
 
   // とけい: form = read（時計を見て数字）/ pick（読み上げを聞いて時計を選ぶ）、half = ○じはんを出す
@@ -38,7 +40,9 @@
     // hintBoth = ヒントで長針も短針と一緒にふくらませる、glowWhenVoiceless = 声なしのとき 1 回目の誤答で正解を光らせる
     T4: { form: 'pick', mins: [0, 15, 30, 45], choices: 4, ticks: 12 },
     T5: { form: 'pick', mins: [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55], choices: 4, ticks: 60 },
-    T6: { form: 'elapsed', starts: [0, 30], durations: [10, 20, 30, 40, 60], choices: 4, ticks: 60 }
+    T6: { form: 'elapsed', starts: [0, 30], durations: [10, 20, 30, 40, 60], choices: 4, ticks: 60 },
+    // T7（S1）: 1 分刻みの時計を見て「3:17」を 4 択で選ぶ（readmin）。分は 0〜59 のどれでも出る
+    T7: { form: 'readmin', choices: 4, ticks: 60 }
   };
 
   // えいご: 問題の form = word（乗り物の英語を聞いて絵を選ぶ）/ number（英語の数を聞いて数を選ぶ）
@@ -46,11 +50,14 @@
   var ENGLISH = {
     E1: { words: 4, wordChoices: 3 },
     E2: { words: 2, wordChoices: 3, max: 5,  choices: 3 },
-    E3: { words: 2, wordChoices: 4, max: 10, choices: 4 }
+    E3: { words: 2, wordChoices: 4, max: 10, choices: 4 },
+    // S1: E4 = いろ（同じ車を色ちがいで 4 つ並べる）。E5 = アルファベットの大文字（「B, bus」を聞いて文字を選ぶ）。どちらも 1 回に 4 問
+    E4: { form: 'color', choices: 4 },
+    E5: { form: 'alpha', choices: 4 }
   };
 
-  ['T4', 'T5', 'T6'].forEach(function (k) { CLOCK[k].hintBoth = true; });
-  ['T3', 'T4', 'T5', 'T6'].forEach(function (k) { CLOCK[k].glowWhenVoiceless = true; });
+  ['T4', 'T5', 'T6', 'T7'].forEach(function (k) { CLOCK[k].hintBoth = true; });
+  ['T3', 'T4', 'T5', 'T6', 'T7'].forEach(function (k) { CLOCK[k].glowWhenVoiceless = true; });
 
   function defRng(rng) { return typeof rng === 'function' ? rng : Math.random; }
   function randInt(rng, lo, hi) { return lo + Math.floor(rng() * (hi - lo + 1)); }   // lo..hi
@@ -182,10 +189,53 @@
       choices: shuffle(out, rng), answer: ans };
   }
 
+  // ---- K7: 拗音の最初の音。誤答は大きい字（しよ）・同じ子音の別の拗音（しゅ）・別の行（ちょ） ----
+  function buildYouon(level, word, rng) {
+    var ans = word.head, cons = ans.charAt(0), small = ans.charAt(1), out = [ans];
+    out.push(cons + D.YOUON_SMALL[small]);                                                   // 大きい字
+    var others = Object.keys(D.YOUON_SMALL).filter(function (c) { return c !== small; });
+    out.push(cons + others[randInt(rng, 0, others.length - 1)]);                              // 同じ子音の別の拗音
+    var rows = D.YOUON_CONS.filter(function (c) { return c !== cons; });
+    out.push(rows[randInt(rng, 0, rows.length - 1)] + small);                                 // 別の行の同じ拗音
+    return { kind: 'letter', level: level, script: 'hira', wordId: word.id, word: word.label, pic: word.pic,
+      choices: shuffle(out, rng), answer: ans };
+  }
+  // ---- K8: 絵と読み上げから漢字を選ぶ。誤答は形が似た字（sim が同じグループ）を避けた別の字 ----
+  function buildKanji(level, w, rng) {
+    var out = [], sims = {};
+    if (w.sim) sims[w.sim] = true;
+    shuffle(D.KANJI_WORDS.filter(function (k) { return k.ch !== w.ch; }), rng).forEach(function (k) {
+      if (out.length >= LETTER[level].choices - 1 || (k.sim && sims[k.sim])) return;
+      if (k.sim) sims[k.sim] = true;
+      out.push(k.ch);
+    });
+    out.push(w.ch);
+    return { kind: 'letter', level: level, script: 'kanji', wordId: 'kanji_' + w.ch, word: w.ch, pic: w.pic, yomi: w.yomi, speech: w.speech,
+      choices: shuffle(out, rng), answer: w.ch };
+  }
+  function specialPool(level) { return LETTER[level].form === 'youon' ? D.YOUON_WORDS : D.KANJI_WORDS; }
+  function specialKey(level, w) { return LETTER[level].form === 'youon' ? w.id : 'kanji_' + w.ch; }
+  function specialAnswer(level, w) { return LETTER[level].form === 'youon' ? w.head : w.ch; }
+  function buildSpecial(level, w, rng) { return LETTER[level].form === 'youon' ? buildYouon(level, w, rng) : buildKanji(level, w, rng); }
+  // 4 語を選ぶ。絵も答えも重複しない
+  function pickSpecial(level, rng) {
+    var order = shuffle(specialPool(level), rng), chosen = [], pics = {}, ans = {};
+    order.forEach(function (w) {
+      var a = specialAnswer(level, w);
+      if (chosen.length >= QUESTIONS_PER_SESSION || pics[w.pic] || ans[a]) return;
+      chosen.push(w); pics[w.pic] = true; ans[a] = true;
+    });
+    return chosen;
+  }
+
   // 1 問だけ作る。prevWordId と avoid（{ wordIds, pics, answers } の配列。省略可）に当たる語は選ばない（候補が無ければ prevWordId だけ避ける）
   function generateLetter(level, rng, prevWordId, avoid) {
     rng = defRng(rng);
     if (!LETTER[level]) throw new RangeError('letter level: ' + level);
+    if (LETTER[level].form) {   // K7・K8
+      var sp = specialPool(level).filter(function (w) { return specialKey(level, w) !== prevWordId; });
+      return buildSpecial(level, sp[randInt(rng, 0, sp.length - 1)], rng);
+    }
     avoid = avoid || {};
     var pool = wordPool(level);
     var cands = pool.filter(function (w) {
@@ -315,10 +365,29 @@
       choices: fillChoices(ans, prefs, allKeys(mins), L.choices, rng), answer: ans, ticks: L.ticks };
   }
 
+  // T7: 1 分刻みの時計を読む。誤答は 5 分ずれ（5 つずつ数えて 1 つずれ）・1 分ずれ・時のずれ。直前と同じ時刻は避ける
+  function generateReadMin(level, rng, prevKey) {
+    var L = CLOCK[level], cands = [], h, m;
+    for (h = 1; h <= 12; h++) for (m = 0; m < 60; m++) { var k = clockKey(h, m); if (k !== prevKey) cands.push([h, m]); }
+    var c = cands[randInt(rng, 0, cands.length - 1)]; h = c[0]; m = c[1];
+    var ans = clockKey(h, m), out = [ans];
+    function add(hh, mm) {
+      if (out.length >= L.choices || mm < 0 || mm > 59) return;
+      var key = clockKey(hh, mm);
+      if (out.indexOf(key) < 0) out.push(key);
+    }
+    var sg1 = rng() < 0.5 ? 1 : -1, sg5 = rng() < 0.5 ? 1 : -1, sgh = rng() < 0.5 ? 1 : -1;
+    add(h, m + sg1); add(h, m + sg5 * 5); add(wrapH(h + sgh), m);          // 1 分ずれ・5 分ずれ・時のずれ
+    add(h, m - sg1); add(h, m - sg5 * 5); add(wrapH(h - sgh), m);          // 足りないとき（端の分）は反対側
+    shuffle(allKeys([0, 15, 30, 45]).concat(allKeys([m])), rng).forEach(function (key) { var t = parseKey(key); if (t.h !== h || t.m !== m) add(t.h, t.m); });
+    return { kind: 'clock', level: level, form: 'readmin', h: h, m: m, choices: shuffle(out, rng), answer: ans, ticks: L.ticks };
+  }
+
   function generateClock(level, rng, prevKey) {
     rng = defRng(rng);
     var L = CLOCK[level];
     if (!L) throw new RangeError('clock level: ' + level);
+    if (L.form === 'readmin') return generateReadMin(level, rng, prevKey);
     var prev = prevKey ? parseKey(prevKey) : null, hs = [], i;
     if (L.form === 'elapsed') return generateElapsed(level, rng, prevKey);
     if (L.mins) return generateMinutes(level, rng, prevKey);
@@ -357,8 +426,39 @@
 
   // ---- えいご ----
   // 指定の答え（語の id または数）で 1 問作る。語の誤答は、正解や互いに違う group の語から選ぶ
+  // 並べてよい組だけを選ぶ。clash = [[a, b], …]。answer 自身と重複するものは選ばない。
+  // 先に順番に選んでいく（欲張り法）と、組み合わせによっては数が足りなくなる（black に orange を選ぶと red・yellow・pink が残らない）ので、
+  // 足りなければ全部の組み合わせから、並べてよいものを探す
+  function pickApart(pool, answer, count, clash, rng) {
+    function apart(a, c) { return a !== c && !clash.some(function (p) { return (p[0] === a && p[1] === c) || (p[1] === a && p[0] === c); }); }
+    var cands = shuffle(pool, rng).filter(function (c) { return apart(answer, c); });
+    function search(chosen, from) {
+      if (chosen.length === count - 1) return chosen;
+      for (var i = from; i < cands.length; i++) {
+        if (!chosen.every(function (o) { return apart(o, cands[i]); })) continue;
+        var r = search(chosen.concat(cands[i]), i + 1);
+        if (r) return r;
+      }
+      return null;
+    }
+    return [answer].concat(search([], 0) || []);   // 順番はシャッフル済みなので、見つかる組み合わせは無作為（見つからなければ answer だけ。通常は起きない）
+  }
+  function colorOf(id) { return D.COLORS.filter(function (c) { return c.id === id; })[0]; }
+  function buildColor(level, id, rng) {
+    var c = colorOf(id), ids = pickApart(D.COLORS.map(function (x) { return x.id; }), id, ENGLISH[level].choices, D.COLOR_CLASH, rng);
+    return { kind: 'english', level: level, form: 'color', colorId: id, en: c.en, ja: c.ja, hex: c.hex, pic: 'bus', choices: shuffle(ids, rng), answer: id };
+  }
+  function initialOf(w) { return w.en.charAt(0).toUpperCase(); }
+  // E5: 語（乗り物）の頭文字を大文字で選ぶ。聞くのは「B, bus」。誤答は形が似ていない文字
+  function buildAlpha(level, wordId, rng) {
+    var w = D.ENGLISH_WORDS.filter(function (x) { return x.id === wordId; })[0], letter = initialOf(w);
+    var ls = pickApart(D.ALPHA_LETTERS, letter, ENGLISH[level].choices, D.ALPHA_CLASH, rng);
+    return { kind: 'english', level: level, form: 'alpha', wordId: w.id, letter: letter, en: letter + ', ' + w.en, ja: w.ja, pic: w.pic, choices: shuffle(ls, rng), answer: letter };
+  }
   function buildEnglish(level, answer, rng) {
     var L = ENGLISH[level];
+    if (L.form === 'color') return buildColor(level, answer, rng);
+    if (L.form === 'alpha') return buildAlpha(level, answer, rng);
     if (typeof answer === 'number') {
       return { kind: 'english', level: level, form: 'number', n: answer, en: D.NUM_EN[answer], ja: D.NUM_KANA[answer],
         choices: numberChoices(answer, L.max, L.choices, rng), answer: answer };
@@ -375,10 +475,27 @@
   }
   function wordKeys() { return D.ENGLISH_WORDS.map(function (w) { return w.id; }); }
   function numberKeys(level) { var out = [], max = ENGLISH[level].max || 0; for (var i = 1; i <= max; i++) out.push(i); return out; }
+  // E4: 色の id の一覧 / E5: 語の id の一覧
+  function specialKeys(level) { return ENGLISH[level].form === 'color' ? D.COLORS.map(function (c) { return c.id; }) : wordKeys(); }
+  // E4・E5 の 4 問: 色は重複なし、E5 は頭文字が重複しない語（F・A・P・D・B・G・T・H・S から 4 つ）
+  function generateSpecialEnglishSession(level, rng) {
+    var keys = shuffle(specialKeys(level), rng), out = [], used = {};
+    keys.forEach(function (k) {
+      if (out.length >= QUESTIONS_PER_SESSION) return;
+      var u = ENGLISH[level].form === 'alpha' ? initialOf(D.ENGLISH_WORDS.filter(function (w) { return w.id === k; })[0]) : k;
+      if (used[u]) return;
+      used[u] = true; out.push(k);
+    });
+    return out.map(function (k) { return buildEnglish(level, k, rng); });
+  }
   // 1 問だけ作る。prevKey（直前の語の id または数）は避ける
   function generateEnglish(level, rng, prevKey) {
     rng = defRng(rng);
     if (!ENGLISH[level]) throw new RangeError('english level: ' + level);
+    if (ENGLISH[level].form) {   // E4・E5: 答えは 色の id / 語の id
+      var pool = specialKeys(level).filter(function (k) { return k !== prevKey; });
+      return buildEnglish(level, pool[randInt(rng, 0, pool.length - 1)], rng);
+    }
     var keys = wordKeys().concat(numberKeys(level)).filter(function (k) { return k !== prevKey; });
     return buildEnglish(level, keys[randInt(rng, 0, keys.length - 1)], rng);
   }
@@ -386,6 +503,7 @@
   function generateEnglishSession(level, rng) {
     rng = defRng(rng);
     if (!ENGLISH[level]) throw new RangeError('english level: ' + level);
+    if (ENGLISH[level].form) return generateSpecialEnglishSession(level, rng);
     var nw = ENGLISH[level].words;
     var keys = shuffle(wordKeys(), rng).slice(0, nw).concat(shuffle(numberKeys(level), rng).slice(0, QUESTIONS_PER_SESSION - nw));
     return shuffle(keys, rng).map(function (k) { return buildEnglish(level, k, rng); });
@@ -401,7 +519,7 @@
       }
       return p.h === q.h && p.m === q.m;
     }
-    if (p.kind === 'english') return p.form === q.form && (p.form === 'number' ? p.n === q.n : p.wordId === q.wordId);
+    if (p.kind === 'english') return p.form === q.form && (p.form === 'number' ? p.n === q.n : p.form === 'color' ? p.colorId === q.colorId : p.wordId === q.wordId);
     return p.wordId === q.wordId;
   }
 
@@ -410,6 +528,7 @@
     rng = defRng(rng);
     if (game === 'letter') {
       if (!LETTER[level]) throw new RangeError('letter level: ' + level);
+      if (LETTER[level].form) return pickSpecial(level, rng).map(function (w) { return buildSpecial(level, w, rng); });
       return pickWords(level, rng, D.cleanSeen(recentPics)).map(function (w) { return buildLetter(level, w, rng); });
     }
     if (game === 'english') return generateEnglishSession(level, rng);
@@ -447,9 +566,9 @@
   var api = {
     QUESTIONS_PER_SESSION: QUESTIONS_PER_SESSION, PROMOTE_AT: PROMOTE_AT, DEMOTE_AT: DEMOTE_AT,
     LEVELS: LEVELS, MATH: MATH, LETTER: LETTER, CLOCK: CLOCK, ENGLISH: ENGLISH,
-    generateEnglish: generateEnglish, buildEnglish: buildEnglish,
+    generateEnglish: generateEnglish, buildEnglish: buildEnglish, colorOf: colorOf,
     generateCounting: generateCounting, generateAddition: generateAddition, generateSubtraction: generateSubtraction,
-    generateLetter: generateLetter, buildLetter: buildLetter, generateClock: generateClock, handAngles: handAngles, readTime: readTime, readMinutes: readMinutes,
+    generateLetter: generateLetter, buildLetter: buildLetter, buildYouon: buildYouon, buildKanji: buildKanji, generateClock: generateClock, handAngles: handAngles, readTime: readTime, readMinutes: readMinutes,
     clockKey: clockKey, sameProblem: sameProblem, generateSession: generateSession, nextLevel: nextLevel
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
