@@ -88,7 +88,8 @@
     var L = MATH[level];
     if (!L || (L.kind !== 'count' && L.kind !== 'mix')) throw new RangeError('count level: ' + level);
     var n = L.kind === 'mix' ? randInt(rng, L.countMin, L.max) : randInt(rng, 1, L.max);
-    return { kind: 'count', level: level, n: n, choices: numberChoices(n, L.max, L.choices, rng), answer: n };
+    // 11 以上を数える M8 は、選択肢も 10 以上（1 や 2 のような極端に小さい誤答を出さない）
+    return { kind: 'count', level: level, n: n, choices: numberChoices(n, L.max, L.choices, rng, L.kind === 'mix' ? 10 : 1), answer: n };
   }
 
   function generateAddition(level, rng) {
@@ -119,7 +120,7 @@
     rng = defRng(rng);
     var L = MATH[level];
     if (!L || L.kind !== 'sub') throw new RangeError('sub level: ' + level);
-    // M10: 13−5 のようなくり下がり。a は 11〜18、b は 2〜9 で一の位 < b（答えは 1〜9）。選択肢は 1〜10
+    // M10: 13−5 のようなくり下がり。a は 11〜18、b は 2〜9 で一の位 < b（答えは 2〜9）。選択肢は 1〜10
     if (level === 'M10') {
       var a10, b10;
       do { a10 = randInt(rng, 11, 18); b10 = randInt(rng, 2, 9); } while (a10 % 10 >= b10);

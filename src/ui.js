@@ -688,6 +688,7 @@
   }
 
   function fillParent() {
+    relockAsk = '';   // 「とじる」の確認は、ほかの操作で描き直したら消える
     var st = data.stats, have = 0, stars = 0;
     D.CARS.forEach(function (c) { var n = data.cards[c.id] || 0; if (n) have++; stars += n; });
     function pct(g) { var q = st[g].questions; return q ? Math.round(st[g].firstTry / q * 100) + '%' : '-'; }

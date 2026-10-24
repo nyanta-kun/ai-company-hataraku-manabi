@@ -24,7 +24,7 @@ test('S1 数1: M8 の 1 回は「数える 2 問 + くり上がりなしのた�
       assert.equal(q.level, 'M8');
       if (q.kind === 'count') {
         assert.ok(q.n >= 11 && q.n <= 20); assert.equal(q.answer, q.n); seenN.add(q.n);
-        checkChoices(q, 1, 20, 4);
+        checkChoices(q, 10, 20, 4);
       } else {
         assert.ok(q.a >= 11 && q.a <= 18 && q.b >= 1);
         assert.equal(q.answer, q.a + q.b);
@@ -62,7 +62,7 @@ test('S1 数3: M9 はくり上がりのある全 36 組（a,b は 2〜9、和 11
   assert.deepEqual([...got].sort(), [...want].sort());
 });
 
-test('S1 数4: M10 はくり下がりのある全組（a 11〜18、b 2〜9、一の位 < b、答え 1〜9）。選択肢は 1〜10 の 4 つ', () => {
+test('S1 数4: M10 はくり下がりのある全組（a 11〜18、b 2〜9、一の位 < b、答え 2〜9）。選択肢は 1〜10 の 4 つ', () => {
   const want = new Set();
   for (let a = 11; a <= 18; a++) for (let b = 2; b <= 9; b++) if (a % 10 < b) want.add(a + '-' + b);
   const got = new Set(), r = rngOf(101);
@@ -71,7 +71,7 @@ test('S1 数4: M10 はくり下がりのある全組（a 11〜18、b 2〜9、一
     assert.equal(q.kind, 'sub');
     assert.equal(q.answer, q.a - q.b);
     assert.ok(q.a % 10 < q.b, 'くり下がりが起きる');
-    assert.ok(q.answer >= 1 && q.answer <= 9);
+    assert.ok(q.answer >= 2 && q.answer <= 9);
     checkChoices(q, 1, 10, 4);
   }
   assert.deepEqual([...got].sort(), [...want].sort());

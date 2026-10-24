@@ -31,6 +31,8 @@
   // → { profile, promotedTo }。levels の更新（復習なら更新しない）、cleared の記録、昇格判定
   function afterSession(profile, game, level, firstTry, review, today) {
     var p = clone(profile), s = currentStage(p);
+    // こてい中に、遊んだレベルが保存されたレベルと違うとき（札の切り替えなど）は復習扱い。保存したレベルが正
+    if (p.locked[game] && level !== p.levels[game]) review = true;
     if (!review) p.levels[game] = P.nextLevel(game, level, firstTry, p.locked[game], D.stageRange(s, game));
     // 関門の記録は、どのステージで遊んでも付ける（すでにあれば日付を変えない）。解放を決めるのは下の判定
     if (firstTry >= P.QUESTIONS_PER_SESSION && D.gateLevels().indexOf(level) >= 0 && !p.cleared[level]) p.cleared[level] = today;

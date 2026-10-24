@@ -175,7 +175,7 @@ test('S1 階段4: S1 を選ぶと M8 から。M8 で 0/4 でも M8 のまま（S
   assert.equal(L.afterSession(withLv({ math: 'M10' }, { stage: p.stage }), 'math', 'M10', 4, false, TODAY).profile.levels.math, 'M10');
   assert.equal(L.afterSession(withLv({ math: 'M10' }, { stage: p.stage }), 'math', 'M10', 4, false, TODAY).profile.cleared.M10, TODAY);
   const q = L.afterSession(Object.assign({}, p, { locked: { math: true, letter: false, clock: false, english: false } }), 'math', 'M8', 4, false, TODAY).profile;
-  assert.equal(q.levels.math, 'M8', '固定');
+  assert.equal(q.levels.math, 'M7', '固定中は保存したレベル（M7）が正');
 });
 
 test('S1 階段5: 復習（S1 の子が S0 で遊ぶ）は S0 の最後のレベルで、levels は変わらない。0/4 でも変わらない。cleared と stats 側は進められる', () => {
@@ -270,4 +270,16 @@ test('S1 階段11: 既存の S0 の子（M7・K6・T6 まで進んだ v2）は�
   const r = L.afterSession(old, 'math', 'M7', 4, false, TODAY);
   assert.equal(r.profile.levels.math, 'M7');
   assert.equal(r.promotedTo, null);
+});
+
+test('S1 階段12: こてい中は、遊んだレベルが保存されたレベルと違えば復習扱いで levels を変えない', () => {
+  let p = L.unlockStage(prof(), 'S1', TODAY);
+  p.levels.math = 'M5'; p.locked.math = true;
+  p = L.selectStage(p, 'S1');                       // 札の切り替え: M8 から遊ぶことになる
+  const pl = L.playLevel(p, 'math');
+  assert.equal(pl.level, 'M8');
+  assert.equal(L.afterSession(p, 'math', pl.level, 4, pl.review, TODAY).profile.levels.math, 'M5');
+  assert.equal(L.afterSession(p, 'math', 'M8', 0, false, TODAY).profile.levels.math, 'M5');
+  const q = Object.assign({}, p, { levels: Object.assign({}, p.levels, { math: 'M8' }) });   // 一致していれば今までどおり（固定で動かない）
+  assert.equal(L.afterSession(q, 'math', 'M8', 4, false, TODAY).profile.levels.math, 'M8');
 });
