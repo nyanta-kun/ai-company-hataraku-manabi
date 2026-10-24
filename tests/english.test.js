@@ -134,19 +134,19 @@ test('英語性質9: 語彙表の整合（en は小文字の英字とスペー�
 });
 
 test('保存: english が無い旧データでは E1・未固定・stats 0。不正値は E1 に戻り、stats の負数・文字列は0', () => {
-  const old = S.normalize({ version: 1, levels: { math: 'M3', letter: 'K2', clock: 'T2' }, locked: { clock: true }, stats: { sessions: 5, clock: { sessions: 2, questions: 8, firstTry: 5 } } });
+  const old = S.normalizeProfile({ version: 1, levels: { math: 'M3', letter: 'K2', clock: 'T2' }, locked: { clock: true }, stats: { sessions: 5, clock: { sessions: 2, questions: 8, firstTry: 5 } } });
   assert.equal(old.levels.english, 'E1');
   assert.equal(old.locked.english, false);
   assert.deepEqual(old.stats.english, { sessions: 0, questions: 0, firstTry: 0 });
   assert.equal(old.levels.clock, 'T2'); assert.equal(old.locked.clock, true);   // とけいと衝突しない
-  assert.equal(S.normalize({ levels: { english: 'E9' } }).levels.english, 'E1');
-  assert.equal(S.normalize({ levels: { english: 'K1' } }).levels.english, 'E1');
-  const bad = S.normalize({ stats: { english: { sessions: -3, questions: 'x', firstTry: 2.7 } }, locked: { english: 'yes' } });
+  assert.equal(S.normalizeProfile({ levels: { english: 'E9' } }).levels.english, 'E1');
+  assert.equal(S.normalizeProfile({ levels: { english: 'K1' } }).levels.english, 'E1');
+  const bad = S.normalizeProfile({ stats: { english: { sessions: -3, questions: 'x', firstTry: 2.7 } }, locked: { english: 'yes' } });
   assert.deepEqual(bad.stats.english, { sessions: 0, questions: 0, firstTry: 2 });
   assert.equal(bad.locked.english, false);
-  for (const lv of LV) assert.equal(S.normalize({ levels: { english: lv }, locked: { english: true } }).levels.english, lv);
-  assert.equal(S.normalize({ locked: { english: true } }).locked.english, true);
-  assert.deepEqual(S.normalize(S.defaults()), S.defaults());
+  for (const lv of LV) assert.equal(S.normalizeProfile({ levels: { english: lv }, locked: { english: true } }).levels.english, lv);
+  assert.equal(S.normalizeProfile({ locked: { english: true } }).locked.english, true);
+  assert.deepEqual(S.normalizeProfile(S.defaultProgress()), S.defaultProgress());
 });
 
 test('E1: 聞き分けにくい「〜 truck」同士（truck・fire truck・dump truck・garbage truck）を同じ問題に並べない', () => {

@@ -1,7 +1,7 @@
 // 画面遷移・イベント・出動の流れ。純粋関数は problems.js / rewards.js、保存は storage.js。
 (function (root) {
   'use strict';
-  var M = root.Manabi, D = M.data, P = M.problems, R = M.rewards, S = M.storage;
+  var M = root.Manabi, D = M.data, P = M.problems, R = M.rewards, S = M.storage, PR = M.profiles;
   var A = M.audio, SP = M.speech, V = M.vehicles, SC = M.scenes, CF = M.clockface;
   var doc = root.document;
 
@@ -10,7 +10,9 @@
   function carById(id) { for (var i = 0; i < D.CARS.length; i++) if (D.CARS[i].id === id) return D.CARS[i]; return null; }
   function todayStr() { var d = new Date(); return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2); }
 
-  var data = S.load();
+  var state = S.load();             // v2 全体（device ＋ プロフィール配列）
+  var dev = state.device;           // 端末共通（音）
+  var data = PR.currentProfile(state);   // 今のプロフィール（state.profiles の要素そのもの）
   var screen = 'title';
   var stage = null;          // 問題画面の Stage
   var run = null;            // 出動中の状態
@@ -26,7 +28,10 @@
 
   function later(ms, fn) { var id = root.setTimeout(function () { fn(); }, ms); timers.push(id); return id; }
   function clearTimers() { timers.forEach(root.clearTimeout); timers = []; }
-  function save() { S.save(data); }
+  function save() { S.save(state); }
+  // PR の関数は新しい state を返すので、呼んだ後は必ず付け直す（古いプロフィールに書かないため）
+  function rebind() { dev = state.device; data = PR.currentProfile(state); }
+  function useProfile(id) { state = PR.selectProfile(state, id); rebind(); save(); }
 
   // ---- アイコン（Canvas で描く。画面の文字に頼らない） ----
   function drawIcon(cv, kind) {
@@ -107,22 +112,22 @@
   }
   // 出動えらびの「えいご」: 英語の声が使えないときは選べない（グレー＋スピーカー×）。開くたび・声の状態が変わるたびに見直す
   // 英語が聞こえない状態（声が無い／失敗した／保護者がよみあげをオフにした）。えいごは聞いて選ぶので、この間は成立しない
-  function enOff() { return !SP.enAvailable() || !data.sound.voice; }
+  function enOff() { return !SP.enAvailable() || !dev.sound.voice; }
   function updatePick() {
     var b = $('btn-english'); if (!b) return;
     var off = enOff();
     b.classList.toggle('disabled', off); b.setAttribute('aria-disabled', off ? 'true' : 'false');
   }
   function updateVoiceMark() {
-    var x = data.sound.voice && SP.isVoiceless();
+    var x = dev.sound.voice && SP.isVoiceless();
     [].forEach.call(doc.querySelectorAll('.voice-x'), function (e) { e.hidden = !x; });
     var sound = $('btn-sound').querySelector('canvas');
-    sound.setAttribute('data-icon', data.sound.sfx || data.sound.voice ? 'speaker' : 'speakerx');
+    sound.setAttribute('data-icon', dev.sound.sfx || dev.sound.voice ? 'speaker' : 'speakerx');
     drawIcon(sound, sound.getAttribute('data-icon'));
   }
 
   // ---- 音 ----
-  function applySound() { A.setEnabled(data.sound.sfx); SP.setEnabled(data.sound.voice); }
+  function applySound() { A.setEnabled(dev.sound.sfx); SP.setEnabled(dev.sound.voice); }
   function sfx(name, arg) { A.play(name, arg); }
   function say(text, opts) { return SP.speak(text, opts); }
   function seq(items, opts) { return SP.speakSeq(items, opts); }
@@ -316,7 +321,7 @@
     if (q.kind === 'english') seq([{ text: q.form === 'word' ? englishOf(v).en : D.NUM_EN[v], lang: 'en' }, { text: 'おしい！もう一回。', lang: 'ja', gap: 250 }]);
     else say(said);
     var left = answerButtons().filter(function (b) { return !b.classList.contains('off'); });
-    var voiceless = SP.isVoiceless() || !data.sound.voice, enOff_ = enOff();
+    var voiceless = SP.isVoiceless() || !dev.sound.voice, enOff_ = enOff();
     if (run.wrong >= 2 || left.length <= 1 || ((q.kind === 'letter' || (q.kind === 'clock' && /^T[3-6]$/.test(q.level))) && voiceless) || (q.kind === 'english' && enOff_)) {
       later(900, function () {
         if (!run || run.busy) return;
@@ -506,7 +511,7 @@
       '<div class="prow"><span>とけい：いまのレベル</span><b>' + data.levels.clock + '（1かいめで せいかい ' + pct('clock') + '）</b></div>' +
       '<div class="prow"><span>えいご：いまのレベル</span><b>' + data.levels.english + '（1かいめで せいかい ' + pct('english') + '）</b></div>' +
       '<div class="prow"><span>あつめた くるま</span><b>' + have + ' / 11（★ ' + stars + '）</b></div>';
-    $('p-sfx').checked = data.sound.sfx; $('p-voice').checked = data.sound.voice;
+    $('p-sfx').checked = dev.sound.sfx; $('p-voice').checked = dev.sound.voice;
     ['math', 'letter', 'clock', 'english'].forEach(function (g) {
       var sel = $('p-lv-' + g);
       if (!sel.options.length) P.LEVELS[g].forEach(function (lv) { var o = doc.createElement('option'); o.value = lv; o.textContent = lv; sel.appendChild(o); });
@@ -569,8 +574,8 @@
     $('btn-go').addEventListener('click', function () { sfx('tap'); show('pick'); });
     $('btn-garage').addEventListener('click', function () { sfx('tap'); show('garage'); });
     $('btn-sound').addEventListener('click', function () {
-      var on = !(data.sound.sfx || data.sound.voice);
-      data.sound.sfx = data.sound.voice = on; applySound(); save(); updateVoiceMark(); updatePick();
+      var on = !(dev.sound.sfx || dev.sound.voice);
+      dev.sound.sfx = dev.sound.voice = on; applySound(); save(); updateVoiceMark(); updatePick();
       if (on) sfx('tap');
     });
     holdButton($('btn-gear'), 2000, function () { show('parent'); });
@@ -613,8 +618,8 @@
     $('btn-p-back').addEventListener('click', function () { show('title'); });
 
     // 保護者画面
-    $('p-sfx').addEventListener('change', function () { data.sound.sfx = this.checked; applySound(); save(); updateVoiceMark(); sfx('correct'); });
-    $('p-voice').addEventListener('change', function () { data.sound.voice = this.checked; applySound(); save(); updateVoiceMark(); updatePick(); });
+    $('p-sfx').addEventListener('change', function () { dev.sound.sfx = this.checked; applySound(); save(); updateVoiceMark(); sfx('correct'); });
+    $('p-voice').addEventListener('change', function () { dev.sound.voice = this.checked; applySound(); save(); updateVoiceMark(); updatePick(); });
     $('p-test').addEventListener('click', function () {
       unlockOnce();
       if (!say('こんにちは。はたらくまなびです。', { force: true })) $('p-voice-note').textContent = 'よみあげが つかえません（このたんまつは こえなしモードです）。';
@@ -631,7 +636,7 @@
       clearStep++;
       if (clearStep === 1) { this.textContent = 'ほんとうに けしますか？（もういちど おす）'; $('p-clear-note').textContent = 'あつめた くるまと すすみぐあいが すべて きえます。'; }
       else {
-        S.clear(); data = S.normalize(null); applySound(); save(); fillParent(); updateVoiceMark();
+        S.clear(); state = S.fresh(); rebind(); applySound(); save(); fillParent(); updateVoiceMark();
         $('p-clear-note').textContent = 'データを けしました。';
       }
     });
@@ -642,7 +647,12 @@
   M.ui = {
     init: init, show: show, startSession: startSession, drawIcon: drawIcon,
     get data() { return data; },
-    setData: function (d) { data = d; applySound(); save(); },
+    setData: function (d) {   // 今のプロフィールを置き換える
+      var i = state.profiles.indexOf(data);
+      if (i >= 0) state.profiles[i] = d;
+      data = d; applySound(); save();
+    },
+    useProfile: useProfile,
     gotoReward: function (scene) {
       var r = grantReward(scene || 'kaji');
       save();

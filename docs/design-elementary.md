@@ -151,6 +151,7 @@ v2 が壊れていて v1 から取り込み直した場合、v1 は移行した�
 
 - 新しい id と今日の日付を作るのは I/O 側（`load` の中）だけ。純粋関数には引数で渡す。
 - `newId(now, rng)`（純粋）: `'p_' + now.toString(36) + '_' + 4桁の36進` 。R4 で別の端末のプロフィールと混ざらないよう、端末をまたいでも重ならない値にしておく（連番 `p1` は使わない）。
+- **実装との差（R1-a）**: (1) `normalizeName`・`ICON_ORDER` の実体は `storage.js` に置き、`profiles.js` が同じものを公開する（`normalize` が名前・アイコンの補正に使うため。`profiles.js → storage.js` の一方向を守る）。(2) `normalize` の `id`・`today` は省略可（省略時は内部で作る。テストでは渡す）。(3) v2 が JSON として読めても object でない（`null`・数など）場合は、壊れた文字列と同じく `KEY_BROKEN` へ退避して v1 から復旧する。(4) `device.restoredFromV1` は復旧したときだけ `true` で入る（表示は R1-c）。(5) `addProfile` は名前が不正（`chars`/`long`）なら追加せず `ok:false`、空だけ「こども+n」にする。
 - `MATH_LV` などの重複（`src/storage.js:7`）は R1 では触らない（R2-a で `LEVELS` を一本化するときに直す。3.1）。
 
 #### `src/profiles.js`（新規。純粋関数のみ。`index.html` で `storage.js` の後に読む）
