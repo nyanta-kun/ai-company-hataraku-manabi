@@ -50,7 +50,10 @@
   var ENGLISH = {
     E1: { words: 4, wordChoices: 3 },
     E2: { words: 2, wordChoices: 3, max: 5,  choices: 3 },
-    E3: { words: 2, wordChoices: 4, max: 10, choices: 4 }
+    E3: { words: 2, wordChoices: 4, max: 10, choices: 4 },
+    // S1: E4 = いろ（同じ車を色ちがいで 4 つ並べる）。E5 = アルファベットの大文字（「B, bus」を聞いて文字を選ぶ）。どちらも 1 回に 4 問
+    E4: { form: 'color', choices: 4 },
+    E5: { form: 'alpha', choices: 4 }
   };
 
   ['T4', 'T5', 'T6', 'T7'].forEach(function (k) { CLOCK[k].hintBoth = true; });
@@ -423,8 +426,39 @@
 
   // ---- えいご ----
   // 指定の答え（語の id または数）で 1 問作る。語の誤答は、正解や互いに違う group の語から選ぶ
+  // 並べてよい組だけを選ぶ。clash = [[a, b], …]。answer 自身と重複するものは選ばない。
+  // 先に順番に選んでいく（欲張り法）と、組み合わせによっては数が足りなくなる（black に orange を選ぶと red・yellow・pink が残らない）ので、
+  // 足りなければ全部の組み合わせから、並べてよいものを探す
+  function pickApart(pool, answer, count, clash, rng) {
+    function apart(a, c) { return a !== c && !clash.some(function (p) { return (p[0] === a && p[1] === c) || (p[1] === a && p[0] === c); }); }
+    var cands = shuffle(pool, rng).filter(function (c) { return apart(answer, c); });
+    function search(chosen, from) {
+      if (chosen.length === count - 1) return chosen;
+      for (var i = from; i < cands.length; i++) {
+        if (!chosen.every(function (o) { return apart(o, cands[i]); })) continue;
+        var r = search(chosen.concat(cands[i]), i + 1);
+        if (r) return r;
+      }
+      return null;
+    }
+    return [answer].concat(search([], 0) || []);   // 順番はシャッフル済みなので、見つかる組み合わせは無作為（見つからなければ answer だけ。通常は起きない）
+  }
+  function colorOf(id) { return D.COLORS.filter(function (c) { return c.id === id; })[0]; }
+  function buildColor(level, id, rng) {
+    var c = colorOf(id), ids = pickApart(D.COLORS.map(function (x) { return x.id; }), id, ENGLISH[level].choices, D.COLOR_CLASH, rng);
+    return { kind: 'english', level: level, form: 'color', colorId: id, en: c.en, ja: c.ja, hex: c.hex, pic: 'bus', choices: shuffle(ids, rng), answer: id };
+  }
+  function initialOf(w) { return w.en.charAt(0).toUpperCase(); }
+  // E5: 語（乗り物）の頭文字を大文字で選ぶ。聞くのは「B, bus」。誤答は形が似ていない文字
+  function buildAlpha(level, wordId, rng) {
+    var w = D.ENGLISH_WORDS.filter(function (x) { return x.id === wordId; })[0], letter = initialOf(w);
+    var ls = pickApart(D.ALPHA_LETTERS, letter, ENGLISH[level].choices, D.ALPHA_CLASH, rng);
+    return { kind: 'english', level: level, form: 'alpha', wordId: w.id, letter: letter, en: letter + ', ' + w.en, ja: w.ja, pic: w.pic, choices: shuffle(ls, rng), answer: letter };
+  }
   function buildEnglish(level, answer, rng) {
     var L = ENGLISH[level];
+    if (L.form === 'color') return buildColor(level, answer, rng);
+    if (L.form === 'alpha') return buildAlpha(level, answer, rng);
     if (typeof answer === 'number') {
       return { kind: 'english', level: level, form: 'number', n: answer, en: D.NUM_EN[answer], ja: D.NUM_KANA[answer],
         choices: numberChoices(answer, L.max, L.choices, rng), answer: answer };
@@ -441,10 +475,27 @@
   }
   function wordKeys() { return D.ENGLISH_WORDS.map(function (w) { return w.id; }); }
   function numberKeys(level) { var out = [], max = ENGLISH[level].max || 0; for (var i = 1; i <= max; i++) out.push(i); return out; }
+  // E4: 色の id の一覧 / E5: 語の id の一覧
+  function specialKeys(level) { return ENGLISH[level].form === 'color' ? D.COLORS.map(function (c) { return c.id; }) : wordKeys(); }
+  // E4・E5 の 4 問: 色は重複なし、E5 は頭文字が重複しない語（F・A・P・D・B・G・T・H・S から 4 つ）
+  function generateSpecialEnglishSession(level, rng) {
+    var keys = shuffle(specialKeys(level), rng), out = [], used = {};
+    keys.forEach(function (k) {
+      if (out.length >= QUESTIONS_PER_SESSION) return;
+      var u = ENGLISH[level].form === 'alpha' ? initialOf(D.ENGLISH_WORDS.filter(function (w) { return w.id === k; })[0]) : k;
+      if (used[u]) return;
+      used[u] = true; out.push(k);
+    });
+    return out.map(function (k) { return buildEnglish(level, k, rng); });
+  }
   // 1 問だけ作る。prevKey（直前の語の id または数）は避ける
   function generateEnglish(level, rng, prevKey) {
     rng = defRng(rng);
     if (!ENGLISH[level]) throw new RangeError('english level: ' + level);
+    if (ENGLISH[level].form) {   // E4・E5: 答えは 色の id / 語の id
+      var pool = specialKeys(level).filter(function (k) { return k !== prevKey; });
+      return buildEnglish(level, pool[randInt(rng, 0, pool.length - 1)], rng);
+    }
     var keys = wordKeys().concat(numberKeys(level)).filter(function (k) { return k !== prevKey; });
     return buildEnglish(level, keys[randInt(rng, 0, keys.length - 1)], rng);
   }
@@ -452,6 +503,7 @@
   function generateEnglishSession(level, rng) {
     rng = defRng(rng);
     if (!ENGLISH[level]) throw new RangeError('english level: ' + level);
+    if (ENGLISH[level].form) return generateSpecialEnglishSession(level, rng);
     var nw = ENGLISH[level].words;
     var keys = shuffle(wordKeys(), rng).slice(0, nw).concat(shuffle(numberKeys(level), rng).slice(0, QUESTIONS_PER_SESSION - nw));
     return shuffle(keys, rng).map(function (k) { return buildEnglish(level, k, rng); });
@@ -467,7 +519,7 @@
       }
       return p.h === q.h && p.m === q.m;
     }
-    if (p.kind === 'english') return p.form === q.form && (p.form === 'number' ? p.n === q.n : p.wordId === q.wordId);
+    if (p.kind === 'english') return p.form === q.form && (p.form === 'number' ? p.n === q.n : p.form === 'color' ? p.colorId === q.colorId : p.wordId === q.wordId);
     return p.wordId === q.wordId;
   }
 
@@ -514,7 +566,7 @@
   var api = {
     QUESTIONS_PER_SESSION: QUESTIONS_PER_SESSION, PROMOTE_AT: PROMOTE_AT, DEMOTE_AT: DEMOTE_AT,
     LEVELS: LEVELS, MATH: MATH, LETTER: LETTER, CLOCK: CLOCK, ENGLISH: ENGLISH,
-    generateEnglish: generateEnglish, buildEnglish: buildEnglish,
+    generateEnglish: generateEnglish, buildEnglish: buildEnglish, colorOf: colorOf,
     generateCounting: generateCounting, generateAddition: generateAddition, generateSubtraction: generateSubtraction,
     generateLetter: generateLetter, buildLetter: buildLetter, buildYouon: buildYouon, buildKanji: buildKanji, generateClock: generateClock, handAngles: handAngles, readTime: readTime, readMinutes: readMinutes,
     clockKey: clockKey, sameProblem: sameProblem, generateSession: generateSession, nextLevel: nextLevel

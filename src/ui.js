@@ -176,15 +176,18 @@
       var ctx = cv.getContext('2d'); ctx.setTransform(dpr, 0, 0, dpr, 0, 0); SC.drawWappen(ctx, 17, 19, 30, i, 0);
       b.addEventListener('click', function () {
         if (i === stageIdx()) return;
-        sfx('tap'); replaceData(LD.selectStage(data, stg.id)); save(); buildStageTabs();
+        sfx('tap'); replaceData(LD.selectStage(data, stg.id)); save(); buildStageTabs(); updatePickSub();
       });
     });
   }
   function replaceData(np) { Object.keys(np).forEach(function (k) { data[k] = np[k]; }); }   // data は state.profiles の要素そのものなので、中身を差し替える
-  function updatePick() {
-    buildStageTabs();
-    var sub = $('pick-sub'); sub.hidden = stageIdx() < 1;   // S1 以降だけ。S0 の子には今までと同じ画面
+  // 出動えらびの一行（S1 以降だけ。ふりがな付き）。S0 の子には今までと同じ画面。札で S0 に切り替えたときも消す
+  function updatePickSub() {
+    var sub = $('pick-sub'); sub.hidden = stageIdx() < 1;
     sub.innerHTML = sub.hidden ? '' : kidText(D.TEXT.pickSub);
+  }
+  function updatePick() {
+    buildStageTabs(); updatePickSub();
     var b = $('btn-english'); if (!b) return;
     var off = enOff();
     b.classList.toggle('disabled', off); b.setAttribute('aria-disabled', off ? 'true' : 'false');
@@ -291,7 +294,7 @@
     }
     if (p.kind === 'english') return 'どれかな？';   // 英語の意味は日本語で言わない（言うと英語を聞かなくても答えられる）
     if (p.level === 'K7') return p.word + '。最初の音は、どれかな？';   // 拗音（しょ）を選ぶ。ひらがなの語をそのまま読む
-    if (p.level === 'K8') return p.speech + '。どの漢字かな？';             // 読み上げ文はひらがなだけ（漢字を渡さない）
+    if (p.level === 'K8') return p.speech + '。どの かんじかな？';             // 読み上げ文はひらがなだけ（漢字を渡さない）
     return yomiOf(wordOf(p.wordId)) + '。最初の文字は、どれかな？';
   }
   function isSpecialLetter(q) { return q.kind === 'letter' && (q.level === 'K7' || q.level === 'K8'); }
@@ -341,13 +344,14 @@
   }
   function renderAnswers(q) {
     var box = $('answers'); box.innerHTML = '';
-    var pickClock = q.kind === 'clock' && (q.form === 'pick' || q.form === 'elapsed'), pickPic = q.kind === 'english' && q.form === 'word';
+    var pickClock = q.kind === 'clock' && (q.form === 'pick' || q.form === 'elapsed'), pickPic = q.kind === 'english' && (q.form === 'word' || q.form === 'color');
     box.className = pickClock || (pickPic && q.choices.length > 3) ? 'clocks' : ((q.kind === 'clock' && q.form === 'readmin') || q.level === 'K7' ? 'twocol' : '');   // 4択の絵は 1 列だと小さいので時計と同じ 2×2。「11:34」・拗音（しょ）は幅が狭い画面だけ 2×2
     q.choices.forEach(function (c) {
       var b = doc.createElement('button');
       b.type = 'button'; b.className = pickClock ? 'ans clk' : pickPic ? 'ans pic' : 'ans'; b.setAttribute('data-v', String(c));
       if (pickClock || pickPic) b.innerHTML = '<canvas></canvas>';
       else if (q.kind === 'clock') b.innerHTML = '<span class="num">' + c + '</span>';
+      else if (q.kind === 'english' && q.form === 'alpha') b.innerHTML = '<span class="kana">' + c + '</span>';   // E5: 大文字
       else if (q.kind === 'letter') b.innerHTML = '<span class="kana' + (c.length > 1 ? ' two' : '') + '">' + c + '</span>';   // 拗音（しょ）は 2 文字なので少し小さく
       else if (q.choices.some(function (v) { return v > 10; })) b.innerHTML = '<span class="num">' + c + '</span>';   // 11 以上は数字だけ（点は 10 まで。S1 の子は数字が読める）
       else {
@@ -364,8 +368,10 @@
   // えいご E1: 乗り物の絵の答えボタンを描く
   function drawAnswerPics() {
     [].forEach.call($('answers').querySelectorAll('.ans.pic'), function (b) {
-      var cv = b.querySelector('canvas'), c = sizeCanvas(cv), w = englishOf(b.getAttribute('data-v'));
+      var cv = b.querySelector('canvas'), c = sizeCanvas(cv), key = b.getAttribute('data-v'), q = run && run.qs && run.qs[run.idx];
       c.ctx.clearRect(0, 0, c.w, c.h);
+      if (q && q.form === 'color') { var col = P.colorOf(key); if (col) V.drawColorCar(c.ctx, c.w / 2, c.h / 2, Math.min(c.w, c.h) * 0.8, col.hex); return; }   // E4: 色ちがいの同じ車
+      var w = englishOf(key);
       if (w) V.drawPic(c.ctx, w.pic, c.w / 2, c.h / 2, Math.min(c.w, c.h) * 0.8, 0);
     });
   }
@@ -394,7 +400,7 @@
     var said = 'おしい！もう一回。';
     if (q.kind === 'letter' && !isSpecialLetter(q)) said = exampleOf(v) + 'の ' + D.toHira(v) + '。おしい！もう一回。';
     else if (q.kind === 'clock' && (q.form === 'pick' || q.form === 'elapsed' || q.form === 'readmin') && v.indexOf('swap:') !== 0) { var tk = v.split(':'); said = P.readTime(+tk[0], +tk[1]) + '。おしい！もう一回。'; }
-    if (q.kind === 'english') seq([{ text: q.form === 'word' ? englishOf(v).en : D.NUM_EN[v], lang: 'en' }, { text: 'おしい！もう一回。', lang: 'ja', gap: 250 }]);
+    if (q.kind === 'english') seq([{ text: q.form === 'word' ? englishOf(v).en : q.form === 'color' ? P.colorOf(v).en : q.form === 'alpha' ? v : D.NUM_EN[v], lang: 'en' }, { text: 'おしい！もう一回。', lang: 'ja', gap: 250 }]);
     else say(said);
     var left = answerButtons().filter(function (b) { return !b.classList.contains('off'); });
     var voiceless = SP.isVoiceless() || !dev.sound.voice, enOff_ = enOff();

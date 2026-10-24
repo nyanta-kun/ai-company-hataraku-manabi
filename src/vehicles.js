@@ -664,6 +664,23 @@
     poly(ctx, [[0.1, -0.3], [0.6, -0.5], [0.3, -0.2]], '#55b155'); poly(ctx, [[-0.1, 0.2], [-0.6, 0.0], [-0.3, 0.3]], '#55b155'); poly(ctx, [[0.1, 0.25], [0.55, 0.15], [0.3, 0.42]], '#55b155');
   };
 
+  // E4（いろ）: 色を変えられる車（バスの形）。col = 車体の色。向きは bus と同じ（前が左）
+  function colorCar(ctx, col) {
+    rr(ctx, -0.82, -0.46, 1.64, 0.84, 0.14, col);
+    ctx.fillStyle = '#fafafa'; ctx.fillRect(-0.78, 0.08, 1.56, 0.08); rr(ctx, -0.82, -0.46, 1.64, 0.84, 0.14, null);
+    rr(ctx, -0.76, -0.38, 0.2, 0.4, 0.04, '#bfe6fb');
+    rr(ctx, -0.48, -0.38, 0.2, 0.7, 0.03, '#bfe6fb'); line(ctx, -0.38, -0.38, -0.38, 0.32, 0.03);
+    for (var i = 0; i < 4; i++) win(ctx, -0.16 + i * 0.24, -0.38, 0.19, 0.3);
+    headlamp(ctx, -0.79, 0.26);
+    wheel(ctx, -0.5, 0.4, 0.17); wheel(ctx, 0.5, 0.4, 0.17);
+  }
+  function drawColorCar(ctx, x, y, size, col) {
+    var s = size / 1.8;
+    ctx.save(); ctx.translate(x - 0.05 * s, y + 0.14 * s); ctx.scale(s, s); ctx.lineJoin = 'round';
+    colorCar(ctx, col);
+    ctx.restore();
+  }
+
   var DIRECTIONAL = { airplane: 1, train: 1, shinkansen: 1, ship: 1, steam: 1, postcar: 1, taxi: 1, motorbike: 1, crane: 1,
     truck: 1, patrol: 1, heli: 1, bus: 1, roller: 1 };
   // 絵の id 一覧（出題に使える絵）
@@ -721,7 +738,7 @@
   }
 
   var api = {
-    draw: draw, pics: pics, PICS: PICS, hasPic: hasPic, drawVehicle: drawVehicle, frontOf: frontOf, drawPic: drawPic, drawSilhouette: drawSilhouette,
+    draw: draw, pics: pics, PICS: PICS, hasPic: hasPic, drawVehicle: drawVehicle, frontOf: frontOf, drawPic: drawPic, drawColorCar: drawColorCar, drawSilhouette: drawSilhouette,
     drawFlame: drawFlame, drawHose: drawHose, star: star, rr: rr, circ: circ, poly: poly, line: line,
     OUT: OUT
   };

@@ -285,12 +285,18 @@
       var pb = this.pic, bt = now - this.picBounceT0, k = bt >= 0 && bt < 0.6 ? 1 + 0.18 * Math.sin(bt / 0.6 * Math.PI) : 1;
       var dy = bt >= 0 && bt < 0.6 ? -Math.sin(bt / 0.6 * Math.PI) * 18 : 0;
       if (p.level === 'K8' && this.reveal) {   // K8: 正解のあとは、絵を左に寄せて、漢字をふりがなつきで右に大きく出す
-        V().drawPic(ctx, this.word.pic, pb.x - pb.s * 0.42, pb.y + dy, pb.s * 0.72 * k, now);
-        drawRuby(ctx, [{ t: p.answer, r: p.yomi }], pb.x + pb.s * 0.5, pb.y + pb.s * 0.06, pb.s * 0.62);
+        var bd0 = this.board(), ks = Math.min(pb.s * 0.62, bd0.h * 0.4, bd0.w * 0.26), ps = Math.min(pb.s * 0.72, bd0.w * 0.4, bd0.h * 0.8);   // 縦長の画面でも ボードに収める
+        V().drawPic(ctx, this.word.pic, bd0.x + bd0.w * 0.3, pb.y + dy, ps * k, now);
+        drawRuby(ctx, [{ t: p.answer, r: p.yomi }], bd0.x + bd0.w * 0.7, pb.y + ks * 0.12, ks);
       } else V().drawPic(ctx, this.word.pic, pb.x, pb.y + dy, pb.s * k, now);
     } else if (p && p.kind === 'english' && this.speaker && !(this.reveal && p.form === 'number')) {
       var sk = this.speaker, ebt = now - this.picBounceT0, ek = ebt >= 0 && ebt < 0.6 ? 1 + 0.15 * Math.sin(ebt / 0.6 * Math.PI) : 1;
-      if (this.reveal) V().drawPic(ctx, p.pic, sk.x, sk.y, sk.s, now);   // 正解のあと: 乗り物の絵を大きく
+      if (this.reveal && p.form === 'color') V().drawColorCar(ctx, sk.x, sk.y, sk.s, p.hex);   // E4: 正解の色の車を大きく
+      else if (this.reveal && p.form === 'alpha') {   // E5: 乗り物の絵を左に、大きな文字を右に
+        V().drawPic(ctx, p.pic, sk.x - sk.s * 0.3, sk.y, sk.s * 0.75, now);
+        ctx.fillStyle = OUT; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.font = 'bold ' + Math.round(sk.s * 0.8) + 'px sans-serif';
+        ctx.fillText(p.letter, sk.x + sk.s * 0.5, sk.y + sk.s * 0.04);
+      } else if (this.reveal) V().drawPic(ctx, p.pic, sk.x, sk.y, sk.s, now);   // 正解のあと: 乗り物の絵を大きく
       else drawSpeaker(ctx, sk.x, sk.y, sk.s * ek, now);
     } else if (p && p.kind === 'clock' && this.clock) {
       var ck = this.clock;

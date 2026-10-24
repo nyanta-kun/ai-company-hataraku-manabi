@@ -122,12 +122,12 @@ function gateClear(p, today) {   // M7・K6・T6 を順に 4/4 する。最後�
   return r;
 }
 
-test('S1 階段1: STAGES は S0・S1。S1 の かず は M8〜M10、ほかのゲームは S0 の範囲で遊ぶ', () => {
+test('S1 階段1: STAGES は S0・S1。S1 は かず M8〜M10・もじ K7〜K8・とけい T7・えいご E4〜E5', () => {
   assert.deepEqual(D.STAGES.map((s) => s.id), ['S0', 'S1']);
   assert.deepEqual(D.stageRange('S1', 'math'), ['M8', 'M9', 'M10']);
   assert.deepEqual(D.stageRange('S1', 'letter'), ['K7', 'K8']);
   assert.deepEqual(D.stageRange('S1', 'clock'), ['T7']);
-  assert.deepEqual(D.stageRange('S1', 'english'), D.stageRange('S0', 'english'));
+  assert.deepEqual(D.stageRange('S1', 'english'), ['E4', 'E5']);
   assert.deepEqual(D.LEVELS.math, ['M1', 'M2', 'M3', 'M4', 'M5', 'M6', 'M7', 'M8', 'M9', 'M10']);
   assert.deepEqual(D.LEVELS.letter, ['K1', 'K2', 'K3', 'K4', 'K5', 'K6', 'K7', 'K8']);
   assert.equal(L.stageOf('M8'), 'S1');
@@ -190,16 +190,18 @@ test('S1 階段5: 復習（S1 の子が S0 で遊ぶ）は S0 の最後のレベ
   assert.deepEqual(L.playLevel(p, 'letter'), { level: 'K3', review: false }, '範囲内ならふつうに遊ぶ');
 });
 
-test('S1 階段6: S1 でえいごを選んだとき（E4 が入るまで）: S0 の範囲でふつうに遊び、昇降級する。もじ・とけいは S1 の最初から', () => {
+test('S1 階段6: S1 でもじ・とけい・えいごを選んだとき: どれも S1 の最初から。S0 の範囲には落ちない', () => {
   let p = L.selectStage(gateClear(prof()).profile, 'S1');
   p.levels.letter = 'K3'; p.levels.clock = 'T2'; p.levels.english = 'E1';
   assert.deepEqual(L.playLevel(p, 'letter'), { level: 'K7', review: false }, 'K7 が入ったので S1 の範囲（K3 は範囲より下）');
   assert.equal(L.afterSession(p, 'letter', 'K7', 0, false, TODAY).profile.levels.letter, 'K7', 'S0 に落ちない');
   assert.deepEqual(L.playLevel(p, 'clock'), { level: 'T7', review: false }, 'T7 が入ったので S1 の範囲（T2 は範囲より下）');
   assert.equal(L.afterSession(p, 'clock', 'T7', 0, false, TODAY).profile.levels.clock, 'T7', 'S0 に落ちない');
-  assert.equal(L.afterSession(p, 'english', 'E1', 4, false, TODAY).profile.levels.english, 'E2');
-  p.levels.english = 'E3';
-  assert.equal(L.afterSession(p, 'english', 'E3', 4, false, TODAY).profile.levels.english, 'E3', '範囲の上限で止まる');
+  assert.deepEqual(L.playLevel(p, 'english'), { level: 'E4', review: false });
+  assert.equal(L.afterSession(p, 'english', 'E4', 0, false, TODAY).profile.levels.english, 'E4', 'S0 に落ちない');
+  assert.equal(L.afterSession(p, 'english', 'E4', 4, false, TODAY).profile.levels.english, 'E5');
+  assert.equal(L.afterSession(p, 'english', 'E5', 4, false, TODAY).profile.levels.english, 'E5', '範囲の上限で止まる');
+  assert.equal(L.afterSession(p, 'english', 'E5', 4, false, TODAY).promotedTo, null, 'えいごは関門に入らない');
 });
 
 test('S1 階段7: 保護者の手動解放。未解放なら S1 は選べない。解放しても current は変わらない。promoted は既にあれば変えない', () => {
@@ -249,10 +251,11 @@ test('S1 階段9: ドロップダウンの範囲は解放済みのステージ�
   const p4 = L.chooseLevel(p1, 'math', 'M9');
   assert.equal(p4.stage.current, 'S1');
   assert.deepEqual(L.playLevel(p4, 'math'), { level: 'M9', review: false });
-  // S1 の子にえいごのレベルを選んでも、current は S1 のまま（E4 が入るまで えいご は S0 の範囲で遊ぶ）
+  // S1 の子にえいごの E2 を選ぶと、えいごの S1 の範囲に E2 は無いので S0 に揃う。E5 を選べば S1 のまま
   const p5 = L.chooseLevel(L.selectStage(p1, 'S1'), 'english', 'E2');
-  assert.equal(p5.stage.current, 'S1');
-  assert.equal(p5.levels.english, 'E2');
+  assert.equal(p5.stage.current, 'S0');
+  assert.deepEqual(L.playLevel(p5, 'english'), { level: 'E2', review: false });
+  assert.equal(L.chooseLevel(L.selectStage(p1, 'S1'), 'english', 'E5').stage.current, 'S1');
   // S1 の子にもじの K3 を選ぶと、もじの S1 の範囲に K3 は無いので S0 に揃う
   const p6 = L.chooseLevel(L.selectStage(p1, 'S1'), 'letter', 'K3');
   assert.equal(p6.stage.current, 'S0');

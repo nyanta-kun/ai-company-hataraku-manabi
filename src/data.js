@@ -154,7 +154,7 @@
     { id: 'S0', rank: 'みならい しょうぼうし', short: 'みならい', grade: 'みしゅうがく',
       levels: { math: ['M1', 'M2', 'M3', 'M4', 'M5', 'M6', 'M7'], letter: ['K1', 'K2', 'K3', 'K4', 'K5', 'K6'], clock: ['T1', 'T2', 'T3', 'T4', 'T5', 'T6'], english: ['E1', 'E2', 'E3'] } },
     { id: 'S1', rank: 'しょうぼうし', short: 'しょうぼうし', grade: '小学1年生くらい',
-      levels: { math: ['M8', 'M9', 'M10'], letter: ['K7', 'K8'], clock: ['T7'], english: [] } }   // えいごの S1 は R2-e（それまでは S0 の範囲で遊ぶ）
+      levels: { math: ['M8', 'M9', 'M10'], letter: ['K7', 'K8'], clock: ['T7'], english: ['E4', 'E5'] } }
   ];
   var GAMES = ['math', 'letter', 'clock', 'english'];
   var GATE_GAMES = ['math', 'letter', 'clock'];   // えいごは関門に入れない（U2）
@@ -307,12 +307,31 @@
     { id: 'ship',      en: 'ship',          ja: 'ふね',                 pic: 'ship',     group: 'trip' },
     { id: 'train',     en: 'train',         ja: 'でんしゃ',             pic: 'train',    group: 'trip' }
   ];
+  // E4（S1）: いろ。同じ車を色ちがいで並べて選ぶ。en は読み上げ用、ja は日本語の補助（ひらがな）、hex は車の色
+  // clash = 並べると見分けにくい組（同じ選択肢に出さない）
+  var COLORS = [
+    { id: 'red',    en: 'red',    ja: 'あか',     hex: '#e53935' },
+    { id: 'blue',   en: 'blue',   ja: 'あお',     hex: '#1e6fe0' },
+    { id: 'yellow', en: 'yellow', ja: 'きいろ',   hex: '#f6c933' },
+    { id: 'green',  en: 'green',  ja: 'みどり',   hex: '#3f9b3f' },
+    { id: 'orange', en: 'orange', ja: 'おれんじ', hex: '#f08a24' },
+    { id: 'purple', en: 'purple', ja: 'むらさき', hex: '#8e44ad' },
+    { id: 'pink',   en: 'pink',   ja: 'ぴんく',   hex: '#ff8fb3' },
+    { id: 'black',  en: 'black',  ja: 'くろ',     hex: '#34384a' }
+  ];
+  var COLOR_CLASH = [['red', 'orange'], ['red', 'pink'], ['orange', 'yellow'], ['orange', 'pink'], ['blue', 'purple'], ['purple', 'pink']];   // どの色が答えでも、似ていない 4 色が残るようにしておく（テストで確かめる）
+  // E5（S1）: アルファベットの大文字。出す文字は 23 字（I・L・O は 1・l・0 に見えるので使わない）。形が似た組は同じ選択肢に出さない
+  var ALPHA_LETTERS = 'ABCDEFGHJKMNPQRSTUVWXYZ'.split('');
+  var ALPHA_CLASH = [['B', 'D'], ['B', 'P'], ['B', 'R'], ['P', 'R'], ['D', 'P'], ['D', 'Q'], ['C', 'G'], ['G', 'Q'], ['E', 'F'], ['F', 'P'], ['E', 'B'],
+    ['M', 'N'], ['M', 'W'], ['N', 'H'], ['N', 'Z'], ['U', 'V'], ['V', 'W'], ['V', 'Y'], ['K', 'X'], ['T', 'Y'], ['S', 'Z'], ['U', 'J'], ['H', 'M'], ['D', 'G'], ['C', 'Q'], ['R', 'K']];
+
   // 英語の数（index = 数 1..10）
   var NUM_EN = ['', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten'];
 
   var api = {
     ENGLISH_WORDS: ENGLISH_WORDS, NUM_EN: NUM_EN, TIME_KANA: TIME_KANA, MIN_KANA: MIN_KANA, WORDS: WORDS, KATA_WORDS: KATA_WORDS, ALL_WORDS: ALL_WORDS, EXTRA_KATA: EXTRA_KATA, CONFUSABLE_KATA: CONFUSABLE_KATA, toHira: toHira, CATS: CATS, SEEN_MAX: SEEN_MAX, cleanSeen: cleanSeen, addSeen: addSeen, CONFUSABLE: CONFUSABLE, ROW: ROW, FAMILY: FAMILY, CARS: CARS,
     SCENES: SCENES, SCENE_CARS: SCENE_CARS, NUM_KANA: NUM_KANA, YOMI: YOMI, CAR_YOMI: CAR_YOMI,
+    COLORS: COLORS, COLOR_CLASH: COLOR_CLASH, ALPHA_LETTERS: ALPHA_LETTERS, ALPHA_CLASH: ALPHA_CLASH,
     STAGES: STAGES, GAMES: GAMES, YOUON_WORDS: YOUON_WORDS, YOUON_SMALL: YOUON_SMALL, YOUON_CONS: YOUON_CONS, KANJI_WORDS: KANJI_WORDS, KANJI: KANJI, allowedKanji: allowedKanji, furigana: furigana, TEXT: TEXT,
      GATE_GAMES: GATE_GAMES, LEVELS: LEVELS, stageIndex: stageIndex, stageOf: stageOf, stageRange: stageRange, gateOf: gateOf, gateLevels: gateLevels, topLevelUpTo: topLevelUpTo
   };
