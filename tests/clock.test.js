@@ -131,20 +131,21 @@ test('とけい性質8: 同じシードなら同じ結果', () => {
 });
 
 test('とけい性質9: nextLevel（昇級・降級・固定・上限下限・範囲外）', () => {
-  assert.deepEqual(P.LEVELS.clock, ['T1', 'T2', 'T3', 'T4', 'T5', 'T6']);
-  assert.equal(P.nextLevel('clock', 'T1', 4, false), 'T2');
-  assert.equal(P.nextLevel('clock', 'T2', 4, false), 'T3');
-  assert.equal(P.nextLevel('clock', 'T3', 4, false), 'T4');
-  assert.equal(P.nextLevel('clock', 'T5', 4, false), 'T6');
-  assert.equal(P.nextLevel('clock', 'T6', 4, false), 'T6');
-  assert.equal(P.nextLevel('clock', 'T6', 0, false), 'T5');
-  assert.equal(P.nextLevel('clock', 'T4', 4, true), 'T4');
-  assert.equal(P.nextLevel('clock', 'T2', 3, false), 'T2');
-  assert.equal(P.nextLevel('clock', 'T2', 1, false), 'T1');
-  assert.equal(P.nextLevel('clock', 'T1', 0, false), 'T1');
-  assert.equal(P.nextLevel('clock', 'T2', 4, true), 'T2');
-  assert.equal(P.nextLevel('clock', 'T2', 0, true), 'T2');
-  assert.equal(P.nextLevel('clock', 'T9', 3, false), 'T1');
+  const R = D.stageRange('S0', 'clock');
+  assert.deepEqual(D.stageRange('S0', 'clock'), ['T1', 'T2', 'T3', 'T4', 'T5', 'T6']);
+  assert.equal(P.nextLevel('clock', 'T1', 4, false, R), 'T2');
+  assert.equal(P.nextLevel('clock', 'T2', 4, false, R), 'T3');
+  assert.equal(P.nextLevel('clock', 'T3', 4, false, R), 'T4');
+  assert.equal(P.nextLevel('clock', 'T5', 4, false, R), 'T6');
+  assert.equal(P.nextLevel('clock', 'T6', 4, false, R), 'T6');
+  assert.equal(P.nextLevel('clock', 'T6', 0, false, R), 'T5');
+  assert.equal(P.nextLevel('clock', 'T4', 4, true, R), 'T4');
+  assert.equal(P.nextLevel('clock', 'T2', 3, false, R), 'T2');
+  assert.equal(P.nextLevel('clock', 'T2', 1, false, R), 'T1');
+  assert.equal(P.nextLevel('clock', 'T1', 0, false, R), 'T1');
+  assert.equal(P.nextLevel('clock', 'T2', 4, true, R), 'T2');
+  assert.equal(P.nextLevel('clock', 'T2', 0, true, R), 'T2');
+  assert.equal(P.nextLevel('clock', 'T9', 3, false, R), 'T1');
 });
 
 test('とけい性質10・12: handAngles', () => {

@@ -39,6 +39,7 @@
     <div class="pick-box">
       <div id="pick-badge" class="badge small"></div>
       <h2>どれで しゅつどう？</h2>
+      <div id="stage-tabs" hidden></div>
       <div class="row">
         <button id="btn-math" class="big math" type="button"><canvas width="96" height="96" data-icon="kazu"></canvas><span>かず</span></button>
         <button id="btn-letter" class="big letter" type="button"><canvas width="96" height="96" data-icon="moji"></canvas><span>もじ</span></button>
@@ -81,6 +82,21 @@
     </div>
   </section>
 
+  <!-- しょうかく（階級が上がったとき。ごほうびの後に出す） -->
+  <section id="s-promote" class="screen">
+    <div id="promote-box">
+      <canvas id="promoteCanvas"></canvas>
+      <div id="promote-side">
+        <div id="promote-text"></div>
+        <div id="promote-sub"></div>
+        <div class="row">
+          <button id="btn-pr-go" class="big" type="button"><span>すすむ</span></button>
+          <button id="btn-pr-later" class="big alt" type="button"><span>あとで</span></button>
+        </div>
+      </div>
+    </div>
+  </section>
+
   <!-- しゃこ -->
   <section id="s-garage" class="screen">
     <header class="bar">
@@ -111,6 +127,10 @@
         <button id="p-test-en" type="button" class="pbtn">えいごテスト</button>
         <p id="p-en-note" class="note"></p>
       </div>
+      <div class="card"><h3>ステージ <span class="who-tag badge small"></span></h3>
+        <div id="p-stages"></div>
+        <p class="note">こどもが「すすむ」を えらぶと、あたらしい ステージで あそびます（かってには きりかわりません）。「みならい」の かんもんを ぜんぶ 1かいで せいかいすると、つぎの ステージが ひらきます。ここで てでも ひらく・とじる ことが できます。</p>
+      </div>
       <div class="card"><h3>レベル <span class="who-tag badge small"></span></h3>
         <div class="lv"><span>かず</span><select id="p-lv-math"></select><label class="chk"><input type="checkbox" id="p-lock-math"> このレベルでこてい</label></div>
         <div class="lv"><span>もじ</span><select id="p-lv-letter"></select><label class="chk"><input type="checkbox" id="p-lock-letter"> このレベルでこてい</label></div>
@@ -138,6 +158,7 @@
 
 <script src="src/data.js"></script>
 <script src="src/problems.js"></script>
+<script src="src/ladder.js"></script>
 <script src="src/rewards.js"></script>
 <script src="src/storage.js"></script>
 <script src="src/profiles.js"></script>

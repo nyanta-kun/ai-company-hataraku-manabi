@@ -4,7 +4,7 @@
   'use strict';
   var D = (typeof module !== 'undefined' && module.exports) ? require('./data.js') : root.Manabi.data;
   var KEY = 'hataraku-manabi:v2', KEY_V1 = 'hataraku-manabi:v1', KEY_BROKEN = 'hataraku-manabi:v2:broken';
-  var MATH_LV = ['M1', 'M2', 'M3', 'M4', 'M5', 'M6', 'M7'], LETTER_LV = ['K1', 'K2', 'K3', 'K4', 'K5', 'K6'], CLOCK_LV = ['T1', 'T2', 'T3', 'T4', 'T5', 'T6'], ENGLISH_LV = ['E1', 'E2', 'E3'];
+  var GAME_IDS = D.GAMES;
   var CAR_IDS = ['nekoguruma', 'forklift', 'gomi', 'shovel', 'bulldozer', 'dump', 'kyukyu', 'shoubousha', 'mizutank', 'hashigo', 'chodai'];
 
   var MAX_PROFILES = 4;
@@ -25,7 +25,10 @@
         english: { sessions: 0, questions: 0, firstTry: 0 }
       },
       seen: { letter: [] },
-      lastPlayed: ''
+      lastPlayed: '',
+      stage: { unlocked: 'S0', current: 'S0' },   // 階段（design-elementary 3.2）: 解放済みの一番上のステージと、いま選んでいるステージ
+      cleared: {},                                // 関門レベル → 初めて 4/4 した日
+      promoted: {}                                // ステージ → 昇格した日
     };
   }
   function num(v) { return (typeof v === 'number' && isFinite(v) && v >= 0) ? Math.floor(v) : 0; }
@@ -69,10 +72,14 @@
     var d = defaultProgress();
     if (!raw || typeof raw !== 'object') return d;
     var l = raw.levels || {}, k = raw.locked || {}, st = raw.stats || {};
-    d.levels.math = MATH_LV.indexOf(l.math) >= 0 ? l.math : 'M1';
-    d.levels.letter = LETTER_LV.indexOf(l.letter) >= 0 ? l.letter : 'K1';
-    d.levels.clock = CLOCK_LV.indexOf(l.clock) >= 0 ? l.clock : 'T1';
-    d.levels.english = ENGLISH_LV.indexOf(l.english) >= 0 ? l.english : 'E1';
+    var sg = isObj(raw.stage) ? raw.stage : {}, ui = D.stageIndex(sg.unlocked), ci = D.stageIndex(sg.current);
+    d.stage.unlocked = D.STAGES[ui < 0 ? 0 : ui].id;
+    d.stage.current = D.STAGES[ci < 0 ? 0 : Math.min(ci, ui < 0 ? 0 : ui)].id;   // 解放済みより上は選べない
+    GAME_IDS.forEach(function (g) {
+      var lv = D.LEVELS[g], top = D.topLevelUpTo(d.stage.unlocked, g);
+      d.levels[g] = lv.indexOf(l[g]) >= 0 ? l[g] : lv[0];
+      if (lv.indexOf(d.levels[g]) > lv.indexOf(top)) d.levels[g] = top;   // 未解放のステージのレベルは、解放済みの一番上に丸める
+    });
     d.locked.clock = bool(k.clock, false); d.locked.english = bool(k.english, false);
     d.locked.math = bool(k.math, false); d.locked.letter = bool(k.letter, false);
     var c = raw.cards || {};
@@ -84,6 +91,9 @@
     });
     d.seen.letter = D.cleanSeen(raw.seen && raw.seen.letter);
     d.lastPlayed = typeof raw.lastPlayed === 'string' ? raw.lastPlayed.slice(0, 10) : '';
+    var cl = isObj(raw.cleared) ? raw.cleared : {}, pr = isObj(raw.promoted) ? raw.promoted : {};
+    D.gateLevels().forEach(function (id) { if (isDate(cl[id])) d.cleared[id] = cl[id]; });
+    D.STAGES.forEach(function (stg, i) { if (i > 0 && isDate(pr[stg.id])) d.promoted[stg.id] = pr[stg.id]; });
     return d;
   }
   function makeProfile(id, name, icon, created, progress) {

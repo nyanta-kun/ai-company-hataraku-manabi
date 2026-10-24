@@ -223,3 +223,34 @@ h3 .badge { margin-left: 8px; }
 .note.warn { color: #c0560a; font-weight: bold; }
 ul.note { padding-left: 20px; }
 ul.note li { margin-bottom: 4px; }
+
+/* ステージの札（出動えらびの上。解放済みが 2 つ以上のときだけ） */
+#stage-tabs { display: flex; gap: 12px; justify-content: center; margin: 0 auto 18px; max-width: 440px; }
+#stage-tabs[hidden] { display: none; }
+.stage-tab { flex: 1 1 0; min-width: 0; min-height: 56px; padding: 4px 10px; border-radius: 16px; background: #fff; border: 4px solid #d9cdb4; border-bottom-width: 7px; display: flex; align-items: center; justify-content: center; gap: 6px; font-size: clamp(15px, 3.6vmin, 22px); font-weight: bold; white-space: nowrap; }
+.stage-tab.sel { border-color: #e53935; background: #fff4e0; }
+.stage-tab canvas { width: 34px; height: 40px; flex: none; }
+.stage-tab:active { transform: translateY(2px); }
+@media (orientation: landscape) { #stage-tabs { max-width: 520px; } }
+
+/* しょうかく */
+#promote-box { margin: auto; width: 100%; max-height: 100%; display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 12px; }
+#promoteCanvas { width: min(94vw, 560px); height: min(calc(100dvh - 300px), 46dvh, 70vw); min-height: 150px; border-radius: 24px; border: 4px solid rgba(58,43,36,.35); }
+#promote-side { text-align: center; }
+#promote-text { font-size: clamp(26px, 6vmin, 44px); font-weight: bold; min-height: 1.3em; color: #c62828; }
+#promote-sub { font-size: clamp(18px, 4vmin, 28px); color: #c0560a; min-height: 1.3em; margin-bottom: 10px; }
+#promote-side .row { flex-wrap: nowrap; gap: 14px; width: min(360px, 92vw); margin: 0 auto; }
+#promote-side .big { flex: 1 1 0; min-width: 0; max-width: 220px; min-height: 80px; padding: 8px 6px; white-space: nowrap; }
+@media (orientation: landscape) and (max-height: 520px) {
+  #promote-box { flex-direction: row; justify-content: center; }
+  #promoteCanvas { height: 78dvh; width: min(52vw, 520px); }
+}
+
+/* 保護者画面: ステージ */
+.stage-row { border: 2px solid #e5dcc8; border-radius: 14px; padding: 8px 10px; margin-bottom: 10px; }
+.stage-row.open { border-color: #3a7bd5; background: #eef5ff; }
+.stage-row .st-name { font-size: 18px; }
+.stage-row .st-tag { font-size: 14px; color: #6b5d50; margin-left: 6px; }
+.stage-row .gate { font-size: 15px; margin: 6px 0 2px; line-height: 1.7; }
+.stage-row .gate b { display: inline-block; margin-right: 12px; }
+.stage-row .kid-acts { margin-top: 6px; }

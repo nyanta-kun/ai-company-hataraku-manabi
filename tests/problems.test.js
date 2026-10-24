@@ -151,31 +151,33 @@ test('性質8: 同じシードなら同じ結果', () => {
   }
 });
 
-test('性質9: nextLevel（昇級・降級・同レベル・固定・上限下限）', () => {
-  assert.equal(P.nextLevel('math', 'M1', 4, false), 'M2');
-  assert.equal(P.nextLevel('math', 'M4', 4, false), 'M5');
-  assert.equal(P.nextLevel('math', 'M5', 4, false), 'M6');
-  assert.equal(P.nextLevel('math', 'M6', 4, false), 'M7');
-  assert.equal(P.nextLevel('math', 'M7', 4, false), 'M7');
-  assert.equal(P.nextLevel('math', 'M6', 0, false), 'M5');
-  assert.equal(P.nextLevel('math', 'M7', 4, true), 'M7');
-  assert.equal(P.nextLevel('letter', 'K2', 4, false), 'K3');
-  assert.equal(P.nextLevel('letter', 'K3', 4, false), 'K4');
-  assert.equal(P.nextLevel('letter', 'K5', 4, false), 'K6');
-  assert.equal(P.nextLevel('letter', 'K6', 4, false), 'K6');
-  assert.equal(P.nextLevel('letter', 'K6', 0, false), 'K5');
-  assert.equal(P.nextLevel('letter', 'K4', 0, false), 'K3');
-  assert.equal(P.nextLevel('letter', 'K3', 4, true), 'K3');
-  assert.equal(P.nextLevel('math', 'M3', 3, false), 'M3');
-  assert.equal(P.nextLevel('math', 'M3', 2, false), 'M3');
-  assert.equal(P.nextLevel('math', 'M3', 1, false), 'M2');
-  assert.equal(P.nextLevel('math', 'M3', 0, false), 'M2');
-  assert.equal(P.nextLevel('math', 'M1', 0, false), 'M1');
-  assert.equal(P.nextLevel('letter', 'K1', 1, false), 'K1');
-  assert.equal(P.nextLevel('letter', 'K2', 0, false), 'K1');
-  assert.equal(P.nextLevel('math', 'M2', 4, true), 'M2');
-  assert.equal(P.nextLevel('math', 'M2', 0, true), 'M2');
-  assert.equal(P.nextLevel('letter', 'K2', 4, true), 'K2');
+test('性質9: nextLevel（昇級・降級・同レベル・固定・上限下限。S0 の範囲で止まる）', () => {
+  const S0 = (g) => D.stageRange('S0', g);
+  const nl = (g, c, n, l) => P.nextLevel(g, c, n, l, S0(g));
+  assert.equal(nl('math', 'M1', 4, false), 'M2');
+  assert.equal(nl('math', 'M4', 4, false), 'M5');
+  assert.equal(nl('math', 'M5', 4, false), 'M6');
+  assert.equal(nl('math', 'M6', 4, false), 'M7');
+  assert.equal(nl('math', 'M7', 4, false), 'M7');
+  assert.equal(nl('math', 'M6', 0, false), 'M5');
+  assert.equal(nl('math', 'M7', 4, true), 'M7');
+  assert.equal(nl('letter', 'K2', 4, false), 'K3');
+  assert.equal(nl('letter', 'K3', 4, false), 'K4');
+  assert.equal(nl('letter', 'K5', 4, false), 'K6');
+  assert.equal(nl('letter', 'K6', 4, false), 'K6');
+  assert.equal(nl('letter', 'K6', 0, false), 'K5');
+  assert.equal(nl('letter', 'K4', 0, false), 'K3');
+  assert.equal(nl('letter', 'K3', 4, true), 'K3');
+  assert.equal(nl('math', 'M3', 3, false), 'M3');
+  assert.equal(nl('math', 'M3', 2, false), 'M3');
+  assert.equal(nl('math', 'M3', 1, false), 'M2');
+  assert.equal(nl('math', 'M3', 0, false), 'M2');
+  assert.equal(nl('math', 'M1', 0, false), 'M1');
+  assert.equal(nl('letter', 'K1', 1, false), 'K1');
+  assert.equal(nl('letter', 'K2', 0, false), 'K1');
+  assert.equal(nl('math', 'M2', 4, true), 'M2');
+  assert.equal(nl('math', 'M2', 0, true), 'M2');
+  assert.equal(nl('letter', 'K2', 4, true), 'K2');
 });
 
 test('ひきざん: a・b の範囲、答えは 1 以上、M6 は全組、M7 は a 6 以上が半分以上', () => {
@@ -234,7 +236,7 @@ test('ひきざん: sameProblem は a・b で比べ、足し算とは別', () =>
 });
 
 test('ひきざん: LEVELS は M1〜M7、範囲外のレベルは RangeError', () => {
-  assert.deepEqual(P.LEVELS.math, ['M1', 'M2', 'M3', 'M4', 'M5', 'M6', 'M7']);
+  assert.deepEqual(D.stageRange('S0', 'math'), ['M1', 'M2', 'M3', 'M4', 'M5', 'M6', 'M7']);
   assert.throws(() => P.generateSubtraction('M5', rngOf(1)), RangeError);
   assert.throws(() => P.generateAddition('M6', rngOf(1)), RangeError);
 });

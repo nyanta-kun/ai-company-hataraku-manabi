@@ -8,7 +8,7 @@
   var PROMOTE_AT = 4;              // 1 回目正解がこれ以上なら昇級
   var DEMOTE_AT = 1;               // 1 回目正解がこれ以下なら降級
 
-  var LEVELS = { math: ['M1', 'M2', 'M3', 'M4', 'M5', 'M6', 'M7'], letter: ['K1', 'K2', 'K3', 'K4', 'K5', 'K6'], clock: ['T1', 'T2', 'T3', 'T4', 'T5', 'T6'], english: ['E1', 'E2', 'E3'] };
+  var LEVELS = D.LEVELS;   // レベル列の正は data.js（STAGES から組み立てる）
   // 数のレベル: max = 選択肢の範囲の上限、choices = 選択肢の数
   var MATH = {
     M1: { kind: 'count', max: 3,  choices: 3 },
@@ -17,7 +17,11 @@
     M4: { kind: 'add',   max: 5,  choices: 3 },
     M5: { kind: 'add',   max: 10, choices: 4 },
     M6: { kind: 'sub',   max: 5,  choices: 3 },
-    M7: { kind: 'sub',   max: 10, choices: 4 }
+    M7: { kind: 'sub',   max: 10, choices: 4 },
+    // S1: M8 は 11〜20 の数を数える問題とくり上がりなしのたしざんを 1 回に 2 問ずつ混ぜる。M9 はくり上がり、M10 はくり下がり
+    M8: { kind: 'mix',   max: 20, choices: 4, kinds: ['count', 'count', 'add', 'add'], countMin: 11 },
+    M9: { kind: 'add',   max: 20, min: 10, choices: 4 },
+    M10: { kind: 'sub',  max: 10, choices: 4 }
   };
   // sim = 形が似た文字を 1 つ混ぜてよい。script = 出す文字種（K6 は問題ごとに語の表記で決まる）
   var LETTER = {
@@ -31,6 +35,7 @@
     T2: { form: 'pick', half: false, choices: 4 },
     T3: { form: 'pick', half: true,  choices: 4 },
     // T4・T5: 細かい分（mins = 出す分）。ticks = 時計の目盛り（12 か 60）。T6: ◯時から△分たったら（経過時間）
+    // hintBoth = ヒントで長針も短針と一緒にふくらませる、glowWhenVoiceless = 声なしのとき 1 回目の誤答で正解を光らせる
     T4: { form: 'pick', mins: [0, 15, 30, 45], choices: 4, ticks: 12 },
     T5: { form: 'pick', mins: [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55], choices: 4, ticks: 60 },
     T6: { form: 'elapsed', starts: [0, 30], durations: [10, 20, 30, 40, 60], choices: 4, ticks: 60 }
@@ -44,6 +49,9 @@
     E3: { words: 2, wordChoices: 4, max: 10, choices: 4 }
   };
 
+  ['T4', 'T5', 'T6'].forEach(function (k) { CLOCK[k].hintBoth = true; });
+  ['T3', 'T4', 'T5', 'T6'].forEach(function (k) { CLOCK[k].glowWhenVoiceless = true; });
+
   function defRng(rng) { return typeof rng === 'function' ? rng : Math.random; }
   function randInt(rng, lo, hi) { return lo + Math.floor(rng() * (hi - lo + 1)); }   // lo..hi
   function shuffle(arr, rng) {
@@ -56,17 +64,18 @@
   }
 
   // 数の選択肢: 正解 ±1〜2 を優先し、足りなければ範囲内の別の数で補う。昇順に並べる
-  function numberChoices(answer, max, count, rng) {
+  function numberChoices(answer, max, count, rng, min) {
+    min = min || 1;
     var near = [];
     [-1, 1, -2, 2].forEach(function (d) {
       var v = answer + d;
-      if (v >= 1 && v <= max) near.push(v);
+      if (v >= min && v <= max) near.push(v);
     });
     near = shuffle(near, rng);
     var out = near.slice(0, count - 1);
     if (out.length < count - 1) {
       var rest = [];
-      for (var v = 1; v <= max; v++) if (v !== answer && out.indexOf(v) < 0) rest.push(v);
+      for (var v = min; v <= max; v++) if (v !== answer && out.indexOf(v) < 0) rest.push(v);
       rest = shuffle(rest, rng);
       out = out.concat(rest.slice(0, count - 1 - out.length));
     }
@@ -77,15 +86,27 @@
   function generateCounting(level, rng) {
     rng = defRng(rng);
     var L = MATH[level];
-    if (!L || L.kind !== 'count') throw new RangeError('count level: ' + level);
-    var n = randInt(rng, 1, L.max);
-    return { kind: 'count', level: level, n: n, choices: numberChoices(n, L.max, L.choices, rng), answer: n };
+    if (!L || (L.kind !== 'count' && L.kind !== 'mix')) throw new RangeError('count level: ' + level);
+    var n = L.kind === 'mix' ? randInt(rng, L.countMin, L.max) : randInt(rng, 1, L.max);
+    // 11 以上を数える M8 は、選択肢も 10 以上（1 や 2 のような極端に小さい誤答を出さない）
+    return { kind: 'count', level: level, n: n, choices: numberChoices(n, L.max, L.choices, rng, L.kind === 'mix' ? 10 : 1), answer: n };
   }
 
   function generateAddition(level, rng) {
     rng = defRng(rng);
     var L = MATH[level];
-    if (!L || L.kind !== 'add') throw new RangeError('add level: ' + level);
+    if (!L || (L.kind !== 'add' && L.kind !== 'mix')) throw new RangeError('add level: ' + level);
+    // M8: 12+3 のような、一の位の和が 9 以下（くり上がりなし）。a は 11〜18、b は 1〜9-一の位
+    if (level === 'M8') {
+      var a8 = randInt(rng, 11, 18), b8 = randInt(rng, 1, 9 - a8 % 10);
+      return { kind: 'add', level: level, a: a8, b: b8, choices: numberChoices(a8 + b8, L.max, L.choices, rng), answer: a8 + b8 };
+    }
+    // M9: 9+4 のようなくり上がり。a, b は 2〜9、和は 11〜18。選択肢は 10 以上（「10 を数え忘れ」の 3 などの極端な誤答を出さない）
+    if (level === 'M9') {
+      var a9, b9;
+      do { a9 = randInt(rng, 2, 9); b9 = randInt(rng, 2, 9); } while (a9 + b9 < 11);
+      return { kind: 'add', level: level, a: a9, b: b9, choices: numberChoices(a9 + b9, L.max, L.choices, rng, L.min), answer: a9 + b9 };
+    }
     // 和を先に決める。M5 は和 6 以上を約 75% にして「10 以内の大きめ」を多くする
     var sum;
     if (level === 'M5' && rng() < 0.75) sum = randInt(rng, 6, L.max);
@@ -99,6 +120,12 @@
     rng = defRng(rng);
     var L = MATH[level];
     if (!L || L.kind !== 'sub') throw new RangeError('sub level: ' + level);
+    // M10: 13−5 のようなくり下がり。a は 11〜18、b は 2〜9 で一の位 < b（答えは 2〜9）。選択肢は 1〜10
+    if (level === 'M10') {
+      var a10, b10;
+      do { a10 = randInt(rng, 11, 18); b10 = randInt(rng, 2, 9); } while (a10 % 10 >= b10);
+      return { kind: 'sub', level: level, a: a10, b: b10, choices: numberChoices(a10 - b10, L.max, L.choices, rng), answer: a10 - b10 };
+    }
     var a;
     if (level === 'M7' && rng() < 0.75) a = randInt(rng, 6, L.max);   // はずれても 2〜max から選ぶので、a≥6 は全体で約9割
     else a = randInt(rng, 2, L.max);
@@ -387,10 +414,13 @@
     }
     if (game === 'english') return generateEnglishSession(level, rng);
     var list = [], tries = 0;
+    if (game === 'math' && !MATH[level]) throw new RangeError('math level: ' + level);
+    var plan = game === 'math' && MATH[level].kind === 'mix' ? shuffle(MATH[level].kinds, rng) : null;   // M8: 数える問題とたしざんを混ぜた順番
     while (list.length < QUESTIONS_PER_SESSION) {
       var prev = list[list.length - 1], p;
       if (game === 'math') {
-        p = MATH[level].kind === 'count' ? generateCounting(level, rng) : MATH[level].kind === 'sub' ? generateSubtraction(level, rng) : generateAddition(level, rng);
+        var kind = plan ? plan[list.length] : MATH[level].kind;
+        p = kind === 'count' ? generateCounting(level, rng) : kind === 'sub' ? generateSubtraction(level, rng) : generateAddition(level, rng);
         if (sameProblem(prev, p) && ++tries < 1000) continue;
       } else if (game === 'clock') {
         p = generateClock(level, rng, prev && clockKey(prev.h, prev.m));
@@ -401,10 +431,11 @@
     return list;
   }
 
-  // レベルの昇降級（企画書 3.3）。locked なら変えない。範囲外の current も端に丸める
-  function nextLevel(game, current, firstTryCorrectCount, locked) {
-    var lv = LEVELS[game];
-    if (!lv) throw new RangeError('game: ' + game);
+  // レベルの昇降級（企画書 3.3）。locked なら変えない。範囲外の current も端に丸める。
+  // range = 動ける範囲のレベル ID の配列（省略時は LEVELS[game] 全体）。上下とも range の端で止まる
+  function nextLevel(game, current, firstTryCorrectCount, locked, range) {
+    var lv = range || LEVELS[game];
+    if (!lv || !lv.length) throw new RangeError('game: ' + game);
     var i = lv.indexOf(current);
     if (i < 0) i = 0;
     if (locked) return lv[i];
