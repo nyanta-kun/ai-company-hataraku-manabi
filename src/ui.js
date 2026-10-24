@@ -1,7 +1,7 @@
 // 画面遷移・イベント・出動の流れ。純粋関数は problems.js / rewards.js、保存は storage.js。
 (function (root) {
   'use strict';
-  var M = root.Manabi, D = M.data, P = M.problems, R = M.rewards, S = M.storage, PR = M.profiles;
+  var M = root.Manabi, D = M.data, P = M.problems, R = M.rewards, S = M.storage, PR = M.profiles, LD = M.ladder;
   var A = M.audio, SP = M.speech, V = M.vehicles, SC = M.scenes, CF = M.clockface;
   var doc = root.document;
 
@@ -226,11 +226,11 @@
   function startSession(game, opts) {
     opts = opts || {};
     clearTimers(); token++;
-    var level = data.levels[game];
+    var pl = LD.playLevel(data, game), level = pl.level;   // 下のステージで遊ぶとき（復習）は進み具合を変えない
     var qs = P.generateSession(game, level, Math.random, game === 'letter' ? seenLetter() : undefined);
     if (game === 'letter') rememberLetter(qs);
     run = {
-      game: game, level: level, scene: opts.scene || pickScene(), qs: qs,
+      game: game, level: level, review: pl.review, scene: opts.scene || pickScene(), qs: qs,
       idx: 0, firstTry: 0, wrong: 0, off: [], busy: true, token: token
     };
     if (!stage) stage = new SC.Stage($('sceneCanvas'));
@@ -335,7 +335,7 @@
   function drawAnswerClocks(pulse, pulseKey) {
     if (!CF) return;
     var cq = run && run.qs && run.qs[run.idx], tk = cq && cq.ticks === 60 ? 60 : 12;
-    var both = !!cq && cq.kind === 'clock' && /^T[4-6]$/.test(cq.level);   // T4 以降は短針がほぼ同じ組が出るので、長針も一緒にふくらませる
+    var both = !!cq && cq.kind === 'clock' && !!P.CLOCK[cq.level].hintBoth;   // T4 以降は短針がほぼ同じ組が出るので、長針も一緒にふくらませる
     [].forEach.call($('answers').querySelectorAll('.ans.clk'), function (b) {
       var cv = b.querySelector('canvas'), c = sizeCanvas(cv), key = b.getAttribute('data-v');
       c.ctx.clearRect(0, 0, c.w, c.h);
@@ -360,7 +360,7 @@
     else say(said);
     var left = answerButtons().filter(function (b) { return !b.classList.contains('off'); });
     var voiceless = SP.isVoiceless() || !dev.sound.voice, enOff_ = enOff();
-    if (run.wrong >= 2 || left.length <= 1 || ((q.kind === 'letter' || (q.kind === 'clock' && /^T[3-6]$/.test(q.level))) && voiceless) || (q.kind === 'english' && enOff_)) {
+    if (run.wrong >= 2 || left.length <= 1 || ((q.kind === 'letter' || (q.kind === 'clock' && P.CLOCK[q.level].glowWhenVoiceless)) && voiceless) || (q.kind === 'english' && enOff_)) {
       later(900, function () {
         if (!run || run.busy) return;
         answerButtons().forEach(function (b) { if (b.getAttribute('data-v') === String(q.answer)) b.classList.add('glow'); });
@@ -441,7 +441,8 @@
     var game = run.game, st = data.stats;
     st.sessions++; st[game].sessions++;
     st[game].questions += P.QUESTIONS_PER_SESSION; st[game].firstTry += run.firstTry;
-    data.levels[game] = P.nextLevel(game, run.level, run.firstTry, data.locked[game]);
+    var res = LD.afterSession(data, game, run.level, run.firstTry, run.review, todayStr());
+    Object.keys(res.profile).forEach(function (k) { data[k] = res.profile[k]; });   // data は state.profiles の要素そのものなので、中身を差し替える
     var r = grantReward(run.scene);
     data.lastPlayed = todayStr();
     save();
@@ -654,7 +655,8 @@
     $('p-sfx').checked = dev.sound.sfx; $('p-voice').checked = dev.sound.voice;
     ['math', 'letter', 'clock', 'english'].forEach(function (g) {
       var sel = $('p-lv-' + g);
-      if (!sel.options.length) P.LEVELS[g].forEach(function (lv) { var o = doc.createElement('option'); o.value = lv; o.textContent = lv; sel.appendChild(o); });
+      sel.textContent = '';
+      LD.selectableLevels(data, g).forEach(function (lv) { var o = doc.createElement('option'); o.value = lv; o.textContent = lv; sel.appendChild(o); });   // 解放済みのステージの範囲だけ
       sel.value = data.levels[g]; $('p-lock-' + g).checked = data.locked[g];
     });
     voiceNote(); enNote();
@@ -774,7 +776,7 @@
       if (!SP.speakSeq([{ text: 'Fire truck', lang: 'en' }], { force: true })) enNote();
     });
     ['math', 'letter', 'clock', 'english'].forEach(function (g) {
-      $('p-lv-' + g).addEventListener('change', function () { data.levels[g] = this.value; save(); fillParent(); });
+      $('p-lv-' + g).addEventListener('change', function () { var np = LD.chooseLevel(data, g, this.value); Object.keys(np).forEach(function (k) { data[k] = np[k]; }); save(); fillParent(); });
       $('p-lock-' + g).addEventListener('change', function () { data.locked[g] = this.checked; save(); });
     });
     $('p-clear').addEventListener('click', function () {

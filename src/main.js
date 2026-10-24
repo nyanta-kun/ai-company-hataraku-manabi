@@ -39,10 +39,16 @@
     root.addEventListener('error', function (e) { log('ERROR: ' + e.message + ' @' + (e.filename || '').split('/').pop() + ':' + e.lineno); });
     root.addEventListener('unhandledrejection', function (e) { log('REJECT: ' + e.reason); });
     function btn(label, fn) { var b = doc.createElement('button'); b.type = 'button'; b.textContent = label; b.addEventListener('click', fn); box.appendChild(b); }
-    ['M1', 'M2', 'M3', 'M4', 'M5', 'M6', 'M7'].forEach(function (lv) { btn(lv, function () { ui.data.levels.math = lv; ui.data.locked.math = true; ui.setData(ui.data); ui.startSession('math', { fast: true }); }); });
-    ['K1', 'K2', 'K3', 'K4', 'K5', 'K6'].forEach(function (lv) { btn(lv, function () { ui.data.levels.letter = lv; ui.data.locked.letter = true; ui.setData(ui.data); ui.startSession('letter', { fast: true }); }); });
-    ['T1', 'T2', 'T3', 'T4', 'T5', 'T6'].forEach(function (lv) { btn(lv, function () { ui.data.levels.clock = lv; ui.data.locked.clock = true; ui.setData(ui.data); ui.startSession('clock', { fast: true }); }); });
-    ['E1', 'E2', 'E3'].forEach(function (lv) { btn(lv, function () { ui.data.levels.english = lv; ui.data.locked.english = true; ui.setData(ui.data); ui.startSession('english', { fast: true }); }); });
+    D.GAMES.forEach(function (game) {
+      D.LEVELS[game].forEach(function (lv) {
+        btn(lv, function () {
+          ui.data.levels[game] = lv; ui.data.locked[game] = true;
+          ui.data.stage.unlocked = D.STAGES[Math.max(D.stageIndex(ui.data.stage.unlocked), D.stageIndex(D.stageOf(lv)))].id;   // 確認用: そのレベルのステージを解放して選ぶ
+          ui.data.stage.current = D.stageOf(lv);
+          ui.setData(ui.data); ui.startSession(game, { fast: true });
+        });
+      });
+    });
     btn('えいご声なし', function (e) {   // 切り替え（もう一度押すと戻る）
       var off = M.speech.enAvailable(); M.speech.forceNoEnglish(off ? undefined : false);
       e.target.textContent = off ? 'えいご声あり' : 'えいご声なし';
@@ -63,7 +69,11 @@
     var g = goto.split('-');
     if (g[0] === 'play') {
       var game = g[1] === 'letter' ? 'letter' : g[1] === 'clock' ? 'clock' : g[1] === 'english' ? 'english' : 'math';
-      if (g[2]) ui.data.levels[game] = g[2];
+      if (g[2]) {
+        ui.data.levels[game] = g[2];
+        var sid = D.stageOf(g[2]);
+        if (sid) { if (D.stageIndex(sid) > D.stageIndex(ui.data.stage.unlocked)) ui.data.stage.unlocked = sid; ui.data.stage.current = sid; }
+      }
       ui.startSession(game, { fast: true, scene: g[3] || undefined });
       if (g[4]) root.setTimeout(function () { ui.debugProgress(+g[4]); }, 50);
     } else if (g[0] === 'pics') togglePicGrid();

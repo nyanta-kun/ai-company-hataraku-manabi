@@ -137,8 +137,61 @@
     michi: ['shovel', 'bulldozer', 'dump', 'kyukyu']
   };
 
-  // 数の読み（し ではなく よん）
-  var NUM_KANA = ['', 'いち', 'に', 'さん', 'よん', 'ご', 'ろく', 'なな', 'はち', 'きゅう', 'じゅう'];
+  // 数の読み（し ではなく よん）。index = 数 0..100（0 は ''）。11〜99 は十の位 + 一の位でつなぐ
+  var NUM_KANA = (function () {
+    var ones = ['', 'いち', 'に', 'さん', 'よん', 'ご', 'ろく', 'なな', 'はち', 'きゅう'], a = [''], n;
+    for (n = 1; n <= 100; n++) {
+      if (n === 100) { a.push('ひゃく'); continue; }
+      var t = Math.floor(n / 10), o = n % 10;
+      a.push((t === 0 ? '' : t === 1 ? 'じゅう' : ones[t] + 'じゅう') + ones[o]);
+    }
+    return a;
+  })();
+
+  // ---- レベルの階段（design-elementary 3.1）。ステージは LEVELS の上に重ねる「区切り」。STAGES を正として LEVELS を組み立てる ----
+  // 呼び名（rank）は仮（U18）。letter/clock/english が空のステージは、一番近い下のステージの範囲で遊ぶ（stageRange）
+  var STAGES = [
+    { id: 'S0', rank: 'みならい しょうぼうし', grade: 'みしゅうがく',
+      levels: { math: ['M1', 'M2', 'M3', 'M4', 'M5', 'M6', 'M7'], letter: ['K1', 'K2', 'K3', 'K4', 'K5', 'K6'], clock: ['T1', 'T2', 'T3', 'T4', 'T5', 'T6'], english: ['E1', 'E2', 'E3'] } }
+  ];
+  var GAMES = ['math', 'letter', 'clock', 'english'];
+  var GATE_GAMES = ['math', 'letter', 'clock'];   // えいごは関門に入れない（U2）
+  var LEVELS = {};
+  GAMES.forEach(function (g) {
+    LEVELS[g] = [];
+    STAGES.forEach(function (s) { LEVELS[g] = LEVELS[g].concat(s.levels[g]); });
+  });
+  function stageIndex(id) { for (var i = 0; i < STAGES.length; i++) if (STAGES[i].id === id) return i; return -1; }
+  function stageOf(levelId) {
+    for (var i = 0; i < STAGES.length; i++) for (var j = 0; j < GAMES.length; j++) if (STAGES[i].levels[GAMES[j]].indexOf(levelId) >= 0) return STAGES[i].id;
+    return null;
+  }
+  // そのステージで遊ぶレベル列。そのゲームのレベルが無いステージは、レベルを持つ一番近い下のステージの列
+  function stageRange(stageId, game) {
+    for (var i = stageIndex(stageId); i >= 0; i--) if (STAGES[i].levels[game] && STAGES[i].levels[game].length) return STAGES[i].levels[game].slice();
+    return [];
+  }
+  // ステージの関門 = GATE_GAMES の各ゲームについて、そのステージの最後のレベル（レベルの無いゲームは含めない）。
+  // 次のステージを開く条件になる。次のステージが無いうちは、記録（cleared）だけ付いて何も開かない
+  function gateOf(stageId) {
+    var i = stageIndex(stageId);
+    if (i < 0) return null;
+    var out = {};
+    GATE_GAMES.forEach(function (g) { var l = STAGES[i].levels[g]; if (l && l.length) out[g] = l[l.length - 1]; });
+    return out;
+  }
+  // 関門レベルの集合（cleared に残してよいキー）
+  function gateLevels() {
+    var out = [];
+    STAGES.forEach(function (s) { var g = gateOf(s.id); if (g) GATE_GAMES.forEach(function (k) { if (g[k]) out.push(g[k]); }); });
+    return out;
+  }
+  // ステージ stageId まで（それ以下）で遊べる、そのゲームの一番上のレベル
+  function topLevelUpTo(stageId, game) {
+    var out = LEVELS[game][0];
+    for (var i = 0; i <= stageIndex(stageId); i++) { var l = STAGES[i].levels[game]; if (l && l.length) out = l[l.length - 1]; }
+    return out;
+  }
 
   // 時刻の読み（数の読みとは別。よじ・しちじ・くじ）。index = 時 1..12
   var TIME_KANA = ['', 'いちじ', 'にじ', 'さんじ', 'よじ', 'ごじ', 'ろくじ', 'しちじ', 'はちじ', 'くじ', 'じゅうじ', 'じゅういちじ', 'じゅうにじ'];
@@ -174,7 +227,8 @@
 
   var api = {
     ENGLISH_WORDS: ENGLISH_WORDS, NUM_EN: NUM_EN, TIME_KANA: TIME_KANA, MIN_KANA: MIN_KANA, WORDS: WORDS, KATA_WORDS: KATA_WORDS, ALL_WORDS: ALL_WORDS, EXTRA_KATA: EXTRA_KATA, CONFUSABLE_KATA: CONFUSABLE_KATA, toHira: toHira, CATS: CATS, SEEN_MAX: SEEN_MAX, cleanSeen: cleanSeen, addSeen: addSeen, CONFUSABLE: CONFUSABLE, ROW: ROW, FAMILY: FAMILY, CARS: CARS,
-    SCENES: SCENES, SCENE_CARS: SCENE_CARS, NUM_KANA: NUM_KANA, YOMI: YOMI, CAR_YOMI: CAR_YOMI
+    SCENES: SCENES, SCENE_CARS: SCENE_CARS, NUM_KANA: NUM_KANA, YOMI: YOMI, CAR_YOMI: CAR_YOMI,
+    STAGES: STAGES, GAMES: GAMES, GATE_GAMES: GATE_GAMES, LEVELS: LEVELS, stageIndex: stageIndex, stageOf: stageOf, stageRange: stageRange, gateOf: gateOf, gateLevels: gateLevels, topLevelUpTo: topLevelUpTo
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else { root.Manabi = root.Manabi || {}; root.Manabi.data = api; }

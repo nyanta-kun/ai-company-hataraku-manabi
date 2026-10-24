@@ -8,7 +8,7 @@
   var PROMOTE_AT = 4;              // 1 回目正解がこれ以上なら昇級
   var DEMOTE_AT = 1;               // 1 回目正解がこれ以下なら降級
 
-  var LEVELS = { math: ['M1', 'M2', 'M3', 'M4', 'M5', 'M6', 'M7'], letter: ['K1', 'K2', 'K3', 'K4', 'K5', 'K6'], clock: ['T1', 'T2', 'T3', 'T4', 'T5', 'T6'], english: ['E1', 'E2', 'E3'] };
+  var LEVELS = D.LEVELS;   // レベル列の正は data.js（STAGES から組み立てる）
   // 数のレベル: max = 選択肢の範囲の上限、choices = 選択肢の数
   var MATH = {
     M1: { kind: 'count', max: 3,  choices: 3 },
@@ -31,6 +31,7 @@
     T2: { form: 'pick', half: false, choices: 4 },
     T3: { form: 'pick', half: true,  choices: 4 },
     // T4・T5: 細かい分（mins = 出す分）。ticks = 時計の目盛り（12 か 60）。T6: ◯時から△分たったら（経過時間）
+    // hintBoth = ヒントで長針も短針と一緒にふくらませる、glowWhenVoiceless = 声なしのとき 1 回目の誤答で正解を光らせる
     T4: { form: 'pick', mins: [0, 15, 30, 45], choices: 4, ticks: 12 },
     T5: { form: 'pick', mins: [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55], choices: 4, ticks: 60 },
     T6: { form: 'elapsed', starts: [0, 30], durations: [10, 20, 30, 40, 60], choices: 4, ticks: 60 }
@@ -43,6 +44,9 @@
     E2: { words: 2, wordChoices: 3, max: 5,  choices: 3 },
     E3: { words: 2, wordChoices: 4, max: 10, choices: 4 }
   };
+
+  ['T4', 'T5', 'T6'].forEach(function (k) { CLOCK[k].hintBoth = true; });
+  ['T3', 'T4', 'T5', 'T6'].forEach(function (k) { CLOCK[k].glowWhenVoiceless = true; });
 
   function defRng(rng) { return typeof rng === 'function' ? rng : Math.random; }
   function randInt(rng, lo, hi) { return lo + Math.floor(rng() * (hi - lo + 1)); }   // lo..hi
@@ -401,10 +405,11 @@
     return list;
   }
 
-  // レベルの昇降級（企画書 3.3）。locked なら変えない。範囲外の current も端に丸める
-  function nextLevel(game, current, firstTryCorrectCount, locked) {
-    var lv = LEVELS[game];
-    if (!lv) throw new RangeError('game: ' + game);
+  // レベルの昇降級（企画書 3.3）。locked なら変えない。範囲外の current も端に丸める。
+  // range = 動ける範囲のレベル ID の配列（省略時は LEVELS[game] 全体）。上下とも range の端で止まる
+  function nextLevel(game, current, firstTryCorrectCount, locked, range) {
+    var lv = range || LEVELS[game];
+    if (!lv || !lv.length) throw new RangeError('game: ' + game);
     var i = lv.indexOf(current);
     if (i < 0) i = 0;
     if (locked) return lv[i];
