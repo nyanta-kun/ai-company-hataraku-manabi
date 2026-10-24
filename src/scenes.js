@@ -272,7 +272,10 @@
     } else if (p && p.kind === 'clock' && this.clock) {
       var ck = this.clock;
       if (p.form === 'read') root.Manabi.clockface.drawClock(ctx, ck.x, ck.y, ck.r, p.h + ':00', { numbers: 12, pulse: this.pulseAt(now) });
-      else if (p.form === 'elapsed') {   // T6: 開始時刻を大きな時計で。経過は「+20」のふだ
+      else if (p.form === 'readmin') {   // T7: 1 分刻みの大きな時計（外周に 5,10,…の数字）。ヒントは短針と長針を一緒にふくらませる
+        var rp = this.pulseAt(now);
+        root.Manabi.clockface.drawClock(ctx, ck.x, ck.y, ck.r, p.h + ':' + (p.m < 10 ? '0' : '') + p.m, { numbers: 12, ticks: 60, minuteNums: true, pulse: rp, pulseMin: rp });
+      } else if (p.form === 'elapsed') {   // T6: 開始時刻を大きな時計で。経過は「+20」のふだ
         // ふだは時計の右に並べる（時計に重ねると外周の分の数字が隠れる）。横幅が足りなければ時計を小さくする
         var er = ck.r * 0.9, bs = er * 0.85, gap = er * 0.12;
         if (2 * er + gap + bs > ck.w * 0.96) { er = ck.w * 0.96 / (2 + 0.12 + 0.85); bs = er * 0.85; gap = er * 0.12; }

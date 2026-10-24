@@ -315,3 +315,74 @@ test('とけい T4〜T6: readTime / readMinutes の表（ひらがなのみ）',
   assert.equal(P.readTime(4, 30), 'よじはん');
   for (let h = 1; h <= 12; h++) for (let m = 0; m < 60; m += 5) assert.ok(/^[ぁ-ん]+$/.test(P.readTime(h, m)), h + ':' + m);
 });
+
+// ---- T7（S1）: 1 分刻みの時計を読む ----
+const hm = (k) => { const a = k.split(':'); return { h: +a[0], m: +a[1] }; };
+
+test('とけい T7 性質1: 1000 問。choices は 4 つ・重複なし・正解がちょうど 1 つ・答えは h:mm の文字列で範囲内', () => {
+  const r = rngOf(71);
+  const ms = new Set();
+  for (let i = 0; i < N; i++) {
+    const p = P.generateClock('T7', r);
+    assert.equal(p.kind, 'clock'); assert.equal(p.form, 'readmin'); assert.equal(p.ticks, 60);
+    assert.equal(p.choices.length, 4);
+    assert.equal(new Set(p.choices).size, 4);
+    assert.equal(p.choices.filter((c) => c === p.answer).length, 1);
+    assert.equal(p.answer, P.clockKey(p.h, p.m));
+    p.choices.forEach((c) => { assert.ok(/^(?:[1-9]|1[0-2]):[0-5]\d$/.test(c), c); });
+    assert.ok(p.h >= 1 && p.h <= 12 && p.m >= 0 && p.m <= 59);
+    ms.add(p.m);
+  }
+  assert.equal(ms.size, 60, '0〜59 分がすべて出る（5 の倍数だけではない）');
+});
+
+test('とけい T7 性質2: 誤答は答えと同じ時刻にならず、1 分ずれ・5 分ずれ・時のずれのどれかが含まれる', () => {
+  const r = rngOf(72);
+  for (let i = 0; i < N; i++) {
+    const p = P.generateClock('T7', r);
+    const wrong = p.choices.filter((c) => c !== p.answer).map(hm);
+    wrong.forEach((w) => assert.ok(w.h !== p.h || w.m !== p.m));
+    assert.ok(wrong.some((w) => w.h === p.h && Math.abs(w.m - p.m) === 1) || wrong.some((w) => w.h === p.h && Math.abs(w.m - p.m) === 5) ||
+      wrong.some((w) => w.m === p.m && w.h !== p.h), '近い誤答が 1 つはある');
+  }
+});
+
+test('とけい T7 性質3: 出動（4 問）は答えが重複せず、直前と同じ時刻が続かない。同じシードなら同じ', () => {
+  const r = rngOf(73);
+  for (let i = 0; i < N; i++) {
+    const s = P.generateSession('clock', 'T7', r);
+    assert.equal(s.length, 4);
+    assert.equal(new Set(s.map((q) => q.answer)).size, 4);
+  }
+  assert.deepEqual(P.generateSession('clock', 'T7', rngOf(5)), P.generateSession('clock', 'T7', rngOf(5)));
+  const p = P.generateClock('T7', rngOf(6), '3:17');
+  assert.notEqual(p.answer, '3:17');
+});
+
+test('とけい T7 性質4: 時計の針は 1 分刻みで答えと一致する（短針は分の分だけ進む）', () => {
+  const r = rngOf(74);
+  for (let i = 0; i < 200; i++) {
+    const p = P.generateClock('T7', r), a = P.handAngles(p.answer);
+    assert.equal(a.minute, p.m * 6);
+    assert.equal(a.hour, (p.h % 12) * 30 + p.m / 2);
+  }
+});
+
+test('とけい T7: 分の読みの表は 1〜59 すべてひらがなで、5 の倍数は S0 のまま。読み上げ文もひらがなだけ', () => {
+  for (let m = 1; m <= 59; m++) assert.ok(/^[ぁ-ん]+$/.test(D.MIN_KANA[m]), m);
+  assert.equal(new Set(D.MIN_KANA.slice(1, 60)).size, 59, '読みが重複しない');
+  const must = { 1: 'いっぷん', 2: 'にふん', 3: 'さんぷん', 4: 'よんぷん', 6: 'ろっぷん', 7: 'ななふん', 8: 'はっぷん', 9: 'きゅうふん', 11: 'じゅういっぷん', 13: 'じゅうさんぷん',
+    16: 'じゅうろっぷん', 18: 'じゅうはっぷん', 21: 'にじゅういっぷん', 38: 'さんじゅうはっぷん', 44: 'よんじゅうよんぷん', 59: 'ごじゅうきゅうふん' };
+  for (const [m, k] of Object.entries(must)) assert.equal(D.MIN_KANA[+m], k);
+  for (let h = 1; h <= 12; h++) for (let m = 0; m < 60; m++) assert.ok(/^[ぁ-ん]+$/.test(P.readTime(h, m)), h + ':' + m);
+  assert.equal(D.MIN_KANA[0], '');
+  assert.equal(D.MIN_KANA[60], 'いちじかん');
+});
+
+test('とけい T7: CLOCK.T7 は S1 の範囲で、ヒントの決め打ち項目を持つ', () => {
+  assert.deepEqual(D.stageRange('S1', 'clock'), ['T7']);
+  assert.equal(P.CLOCK.T7.hintBoth, true);
+  assert.equal(P.CLOCK.T7.glowWhenVoiceless, true);
+  assert.equal(P.nextLevel('clock', 'T7', 4, false, D.stageRange('S1', 'clock')), 'T7');
+  assert.equal(P.nextLevel('clock', 'T7', 0, false, D.stageRange('S1', 'clock')), 'T7');
+});

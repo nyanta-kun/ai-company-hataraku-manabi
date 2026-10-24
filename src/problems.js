@@ -38,7 +38,9 @@
     // hintBoth = ヒントで長針も短針と一緒にふくらませる、glowWhenVoiceless = 声なしのとき 1 回目の誤答で正解を光らせる
     T4: { form: 'pick', mins: [0, 15, 30, 45], choices: 4, ticks: 12 },
     T5: { form: 'pick', mins: [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55], choices: 4, ticks: 60 },
-    T6: { form: 'elapsed', starts: [0, 30], durations: [10, 20, 30, 40, 60], choices: 4, ticks: 60 }
+    T6: { form: 'elapsed', starts: [0, 30], durations: [10, 20, 30, 40, 60], choices: 4, ticks: 60 },
+    // T7（S1）: 1 分刻みの時計を見て「3:17」を 4 択で選ぶ（readmin）。分は 0〜59 のどれでも出る
+    T7: { form: 'readmin', choices: 4, ticks: 60 }
   };
 
   // えいご: 問題の form = word（乗り物の英語を聞いて絵を選ぶ）/ number（英語の数を聞いて数を選ぶ）
@@ -49,8 +51,8 @@
     E3: { words: 2, wordChoices: 4, max: 10, choices: 4 }
   };
 
-  ['T4', 'T5', 'T6'].forEach(function (k) { CLOCK[k].hintBoth = true; });
-  ['T3', 'T4', 'T5', 'T6'].forEach(function (k) { CLOCK[k].glowWhenVoiceless = true; });
+  ['T4', 'T5', 'T6', 'T7'].forEach(function (k) { CLOCK[k].hintBoth = true; });
+  ['T3', 'T4', 'T5', 'T6', 'T7'].forEach(function (k) { CLOCK[k].glowWhenVoiceless = true; });
 
   function defRng(rng) { return typeof rng === 'function' ? rng : Math.random; }
   function randInt(rng, lo, hi) { return lo + Math.floor(rng() * (hi - lo + 1)); }   // lo..hi
@@ -315,10 +317,29 @@
       choices: fillChoices(ans, prefs, allKeys(mins), L.choices, rng), answer: ans, ticks: L.ticks };
   }
 
+  // T7: 1 分刻みの時計を読む。誤答は 5 分ずれ（5 つずつ数えて 1 つずれ）・1 分ずれ・時のずれ。直前と同じ時刻は避ける
+  function generateReadMin(level, rng, prevKey) {
+    var L = CLOCK[level], cands = [], h, m;
+    for (h = 1; h <= 12; h++) for (m = 0; m < 60; m++) { var k = clockKey(h, m); if (k !== prevKey) cands.push([h, m]); }
+    var c = cands[randInt(rng, 0, cands.length - 1)]; h = c[0]; m = c[1];
+    var ans = clockKey(h, m), out = [ans];
+    function add(hh, mm) {
+      if (out.length >= L.choices || mm < 0 || mm > 59) return;
+      var key = clockKey(hh, mm);
+      if (out.indexOf(key) < 0) out.push(key);
+    }
+    var sg1 = rng() < 0.5 ? 1 : -1, sg5 = rng() < 0.5 ? 1 : -1, sgh = rng() < 0.5 ? 1 : -1;
+    add(h, m + sg1); add(h, m + sg5 * 5); add(wrapH(h + sgh), m);          // 1 分ずれ・5 分ずれ・時のずれ
+    add(h, m - sg1); add(h, m - sg5 * 5); add(wrapH(h - sgh), m);          // 足りないとき（端の分）は反対側
+    shuffle(allKeys([0, 15, 30, 45]).concat(allKeys([m])), rng).forEach(function (key) { var t = parseKey(key); if (t.h !== h || t.m !== m) add(t.h, t.m); });
+    return { kind: 'clock', level: level, form: 'readmin', h: h, m: m, choices: shuffle(out, rng), answer: ans, ticks: L.ticks };
+  }
+
   function generateClock(level, rng, prevKey) {
     rng = defRng(rng);
     var L = CLOCK[level];
     if (!L) throw new RangeError('clock level: ' + level);
+    if (L.form === 'readmin') return generateReadMin(level, rng, prevKey);
     var prev = prevKey ? parseKey(prevKey) : null, hs = [], i;
     if (L.form === 'elapsed') return generateElapsed(level, rng, prevKey);
     if (L.mins) return generateMinutes(level, rng, prevKey);

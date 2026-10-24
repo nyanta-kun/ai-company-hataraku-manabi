@@ -275,6 +275,7 @@
     if (p.kind === 'sub') return NUMK[p.a] + 'ひく' + NUMK[p.b] + 'は、いくつ？';
     if (p.kind === 'clock') {
       if (p.form === 'read') return '時計を見てね。出動の時間は、何時かな？';
+      if (p.form === 'readmin') return '時計を見てね。出動の時間は、何時何分かな？';
       if (p.form === 'elapsed') return '今は、' + P.readTime(p.h0, p.m0) + '。' + P.readMinutes(p.dm) + 'たったら、どの時計かな？';
       return '出動は、' + P.readTime(p.h, p.m) + '。どの時計かな？';
     }
@@ -371,7 +372,7 @@
   function onAnswer(btn) {
     if (!run || run.busy || btn.classList.contains('off')) return;
     var q = run.qs[run.idx], raw = btn.getAttribute('data-v');
-    var v = (q.kind === 'letter' || (q.kind === 'clock' && (q.form === 'pick' || q.form === 'elapsed')) || (q.kind === 'english' && q.form === 'word')) ? raw : +raw;
+    var v = typeof q.answer === 'string' ? raw : +raw;   // 国語・時計の選ぶ形・時計の「3:17」・えいごの語は文字列、数は数
     if (v === q.answer) return onCorrect(q, btn);
     run.wrong++;
     run.off.push(v);
@@ -379,7 +380,7 @@
     sfx('oshii');
     var said = 'おしい！もう一回。';
     if (q.kind === 'letter') said = exampleOf(v) + 'の ' + D.toHira(v) + '。おしい！もう一回。';
-    else if (q.kind === 'clock' && (q.form === 'pick' || q.form === 'elapsed') && v.indexOf('swap:') !== 0) { var tk = v.split(':'); said = P.readTime(+tk[0], +tk[1]) + '。おしい！もう一回。'; }
+    else if (q.kind === 'clock' && (q.form === 'pick' || q.form === 'elapsed' || q.form === 'readmin') && v.indexOf('swap:') !== 0) { var tk = v.split(':'); said = P.readTime(+tk[0], +tk[1]) + '。おしい！もう一回。'; }
     if (q.kind === 'english') seq([{ text: q.form === 'word' ? englishOf(v).en : D.NUM_EN[v], lang: 'en' }, { text: 'おしい！もう一回。', lang: 'ja', gap: 250 }]);
     else say(said);
     var left = answerButtons().filter(function (b) { return !b.classList.contains('off'); });
@@ -389,8 +390,8 @@
         if (!run || run.busy) return;
         answerButtons().forEach(function (b) { if (b.getAttribute('data-v') === String(q.answer)) b.classList.add('glow'); });
         if (q.kind === 'clock') {
-          say(q.form === 'read' ? 'こっちかな？短い針を見てね。' : 'こっちかな？');
-          if (q.form === 'read') stage.pulseHour(now()); else run.pulse = { key: q.answer, t0: now() };
+          say(q.form === 'read' ? 'こっちかな？短い針を見てね。' : q.form === 'readmin' ? 'こっちかな？短い針と、長い針を見てね。' : 'こっちかな？');
+          if (q.form === 'read' || q.form === 'readmin') stage.pulseHour(now()); else run.pulse = { key: q.answer, t0: now() };
         } else if (q.kind === 'english') {
           seq([{ text: q.en + '?', lang: 'en' }, { text: 'こっちかな？', lang: 'ja', gap: 250 }]);
           stage.bouncePic(now());
