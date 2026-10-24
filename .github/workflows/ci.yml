@@ -3,6 +3,7 @@ on:
   pull_request:
   push:
     branches: [main]
+  workflow_dispatch:
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -10,3 +11,33 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: ./scripts/test.sh
+
+  # main に入ったら、テストが通ったときだけテスト版（GitHub Pages）を更新する。
+  # 公開するのは遊ぶのに要るファイルだけ（docs・tests・scripts は出さない）。
+  deploy:
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    needs: test
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    concurrency:
+      group: pages
+      cancel-in-progress: false
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: 公開するファイルをまとめる
+        run: |
+          mkdir -p _site
+          cp -R index.html css src _site/
+          touch _site/.nojekyll
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+      - id: deployment
+        uses: actions/deploy-pages@v4
