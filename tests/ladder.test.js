@@ -284,9 +284,9 @@ test('S1 階段11: 既存の S0 の子（M7・K6・T6 まで進んだ v2）は�
 test('S1 階段12: こてい中は、遊んだレベルが保存されたレベルと違えば復習扱いで levels を変えない', () => {
   let p = L.unlockStage(prof(), 'S1', TODAY);
   p.levels.math = 'M5'; p.locked.math = true;
-  p = L.selectStage(p, 'S1');                       // 札の切り替え: M8 から遊ぶことになる
+  p = L.selectStage(p, 'S1');                       // 札の切り替え: こてい中の M5 をそのまま出す（復習扱い）
   const pl = L.playLevel(p, 'math');
-  assert.equal(pl.level, 'M8');
+  assert.deepEqual(pl, { level: 'M5', review: true });
   assert.equal(L.afterSession(p, 'math', pl.level, 4, pl.review, TODAY).profile.levels.math, 'M5');
   assert.equal(L.afterSession(p, 'math', 'M8', 0, false, TODAY).profile.levels.math, 'M5');
   const q = Object.assign({}, p, { levels: Object.assign({}, p.levels, { math: 'M8' }) });   // 一致していれば今までどおり（固定で動かない）
@@ -303,4 +303,18 @@ test('R2-c: T7 を 4/4 で終えると cleared.T7 が付く（S2 が無いので
   assert.equal(r.profile.stage.unlocked, 'S1');
   assert.equal(r.profile.levels.clock, 'T7');
   assert.deepEqual(L.gateStatus(r.profile, 'S1'), { math: '', letter: '', clock: TODAY });
+});
+
+test('こてい中のレベルが今のステージの範囲より下でも、そのレベルを出す（復習扱い。levels・関門の記録は変えない）', () => {
+  let p = L.selectStage(gateClear(prof()).profile, 'S1');
+  [['letter', 'K3'], ['clock', 'T6'], ['english', 'E2'], ['math', 'M7']].forEach(([g, lv]) => {
+    const q = JSON.parse(JSON.stringify(p)); q.levels[g] = lv; q.locked[g] = true;
+    assert.deepEqual(L.playLevel(q, g), { level: lv, review: true }, lv);
+    const before = JSON.stringify(q.cleared);
+    const r = L.afterSession(q, g, lv, 4, true, '2027-01-01');
+    assert.equal(r.profile.levels[g], lv);
+    assert.equal(JSON.stringify(r.profile.cleared), before, '関門の記録を変えない');
+    q.locked[g] = false;   // こていしていなければ今までどおり S1 の最初から
+    assert.equal(L.playLevel(q, g).review, false);
+  });
 });

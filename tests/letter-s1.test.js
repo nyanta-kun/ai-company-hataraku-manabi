@@ -75,7 +75,7 @@ test('K8 字表: 20 字・小1 の配当・重複なし・読みはひらがな�
     assert.ok(HIRA.test(w.yomi), w.yomi);
     assert.ok(HIRA.test(w.speech.replace(/[。 ]/g, '')), w.speech);
     assert.ok(!KANJI_RE.test(w.speech), '読み上げ文に漢字を使わない: ' + w.speech);
-    assert.ok(w.speech.startsWith(w.yomi) || w.ch === '田', w.speech);
+    assert.ok(w.speech.startsWith(w.yomi), w.speech);
     assert.ok(V.hasPic(w.pic), w.pic);
   });
   assert.deepEqual(D.KANJI.S1, chars, 'KANJI.S1 は K8 の教材の字');

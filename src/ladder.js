@@ -22,6 +22,8 @@
   function playLevel(profile, game) {
     var range = D.stageRange(currentStage(profile), game), lv = profile.levels[game];
     if (range.indexOf(lv) >= 0) return { level: lv, review: false };
+    // こてい中は、範囲の外でもこてい中のレベルを出す（保護者画面の表示と出題を一致させる）。復習扱いで進み具合・関門の記録は変えない
+    if (profile.locked && profile.locked[game] && D.LEVELS[game].indexOf(lv) >= 0) return { level: lv, review: true };
     var all = D.LEVELS[game];
     if (all.indexOf(lv) < all.indexOf(range[0])) return { level: range[0], review: false };
     return { level: lastOf(range), review: true };
@@ -35,7 +37,8 @@
     if (p.locked[game] && level !== p.levels[game]) review = true;
     if (!review) p.levels[game] = P.nextLevel(game, level, firstTry, p.locked[game], D.stageRange(s, game));
     // 関門の記録は、どのステージで遊んでも付ける（すでにあれば日付を変えない）。解放を決めるのは下の判定
-    if (firstTry >= P.QUESTIONS_PER_SESSION && D.gateLevels().indexOf(level) >= 0 && !p.cleared[level]) p.cleared[level] = today;
+    var outside = p.locked[game] && D.stageRange(s, game).indexOf(level) < 0;   // こてい中で範囲の外のレベルを遊んだ（復習）。関門の記録も付けない
+    if (!outside && firstTry >= P.QUESTIONS_PER_SESSION && D.gateLevels().indexOf(level) >= 0 && !p.cleared[level]) p.cleared[level] = today;
     var promotedTo = null, ui = D.stageIndex(p.stage.unlocked), gate = D.gateOf(p.stage.unlocked);
     if (gate && ui < STAGES.length - 1 && Object.keys(gate).every(function (g) { return !!p.cleared[gate[g]]; })) {
       var next = STAGES[ui + 1].id;

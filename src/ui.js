@@ -325,7 +325,8 @@
   // 英語のつづりを字幕で出す。英語の声が途中で使えなくなったら、1回目の誤答で正解を光らせる（plan 3.4）
   function syncCaption() {
     if (!run || run.game !== 'english' || !stage) return;
-    var q = run.qs[run.idx], want = q ? q.en : '';   // つづりはいつも出す（発音と一緒に確かめられるように）
+    // つづりは出す（発音と一緒に確かめられるように）。ただし E4（いろ）・E5（大文字）は つづりが答え（red・B）なので、正解するまで出さない
+    var q = run.qs[run.idx], hideUntilOk = !!q && (q.form === 'alpha' || q.form === 'color'), want = q && (!hideUntilOk || stage.reveal) ? q.en : '';
     if ((stage.caption || '') !== want) { stage.setCaption(want); kick(); }
     // 1回目の誤答のあとで英語の失敗が確定したときも、その問題の正解を光らせる
     if (enOff() && run.wrong >= 1 && !run.busy) answerButtons().forEach(function (b) { if (b.getAttribute('data-v') === String(q.answer)) b.classList.add('glow'); });
@@ -439,7 +440,7 @@
   }
 
   function onCorrect(q, btn) {
-    run.busy = true; run.counting = false; stage.reveal = true;
+    run.busy = true; run.counting = false; stage.reveal = true; syncCaption();
     var first = run.wrong === 0;
     if (first) run.firstTry++;
     answerButtons().forEach(function (b) { b.classList.remove('glow'); });

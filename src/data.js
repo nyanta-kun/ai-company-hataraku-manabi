@@ -202,9 +202,7 @@
     { id: 'shobo',    label: 'しょうぼうしゃ',     head: 'しょ', pic: 'v8' },
     { id: 'shoberu',  label: 'しょべるかー',       head: 'しょ', pic: 'v4' },
     { id: 'chodai',   label: 'ちょうだいはしごしゃ', head: 'ちょ', pic: 'v11' },
-    { id: 'kyusui',   label: 'きゅうすいしゃ',     head: 'きゅ', pic: 'v9' },
     { id: 'jouki',    label: 'じょうききかんしゃ', head: 'じょ', pic: 'steam' },
-    { id: 'jumbo',    label: 'じゃんぼじぇっと',   head: 'じゃ', pic: 'airplane' },
     { id: 'kyakusen', label: 'きゃくせん',         head: 'きゃ', pic: 'ship' },
     { id: 'ryokaku',  label: 'りょかくき',         head: 'りょ', pic: 'airplane' },
     { id: 'junkan',   label: 'じゅんかんばす',     head: 'じゅ', pic: 'bus' }
@@ -235,7 +233,7 @@
     { ch: '手', yomi: 'て',     pic: 'hand',     speech: 'て。ばいばいの て' },
     { ch: '足', yomi: 'あし',   pic: 'foot',     speech: 'あし。はしる あし' },
     { ch: '糸', yomi: 'いと',   pic: 'thread',   speech: 'いと。ほそい いと' },
-    { ch: '田', yomi: 'た',     pic: 'field',    speech: 'たんぼ。おこめを つくる たんぼ', sim: 'b' },
+    { ch: '森', yomi: 'もり',   pic: 'forest',   speech: 'もり。きが たくさんの もり', sim: 'w' },
     { ch: '竹', yomi: 'たけ',   pic: 'bamboo',   speech: 'たけ。ながい たけ', sim: 'w' }
   ];
   // 子ども向け画面に出してよい漢字（教材で出した漢字だけ。U4）。S0 はひらがなのみ

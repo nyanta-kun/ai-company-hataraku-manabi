@@ -63,7 +63,7 @@ test('seen.letter: 旧データは空配列。配列でない値・文字列以�
   assert.deepEqual(S.normalizeProfile(JSON.parse(JSON.stringify(d))).seen.letter, ['v6', 'bus']);   // 保存して読み直しても同じ
 });
 
-test('letter レベル K4〜K6 を保存・読み込みでき、範囲外（K7）は K1 に戻る', () => {
+test('letter レベル K4〜K6 を保存・読み込みでき、範囲外（K9）は K1 に戻る。K7 は未解放なら K6', () => {
   for (const lv of ['K4', 'K5', 'K6']) assert.equal(S.normalizeProfile({ levels: { letter: lv } }).levels.letter, lv);
   assert.equal(S.normalizeProfile({ levels: { letter: 'K7' } }).levels.letter, 'K6', 'S1 が未解放なら K7 は S0 の最後に丸める');
   assert.equal(S.normalizeProfile({ stage: { unlocked: 'S1', current: 'S1' }, levels: { letter: 'K8' } }).levels.letter, 'K8');
