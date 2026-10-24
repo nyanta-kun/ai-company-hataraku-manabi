@@ -74,6 +74,25 @@
     else { ctx.save(); ctx.translate(x, y + s * 0.05); ctx.scale(s * 0.9, s * 0.9); V().drawFlame(ctx, t); ctx.restore(); }
   }
 
+  // ふりがなつきの文字（design-elementary 3.7）。segments = furigana() の結果。中心 (x, y)・本文の大きさ size px。ふりがなは本文の 45% で上に
+  function drawRuby(ctx, segments, x, y, size) {
+    var rs = Math.max(8, Math.round(size * 0.45)), bs = Math.round(size), widths = [], total = 0;
+    ctx.save(); ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillStyle = OUT;
+    segments.forEach(function (sg) {
+      ctx.font = 'bold ' + bs + 'px sans-serif'; var w = ctx.measureText(sg.t).width;
+      if (sg.r) { ctx.font = 'bold ' + rs + 'px sans-serif'; w = Math.max(w, ctx.measureText(sg.r).width); }
+      widths.push(w); total += w;
+    });
+    var cx = x - total / 2;
+    segments.forEach(function (sg, i) {
+      var mid = cx + widths[i] / 2;
+      ctx.font = 'bold ' + bs + 'px sans-serif'; ctx.fillText(sg.t, mid, y);
+      if (sg.r) { ctx.font = 'bold ' + rs + 'px sans-serif'; ctx.fillText(sg.r, mid, y - bs * 0.62); }
+      cx += widths[i];
+    });
+    ctx.restore();
+  }
+
   // ---- 配置 ----
   // rect の中に count 個を cols 列で並べた中心座標。cell は 1 マスの大きさ
   function grid(count, cols, rect, cap) {
@@ -165,6 +184,7 @@
     if (p && p.kind === 'letter') {
       var ws = root.Manabi.data.ALL_WORDS;
       for (var i = 0; i < ws.length; i++) if (ws[i].id === p.wordId) this.word = ws[i];
+      if (!this.word) this.word = { pic: p.pic };   // K7・K8 は単語表にない（問題が絵を持っている）
     }
     this.layout();
   };
@@ -264,7 +284,10 @@
     if (p && p.kind === 'letter' && this.pic) {
       var pb = this.pic, bt = now - this.picBounceT0, k = bt >= 0 && bt < 0.6 ? 1 + 0.18 * Math.sin(bt / 0.6 * Math.PI) : 1;
       var dy = bt >= 0 && bt < 0.6 ? -Math.sin(bt / 0.6 * Math.PI) * 18 : 0;
-      V().drawPic(ctx, this.word.pic, pb.x, pb.y + dy, pb.s * k, now);
+      if (p.level === 'K8' && this.reveal) {   // K8: 正解のあとは、絵を左に寄せて、漢字をふりがなつきで右に大きく出す
+        V().drawPic(ctx, this.word.pic, pb.x - pb.s * 0.42, pb.y + dy, pb.s * 0.72 * k, now);
+        drawRuby(ctx, [{ t: p.answer, r: p.yomi }], pb.x + pb.s * 0.5, pb.y + pb.s * 0.06, pb.s * 0.62);
+      } else V().drawPic(ctx, this.word.pic, pb.x, pb.y + dy, pb.s * k, now);
     } else if (p && p.kind === 'english' && this.speaker && !(this.reveal && p.form === 'number')) {
       var sk = this.speaker, ebt = now - this.picBounceT0, ek = ebt >= 0 && ebt < 0.6 ? 1 + 0.15 * Math.sin(ebt / 0.6 * Math.PI) : 1;
       if (this.reveal) V().drawPic(ctx, p.pic, sk.x, sk.y, sk.s, now);   // 正解のあと: 乗り物の絵を大きく
@@ -593,7 +616,7 @@
 
   var api = {
     Stage: Stage, drawCard: drawCard, drawTitle: drawTitle, drawCat: drawCat, drawRock: drawRock,
-    drawItem: drawItem, drawSpeaker: drawSpeaker, grid: grid, boxLayout: boxLayout, tensTokens: tensTokens, drawWappen: drawWappen, drawPromote: drawPromote, W: W
+    drawItem: drawItem, drawSpeaker: drawSpeaker, grid: grid, boxLayout: boxLayout, tensTokens: tensTokens, drawWappen: drawWappen, drawPromote: drawPromote, drawRuby: drawRuby, W: W
   };
   root.Manabi = root.Manabi || {};
   root.Manabi.scenes = api;

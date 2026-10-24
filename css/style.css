@@ -254,3 +254,17 @@ ul.note li { margin-bottom: 4px; }
 .stage-row .gate { font-size: 15px; margin: 6px 0 2px; line-height: 1.7; }
 .stage-row .gate b { display: inline-block; margin-right: 12px; }
 .stage-row .kid-acts { margin-top: 6px; }
+
+/* ふりがな（S1 以降）と、拗音の答えボタン */
+ruby { ruby-position: over; }
+ruby rt { font-size: .5em; font-weight: bold; line-height: 1; }
+.kid-sub { font-size: clamp(18px, 4vmin, 26px); font-weight: bold; color: #c0560a; line-height: 2; margin: -14px 0 12px; }
+.kid-sub[hidden] { display: none; }
+#reward-sub ruby rt { font-size: .5em; }
+.ans .kana.two { font-size: clamp(40px, 8.5vmin, 68px); white-space: nowrap; }
+@media (orientation: landscape) and (max-height: 520px) { .ans .kana.two { font-size: 34px; } }
+/* T7 の「11:34」: 幅が狭い画面（iPhone 縦）では 4 つ横に並ばないので 2×2 */
+@media (max-width: 700px) {
+  #answers.twocol { flex-wrap: wrap; align-content: center; max-width: 460px; margin: 0 auto; gap: 12px 16px; }
+  #answers.twocol .ans { flex: 0 0 calc(50% - 8px); max-width: none; }
+}

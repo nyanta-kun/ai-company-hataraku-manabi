@@ -26,7 +26,9 @@
   // sim = 形が似た文字を 1 つ混ぜてよい。script = 出す文字種（K6 は問題ごとに語の表記で決まる）
   var LETTER = {
     K1: { choices: 2 }, K2: { choices: 3 }, K3: { choices: 4, sim: true },
-    K4: { choices: 2, script: 'kata' }, K5: { choices: 4, script: 'kata', sim: true }, K6: { choices: 4, script: 'mixed', sim: true }
+    K4: { choices: 2, script: 'kata' }, K5: { choices: 4, script: 'kata', sim: true }, K6: { choices: 4, script: 'mixed', sim: true },
+    // S1: K7 = 小さい「ゃゅょ」のある語の最初の音（2 文字）。K8 = 絵と読み上げから漢字を選ぶ（小1 の 20 字）。どちらも専用の生成関数
+    K7: { choices: 4, form: 'youon' }, K8: { choices: 4, form: 'kanji' }
   };
 
   // とけい: form = read（時計を見て数字）/ pick（読み上げを聞いて時計を選ぶ）、half = ○じはんを出す
@@ -184,10 +186,53 @@
       choices: shuffle(out, rng), answer: ans };
   }
 
+  // ---- K7: 拗音の最初の音。誤答は大きい字（しよ）・同じ子音の別の拗音（しゅ）・別の行（ちょ） ----
+  function buildYouon(level, word, rng) {
+    var ans = word.head, cons = ans.charAt(0), small = ans.charAt(1), out = [ans];
+    out.push(cons + D.YOUON_SMALL[small]);                                                   // 大きい字
+    var others = Object.keys(D.YOUON_SMALL).filter(function (c) { return c !== small; });
+    out.push(cons + others[randInt(rng, 0, others.length - 1)]);                              // 同じ子音の別の拗音
+    var rows = D.YOUON_CONS.filter(function (c) { return c !== cons; });
+    out.push(rows[randInt(rng, 0, rows.length - 1)] + small);                                 // 別の行の同じ拗音
+    return { kind: 'letter', level: level, script: 'hira', wordId: word.id, word: word.label, pic: word.pic,
+      choices: shuffle(out, rng), answer: ans };
+  }
+  // ---- K8: 絵と読み上げから漢字を選ぶ。誤答は形が似た字（sim が同じグループ）を避けた別の字 ----
+  function buildKanji(level, w, rng) {
+    var out = [], sims = {};
+    if (w.sim) sims[w.sim] = true;
+    shuffle(D.KANJI_WORDS.filter(function (k) { return k.ch !== w.ch; }), rng).forEach(function (k) {
+      if (out.length >= LETTER[level].choices - 1 || (k.sim && sims[k.sim])) return;
+      if (k.sim) sims[k.sim] = true;
+      out.push(k.ch);
+    });
+    out.push(w.ch);
+    return { kind: 'letter', level: level, script: 'kanji', wordId: 'kanji_' + w.ch, word: w.ch, pic: w.pic, yomi: w.yomi, speech: w.speech,
+      choices: shuffle(out, rng), answer: w.ch };
+  }
+  function specialPool(level) { return LETTER[level].form === 'youon' ? D.YOUON_WORDS : D.KANJI_WORDS; }
+  function specialKey(level, w) { return LETTER[level].form === 'youon' ? w.id : 'kanji_' + w.ch; }
+  function specialAnswer(level, w) { return LETTER[level].form === 'youon' ? w.head : w.ch; }
+  function buildSpecial(level, w, rng) { return LETTER[level].form === 'youon' ? buildYouon(level, w, rng) : buildKanji(level, w, rng); }
+  // 4 語を選ぶ。絵も答えも重複しない
+  function pickSpecial(level, rng) {
+    var order = shuffle(specialPool(level), rng), chosen = [], pics = {}, ans = {};
+    order.forEach(function (w) {
+      var a = specialAnswer(level, w);
+      if (chosen.length >= QUESTIONS_PER_SESSION || pics[w.pic] || ans[a]) return;
+      chosen.push(w); pics[w.pic] = true; ans[a] = true;
+    });
+    return chosen;
+  }
+
   // 1 問だけ作る。prevWordId と avoid（{ wordIds, pics, answers } の配列。省略可）に当たる語は選ばない（候補が無ければ prevWordId だけ避ける）
   function generateLetter(level, rng, prevWordId, avoid) {
     rng = defRng(rng);
     if (!LETTER[level]) throw new RangeError('letter level: ' + level);
+    if (LETTER[level].form) {   // K7・K8
+      var sp = specialPool(level).filter(function (w) { return specialKey(level, w) !== prevWordId; });
+      return buildSpecial(level, sp[randInt(rng, 0, sp.length - 1)], rng);
+    }
     avoid = avoid || {};
     var pool = wordPool(level);
     var cands = pool.filter(function (w) {
@@ -431,6 +476,7 @@
     rng = defRng(rng);
     if (game === 'letter') {
       if (!LETTER[level]) throw new RangeError('letter level: ' + level);
+      if (LETTER[level].form) return pickSpecial(level, rng).map(function (w) { return buildSpecial(level, w, rng); });
       return pickWords(level, rng, D.cleanSeen(recentPics)).map(function (w) { return buildLetter(level, w, rng); });
     }
     if (game === 'english') return generateEnglishSession(level, rng);
@@ -470,7 +516,7 @@
     LEVELS: LEVELS, MATH: MATH, LETTER: LETTER, CLOCK: CLOCK, ENGLISH: ENGLISH,
     generateEnglish: generateEnglish, buildEnglish: buildEnglish,
     generateCounting: generateCounting, generateAddition: generateAddition, generateSubtraction: generateSubtraction,
-    generateLetter: generateLetter, buildLetter: buildLetter, generateClock: generateClock, handAngles: handAngles, readTime: readTime, readMinutes: readMinutes,
+    generateLetter: generateLetter, buildLetter: buildLetter, buildYouon: buildYouon, buildKanji: buildKanji, generateClock: generateClock, handAngles: handAngles, readTime: readTime, readMinutes: readMinutes,
     clockKey: clockKey, sameProblem: sameProblem, generateSession: generateSession, nextLevel: nextLevel
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
