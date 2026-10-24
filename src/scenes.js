@@ -92,6 +92,45 @@
     return out;
   }
 
+  // 10 より多いものを「10 個入りの箱 + ばら」で並べる（S1。design-elementary 3.8 の M8・M10）。
+  // tokens = [{ t:'box' }（10 個・5×2 の箱）, { t:'loose', n }（ばら。5 列）, { t:'plus' }]。横に並べるか縦に積むか、大きく置ける方を選ぶ。
+  // → { groups:[[{x,y,s}…] …（box / loose ごと）], boxes:[rect…], plus:{x,y,s}|null }。グループの順 = tokens の順（plus は含まない）
+  function boxLayout(tokens, rect, cap) {
+    var PAD = 0.15, GAP = 0.5;
+    var dims = tokens.map(function (t) {
+      if (t.t === 'box') return { w: 5 + PAD * 2, h: 2 + PAD * 2 };
+      if (t.t === 'plus') return { w: 1, h: 1 };
+      return { w: Math.min(t.n, 5), h: Math.ceil(t.n / 5) };
+    });
+    function sum(k) { return dims.reduce(function (a, d) { return a + d[k]; }, 0) + GAP * (dims.length - 1); }
+    function max(k) { return dims.reduce(function (a, d) { return Math.max(a, d[k]); }, 0); }
+    var cellH = Math.min(rect.w / sum('w'), rect.h / max('h')), cellV = Math.min(rect.w / max('w'), rect.h / sum('h'));
+    var horiz = cellH >= cellV, cell = Math.min(horiz ? cellH : cellV, cap);
+    var totW = (horiz ? sum('w') : max('w')) * cell, totH = (horiz ? max('h') : sum('h')) * cell;
+    var cx = rect.x + (rect.w - totW) / 2, cy = rect.y + (rect.h - totH) / 2, out = { groups: [], boxes: [], plus: null };
+    tokens.forEach(function (t, i) {
+      var d = dims[i], w = d.w * cell, h = d.h * cell;
+      var x0 = horiz ? cx : cx + (totW - w) / 2, y0 = horiz ? cy + (totH - h) / 2 : cy;
+      if (t.t === 'plus') out.plus = { x: x0 + w / 2, y: y0 + h / 2, s: cell * 0.9 };
+      else {
+        var ox = x0, oy = y0, n = t.t === 'box' ? 10 : t.n, g = [];
+        if (t.t === 'box') { out.boxes.push({ x: x0, y: y0, w: w, h: h }); ox += PAD * cell; oy += PAD * cell; }
+        for (var k = 0; k < n; k++) g.push({ x: ox + (k % 5 + 0.5) * cell, y: oy + (Math.floor(k / 5) + 0.5) * cell, s: cell * 0.82 });
+        out.groups.push(g);
+      }
+      if (horiz) cx += w + GAP * cell; else cy += h + GAP * cell;
+    });
+    return out;
+  }
+  // 10 のまとまり（箱）+ ばら の tokens
+  function tensTokens(n) {
+    var t = [], i;
+    for (i = 0; i < Math.floor(n / 10); i++) t.push({ t: 'box' });
+    if (n % 10) t.push({ t: 'loose', n: n % 10 });
+    return t;
+  }
+  function flat(groups) { return [].concat.apply([], groups); }
+
   // ======== 現場ステージ ========
   function Stage(canvas) {
     this.canvas = canvas;
@@ -101,6 +140,7 @@
     this.anim = null;        // { t0, dur, from, to, kind }
     this.prob = null;
     this.items = [];
+    this.boxes = [];         // 10 個入りの箱（S1。うしろに描く）
     this.gone = [];          // ひきざん: いなくなる b 個（items には入れない）
     this.subT0 = null;       // ひきざん: 出題の時刻（描画で最初に決める）
     this.marks = [];
@@ -137,10 +177,16 @@
   Stage.prototype.layout = function () {
     var p = this.prob, b = this.board(), it = [], pad = 14;
     var inner = { x: b.x + pad, y: b.y + pad, w: b.w - pad * 2, h: b.h - pad * 2 };
-    var gone = [];
+    var gone = [], boxes = [];
     this.plus = null; this.pic = null; this.clock = null; this.speaker = null;
-    if (p && p.kind === 'count') {
+    if (p && p.kind === 'count' && p.n > 10) {
+      var cl = boxLayout(tensTokens(p.n), inner, 110);
+      it = flat(cl.groups); boxes = cl.boxes;
+    } else if (p && p.kind === 'count') {
       it = grid(p.n, p.n <= 5 ? p.n : 5, inner, 150);
+    } else if (p && p.kind === 'add' && p.a > 10) {   // M8: 12+3 は「箱 + ばら」+ ばら
+      var al = boxLayout(tensTokens(p.a).concat([{ t: 'plus' }, { t: 'loose', n: p.b }]), inner, 110);
+      it = flat(al.groups); boxes = al.boxes; this.plus = al.plus;
     } else if (p && p.kind === 'add') {
       var colsFor = function (n) { return n <= 3 ? n : (n === 4 ? 2 : 3); };
       var half = inner.w * 0.42;
@@ -148,6 +194,9 @@
       var B = grid(p.b, colsFor(p.b), { x: inner.x + inner.w - half, y: inner.y, w: half, h: inner.h }, 130);
       it = A.concat(B);
       this.plus = { x: inner.x + inner.w / 2, y: inner.y + inner.h / 2, s: Math.min(inner.w * 0.12, 70) };
+    } else if (p && p.kind === 'sub' && p.a > 10) {   // M10: 13−5 は「箱 + ばら」のうしろの b 個がいなくなる
+      var sl = boxLayout(tensTokens(p.a), inner, 110), sall = flat(sl.groups);
+      it = sall.slice(0, p.a - p.b); gone = sall.slice(p.a - p.b); boxes = sl.boxes;
     } else if (p && p.kind === 'sub') {
       var all = grid(p.a, p.a <= 5 ? p.a : 5, inner, 150);
       it = all.slice(0, p.a - p.b); gone = all.slice(p.a - p.b);   // うしろの b 個がいなくなる
@@ -162,7 +211,7 @@
       var s = Math.min(inner.w * 0.7, inner.h * 1.0);
       this.pic = { x: inner.x + inner.w / 2, y: inner.y + inner.h / 2, s: s };
     }
-    this.items = it; this.gone = gone;
+    this.items = it; this.gone = gone; this.boxes = boxes;
   };
   Stage.prototype.bounce = function (i, now) { this.bounceIdx = i; this.bounceT0 = now; };
   Stage.prototype.bouncePic = function (now) { this.picBounceT0 = now; };
@@ -232,6 +281,7 @@
         drawElapsedBadge(ctx, ecx + er + gap + bs / 2, ecy, bs, p.dm);
       } else drawSign(ctx, ck, p);
     } else {
+      this.boxes.forEach(function (bx) { fillRR(ctx, bx.x, bx.y, bx.w, bx.h, 10, 'rgba(226,185,120,0.55)', '#9a6a2e', 3); });   // 10 個入りの箱
       for (i = 0; i < this.items.length; i++) {
         var it = this.items[i], sc = 1, dy2 = 0, bt2 = now - this.bounceT0;
         if (i === this.bounceIdx && bt2 >= 0 && bt2 < 0.55) { var q = Math.sin(bt2 / 0.55 * Math.PI); sc = 1 + 0.3 * q; dy2 = -q * 14; }
@@ -498,9 +548,49 @@
     V().drawVehicle(ctx, 8, x, gy + (ch - gy) * 0.05 - sz * 0.25 + 6, sz);
   }
 
+  // ======== 階級のワッペン（design-elementary 3.6）。idx = ステージの番号（0 = S0）。中心 (x,y)・幅 size ========
+  var WAPPEN = [['#aeb8c4', '#6f7a87'], ['#e53935', '#f2b01e'], ['#3a7bd5', '#f2b01e']];
+  function star(ctx, x, y, r) {
+    ctx.beginPath();
+    for (var i = 0; i < 10; i++) { var ang = -Math.PI / 2 + i * Math.PI / 5, rad = i % 2 ? r * 0.45 : r; ctx.lineTo(x + Math.cos(ang) * rad, y + Math.sin(ang) * rad); }
+    ctx.closePath();
+  }
+  function drawWappen(ctx, x, y, size, idx, t) {
+    var col = WAPPEN[Math.min(idx, WAPPEN.length - 1)];
+    ctx.save(); ctx.translate(x, y); ctx.scale(size, size);
+    ctx.lineJoin = 'round';
+    ctx.beginPath();
+    ctx.moveTo(-0.5, -0.5); ctx.quadraticCurveTo(0, -0.62, 0.5, -0.5); ctx.lineTo(0.5, 0.08);
+    ctx.quadraticCurveTo(0.5, 0.42, 0, 0.62); ctx.quadraticCurveTo(-0.5, 0.42, -0.5, 0.08); ctx.closePath();
+    ctx.fillStyle = col[0]; ctx.fill(); ctx.lineWidth = 0.06; ctx.strokeStyle = OUT; ctx.stroke();
+    ctx.lineWidth = 0.035; ctx.strokeStyle = col[1];
+    ctx.beginPath(); ctx.moveTo(-0.4, -0.4); ctx.quadraticCurveTo(0, -0.5, 0.4, -0.4); ctx.lineTo(0.4, 0.07); ctx.quadraticCurveTo(0.4, 0.34, 0, 0.5); ctx.quadraticCurveTo(-0.4, 0.34, -0.4, 0.07); ctx.closePath(); ctx.stroke();
+    var n = Math.max(1, idx), gap = 0.27, sx = -(n - 1) * gap / 2, sy = -0.02 + (t ? Math.sin(t * 3) * 0.01 : 0);
+    for (var i = 0; i < n; i++) { star(ctx, sx + i * gap, sy, idx === 0 ? 0.12 : 0.2); ctx.fillStyle = idx === 0 ? '#fff' : col[1]; ctx.fill(); ctx.lineWidth = 0.03; ctx.strokeStyle = OUT; ctx.stroke(); }
+    ctx.restore();
+  }
+
+  // 昇格の絵: 消防署の前で、大きなワッペンがはずんで光る。t = 経過秒
+  function drawPromote(ctx, cw, ch, idx, t) {
+    var gy = ch * 0.82;
+    var sky = ctx.createLinearGradient(0, 0, 0, gy);
+    sky.addColorStop(0, '#9fd8f5'); sky.addColorStop(1, '#fff3d6');
+    ctx.fillStyle = sky; ctx.fillRect(0, 0, cw, ch);
+    ctx.fillStyle = '#7bbf6a'; ctx.fillRect(0, gy, cw, ch - gy);
+    var bw = Math.min(cw * 0.8, ch * 1.2), bh = ch * 0.5, bx = (cw - bw) / 2, by = gy - bh;
+    fillRR(ctx, bx, by, bw, bh, 8, '#e8d9c3', OUT, 4);
+    fillRR(ctx, bx - 6, by - 14, bw + 12, 20, 6, '#e53935', OUT, 4);
+    for (var i = 0; i < 4; i++) fillRR(ctx, bx + bw * (0.08 + i * 0.23), by + bh * 0.14, bw * 0.16, bh * 0.22, 5, '#ffe680', OUT, 3);
+    fillRR(ctx, bx + bw * 0.3, by + bh * 0.52, bw * 0.4, bh * 0.48, 6, '#b7c2cc', OUT, 4);
+    var u = clamp(t / 0.9, 0, 1), pop = u < 1 ? ease(u) * 1.15 : 1 + 0.04 * Math.sin(t * 4);
+    var size = Math.min(cw * 0.5, ch * 0.5) * pop, wy = ch * 0.42 - Math.abs(Math.sin(t * 2.2)) * ch * 0.02;
+    for (var k = 0; k < 8; k++) { var a = t * 0.9 + k * Math.PI / 4, r = size * 0.85; sparkle(ctx, cw / 2 + Math.cos(a) * r, wy + Math.sin(a) * r * 0.8, 10 + 4 * Math.sin(t * 4 + k), u * (0.5 + 0.4 * Math.sin(t * 3 + k))); }
+    drawWappen(ctx, cw / 2, wy, size, idx, t);
+  }
+
   var api = {
     Stage: Stage, drawCard: drawCard, drawTitle: drawTitle, drawCat: drawCat, drawRock: drawRock,
-    drawItem: drawItem, drawSpeaker: drawSpeaker, grid: grid, W: W
+    drawItem: drawItem, drawSpeaker: drawSpeaker, grid: grid, boxLayout: boxLayout, tensTokens: tensTokens, drawWappen: drawWappen, drawPromote: drawPromote, W: W
   };
   root.Manabi = root.Manabi || {};
   root.Manabi.scenes = api;

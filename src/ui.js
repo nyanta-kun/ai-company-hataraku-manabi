@@ -31,7 +31,7 @@
   function save() { S.save(state); }
   // PR の関数は新しい state を返すので、呼んだ後は必ず付け直す（古いプロフィールに書かないため）
   function rebind() { dev = state.device; data = PR.currentProfile(state); }
-  function useProfile(id) { state = PR.selectProfile(state, id); rebind(); save(); }
+  function useProfile(id) { state = PR.selectProfile(state, id); rebind(); relockAsk = ''; save(); }
 
   // ---- アイコン（Canvas で描く。画面の文字に頼らない） ----
   function drawIcon(cv, kind) {
@@ -147,11 +147,34 @@
     if (name === 'parent') fillParent();
     if (name === 'play' && stage) { stage.resize(); stage.draw(now()); }
     if (name === 'reward') startRewardAnim();
+    if (name === 'promote') startPromoteAnim();
   }
   // 出動えらびの「えいご」: 英語の声が使えないときは選べない（グレー＋スピーカー×）。開くたび・声の状態が変わるたびに見直す
   // 英語が聞こえない状態（声が無い／失敗した／保護者がよみあげをオフにした）。えいごは聞いて選ぶので、この間は成立しない
   function enOff() { return !SP.enAvailable() || !dev.sound.voice; }
+  // ステージの札: 解放済みが 2 つ以上のときだけ出す（S0 だけの子は今までと同じ画面）。未解放は出さない
+  function stageIdx() { return D.stageIndex(LD.currentStage(data)); }
+  function buildStageTabs() {
+    var box = $('stage-tabs'), top = D.stageIndex(data.stage.unlocked);
+    box.textContent = ''; box.hidden = top < 1;
+    if (top < 1) return;
+    var cur = stageIdx();
+    D.STAGES.slice(0, top + 1).forEach(function (stg, i) {
+      var b = doc.createElement('button'); b.type = 'button'; b.className = 'stage-tab' + (i === cur ? ' sel' : '');
+      b.setAttribute('aria-pressed', i === cur ? 'true' : 'false');
+      var cv = doc.createElement('canvas'), sp = doc.createElement('span');
+      sp.textContent = stg.short; b.appendChild(cv); b.appendChild(sp); box.appendChild(b);
+      var dpr = root.devicePixelRatio || 1; cv.width = Math.round(34 * dpr); cv.height = Math.round(40 * dpr);
+      var ctx = cv.getContext('2d'); ctx.setTransform(dpr, 0, 0, dpr, 0, 0); SC.drawWappen(ctx, 17, 19, 30, i, 0);
+      b.addEventListener('click', function () {
+        if (i === stageIdx()) return;
+        sfx('tap'); replaceData(LD.selectStage(data, stg.id)); save(); buildStageTabs();
+      });
+    });
+  }
+  function replaceData(np) { Object.keys(np).forEach(function (k) { data[k] = np[k]; }); }   // data は state.profiles の要素そのものなので、中身を差し替える
   function updatePick() {
+    buildStageTabs();
     var b = $('btn-english'); if (!b) return;
     var off = enOff();
     b.classList.toggle('disabled', off); b.setAttribute('aria-disabled', off ? 'true' : 'false');
@@ -312,6 +335,7 @@
       if (pickClock || pickPic) b.innerHTML = '<canvas></canvas>';
       else if (q.kind === 'clock') b.innerHTML = '<span class="num">' + c + '</span>';
       else if (q.kind === 'letter') b.innerHTML = '<span class="kana">' + c + '</span>';
+      else if (q.choices.some(function (v) { return v > 10; })) b.innerHTML = '<span class="num">' + c + '</span>';   // 11 以上は数字だけ（点は 10 まで。S1 の子は数字が読める）
       else {
         var dots = '';
         for (var i = 0; i < c; i++) { dots += '<i></i>'; if (i === 4 && c > 5) dots += '<b></b>'; }
@@ -442,11 +466,11 @@
     st.sessions++; st[game].sessions++;
     st[game].questions += P.QUESTIONS_PER_SESSION; st[game].firstTry += run.firstTry;
     var res = LD.afterSession(data, game, run.level, run.firstTry, run.review, todayStr());
-    Object.keys(res.profile).forEach(function (k) { data[k] = res.profile[k]; });   // data は state.profiles の要素そのものなので、中身を差し替える
+    replaceData(res.profile);
     var r = grantReward(run.scene);
     data.lastPlayed = todayStr();
     save();
-    reward = { r: r, t0: 0 };
+    reward = { r: r, t0: 0, promo: res.promotedTo };   // 昇格したら、ごほうびの次に しょうかく の画面を出す
     run = null;
     show('reward');
   }
@@ -490,6 +514,28 @@
       c.ctx.save(); c.ctx.globalAlpha = 0.5 + 0.5 * Math.sin(t * 3 + i);
       c.ctx.fillStyle = '#ffd23f'; c.ctx.beginPath(); c.ctx.arc(c.w / 2 + Math.cos(a) * r * 0.9, c.h / 2 + Math.sin(a) * r * 0.9, 6, 0, 7); c.ctx.fill(); c.ctx.restore();
     }
+  }
+
+  // ごほうびの次: 昇格していたら しょうかく の画面（そのあとはタイトル）、なければ行き先へ
+  var promo = null;   // { stage, t0 }
+  function leaveReward(next) {
+    if (reward && reward.promo) { promo = { stage: reward.promo, t0: 0 }; reward.promo = null; show('promote'); }
+    else show(next);
+  }
+  function startPromoteAnim() {
+    promo.t0 = now();
+    var stg = D.STAGES[D.stageIndex(promo.stage)];
+    $('promote-text').textContent = stg.rank + ' に しょうかく！';
+    $('promote-sub').textContent = 'すすんで みる？';
+    drawPromote();
+    later(300, function () { sfx('fanfare'); say(stg.rank + 'に、しょうかく！'); });
+    kick();
+  }
+  function drawPromote() {
+    if (!promo) return;
+    var c = sizeCanvas($('promoteCanvas'));
+    c.ctx.clearRect(0, 0, c.w, c.h);
+    SC.drawPromote(c.ctx, c.w, c.h, D.stageIndex(promo.stage), now() - promo.t0);
   }
 
   // ---- しゃこ ----
@@ -659,12 +705,47 @@
       LD.selectableLevels(data, g).forEach(function (lv) { var o = doc.createElement('option'); o.value = lv; o.textContent = lv; sel.appendChild(o); });   // 解放済みのステージの範囲だけ
       sel.value = data.levels[g]; $('p-lock-' + g).checked = data.locked[g];
     });
-    voiceNote(); enNote();
+    voiceNote(); enNote(); fillStages();
     if (dev.restoredFromV1) { restoredShown = true; delete dev.restoredFromV1; save(); }
     $('p-restored').hidden = !restoredShown;
     $('p-storage-note').hidden = S.isPersistent();
     clearStep = 0; $('p-clear').textContent = 'ぜんぶの こどもの きろくを けす'; $('p-clear-note').textContent = '';
     updateBadges(); fillKids();
+  }
+  // 保護者画面: ステージ（手動の解放・再ロック。design-elementary 3.6）
+  var relockAsk = ''; // 「とじる」を 1 回押したステージの id（2 段階の確認）
+  var GATE_LABEL = { math: 'かず', letter: 'もじ', clock: 'とけい' };
+  function mdOf(date) { var m = /^\d{4}-(\d{2})-(\d{2})$/.exec(date); return m ? (+m[1]) + '/' + (+m[2]) : date; }
+  function fillStages() {
+    var box = $('p-stages'); box.textContent = '';
+    var unl = D.stageIndex(data.stage.unlocked), cur = stageIdx();
+    D.STAGES.forEach(function (stg, i) {
+      var open = i <= unl, row = el('div', 'stage-row' + (open ? ' open' : ''));
+      var head = el('div', 'st-name'); head.appendChild(el('b', '', stg.rank));
+      head.appendChild(doc.createTextNode('（' + stg.grade + '）'));
+      head.appendChild(el('span', 'st-tag', (open ? 'ひらいている' : 'とじている') + (i === cur && unl > 0 ? '・いま あそんでいる' : '')));
+      row.appendChild(head);
+      var gate = i < D.STAGES.length - 1 ? LD.gateStatus(data, stg.id) : null;   // この かんもんを ぜんぶ とおると つぎの ステージが ひらく
+      if (gate) {
+        var g = el('div', 'gate'); g.appendChild(doc.createTextNode('つぎへの かんもん：'));
+        Object.keys(gate).forEach(function (k) {
+          g.appendChild(el('b', '', GATE_LABEL[k] + ' ' + D.gateOf(stg.id)[k] + ' ' + (gate[k] ? '◯ ' + mdOf(gate[k]) : 'ー')));
+        });
+        row.appendChild(g);
+        if (stg.id === 'S0') row.appendChild(el('p', 'note', '「' + D.STAGES[1].rank + '」に すすむ じょうけん：かんもんの 3つを、それぞれ 1かい 4もん ぜんぶ 1かいで せいかい（えいごは ふくみません）。'));
+      }
+      if (i > 0) {
+        var acts = el('div', 'kid-acts');
+        if (!open) acts.appendChild(kidBtn('ひらく', '', function () { replaceData(LD.unlockStage(data, stg.id, todayStr())); save(); relockAsk = ''; fillParent(); }));
+        else if (relockAsk === stg.id) {
+          row.appendChild(el('p', 'note warn', 'とじると ' + stg.rank + ' の すすみぐあいは ' + D.STAGES[i - 1].rank + ' に もどります（かんもんの きろくも きえます）。もういちど おすと とじます。'));
+          acts.appendChild(kidBtn('ほんとうに とじる', 'danger', function () { replaceData(LD.relockStage(data, stg.id)); save(); relockAsk = ''; fillParent(); }));
+          acts.appendChild(kidBtn('やめる', 'sub', function () { relockAsk = ''; fillStages(); }));
+        } else acts.appendChild(kidBtn('とじる', 'danger', function () { relockAsk = stg.id; fillStages(); }));
+        row.appendChild(acts);
+      }
+      box.appendChild(row);
+    });
   }
   function voiceNote() {
     var n = $('p-voice-note');
@@ -693,6 +774,7 @@
       }
     }
     else if (screen === 'reward' && reward) { drawReward(); keep = true; }
+    else if (screen === 'promote' && promo) { drawPromote(); keep = true; }
     else if (screen === 'garage') { keep = drawGarage(); }
     looping = false;
     if (keep) kick();
@@ -712,6 +794,7 @@
       if (screen === 'play' && stage) { stage.resize(); stage.draw(now()); drawAnswerClocks(0); drawAnswerPics(); }
       if (screen === 'title') drawTitle();
       if (screen === 'reward' && reward) drawReward();
+      if (screen === 'promote') drawPromote();
       if (screen === 'garage') drawGarage();
     });
     root.addEventListener('orientationchange', function () { root.setTimeout(function () { root.dispatchEvent(new root.Event('resize')); }, 200); });
@@ -757,10 +840,15 @@
       var n = stage.mark(i);
       if (n) { stage.bounce(i, now()); sfx('pon', n); say(NUMK[n]); kick(); }
     });
-    $('btn-r-garage').addEventListener('click', function () { sfx('tap'); show('garage'); });
-    $('btn-r-again').addEventListener('click', function () { sfx('tap'); show('pick'); });
+    $('btn-r-garage').addEventListener('click', function () { sfx('tap'); leaveReward('garage'); });
+    $('btn-r-again').addEventListener('click', function () { sfx('tap'); leaveReward('pick'); });
+    $('btn-pr-go').addEventListener('click', function () {   // 「すすむ」: 新しいステージを選んでタイトルへ
+      sfx('tap'); if (promo) { replaceData(LD.selectStage(data, promo.stage)); save(); }
+      promo = null; show('title');
+    });
+    $('btn-pr-later').addEventListener('click', function () { sfx('tap'); promo = null; show('title'); });
     $('btn-g-back').addEventListener('click', function () { sfx('tap'); show('title'); });
-    $('btn-p-back').addEventListener('click', function () { kidEdit = null; restoredShown = false; show('title'); });
+    $('btn-p-back').addEventListener('click', function () { kidEdit = null; relockAsk = ''; restoredShown = false; show('title'); });
     $('btn-who').addEventListener('click', function () { sfx('tap'); if (state.profiles.length > 1) show('who'); });
     $('p-kid-add').addEventListener('click', addKid);
 
@@ -776,7 +864,7 @@
       if (!SP.speakSeq([{ text: 'Fire truck', lang: 'en' }], { force: true })) enNote();
     });
     ['math', 'letter', 'clock', 'english'].forEach(function (g) {
-      $('p-lv-' + g).addEventListener('change', function () { var np = LD.chooseLevel(data, g, this.value); Object.keys(np).forEach(function (k) { data[k] = np[k]; }); save(); fillParent(); });
+      $('p-lv-' + g).addEventListener('change', function () { replaceData(LD.chooseLevel(data, g, this.value)); save(); fillParent(); });
       $('p-lock-' + g).addEventListener('change', function () { data.locked[g] = this.checked; save(); });
     });
     $('p-clear').addEventListener('click', function () {
@@ -804,6 +892,7 @@
       data = d; applySound(); save();
     },
     useProfile: useProfile,
+    gotoPromote: function (stageId) { promo = { stage: stageId || 'S1', t0: 0 }; show('promote'); },
     get state() { return state; },
     addDummyProfile: function () { addLock = 0; addKid(); kidEdit = null; },
     gotoReward: function (scene) {

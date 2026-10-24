@@ -20,7 +20,7 @@ function withStorage(init, fn) {
 test('壊れたデータや欠損はデフォルトで埋まる', () => {
   assert.deepEqual(S.normalizeProfile(null), S.defaultProgress());
   assert.deepEqual(S.normalizeProfile('x'), S.defaultProgress());
-  const d = S.normalizeProfile({ levels: { math: 'M9', letter: 'K2' }, cards: { shoubousha: 9, foo: 1, dump: -1 }, stats: { sessions: 'a' } });
+  const d = S.normalizeProfile({ levels: { math: 'M99', letter: 'K2' }, cards: { shoubousha: 9, foo: 1, dump: -1 }, stats: { sessions: 'a' } });
   assert.equal(d.levels.math, 'M1');
   assert.equal(d.levels.letter, 'K2');
   assert.deepEqual(d.cards, { shoubousha: 3 });
@@ -67,10 +67,13 @@ test('letter レベル K4〜K6 を保存・読み込みでき、範囲外（K7�
   assert.equal(S.normalizeProfile({ levels: { letter: 'K2' }, locked: { letter: true } }).locked.letter, true);
 });
 
-test('normalizeProfile: M6・M7 を受け入れ、M8 は M1 に戻す', () => {
+test('normalizeProfile: M6・M7 を受け入れ、列に無いレベルは M1 に戻す。未解放のステージのレベルは解放済みの一番上に丸める', () => {
   assert.equal(S.normalizeProfile({ levels: { math: 'M6' } }).levels.math, 'M6');
   assert.equal(S.normalizeProfile({ levels: { math: 'M7' } }).levels.math, 'M7');
-  assert.equal(S.normalizeProfile({ levels: { math: 'M8' } }).levels.math, 'M1');
+  assert.equal(S.normalizeProfile({ levels: { math: 'M99' } }).levels.math, 'M1');
+  assert.equal(S.normalizeProfile({ levels: { math: 'M8' } }).levels.math, 'M7');   // S1 は未解放
+  assert.equal(S.normalizeProfile({ levels: { math: 'M8' }, stage: { unlocked: 'S1', current: 'S1' } }).levels.math, 'M8');
+  assert.equal(S.normalizeProfile({ levels: { math: 'M10' }, stage: { unlocked: 'S1' } }).levels.math, 'M10');
 });
 
 // ---- normalize（v2） ----

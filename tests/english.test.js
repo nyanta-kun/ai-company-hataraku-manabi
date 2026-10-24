@@ -109,15 +109,16 @@ test('英語性質7: 同じシードなら同じ結果', () => {
 });
 
 test('英語性質8: nextLevel(english) は規則どおり（上限 E3・下限 E1・固定時は不変・範囲外は端）', () => {
-  assert.deepEqual(P.LEVELS.english, LV);
-  assert.equal(P.nextLevel('english', 'E1', 4, false), 'E2');
-  assert.equal(P.nextLevel('english', 'E3', 4, false), 'E3');
-  assert.equal(P.nextLevel('english', 'E1', 0, false), 'E1');
-  assert.equal(P.nextLevel('english', 'E3', 1, false), 'E2');
-  assert.equal(P.nextLevel('english', 'E2', 2, false), 'E2');
-  assert.equal(P.nextLevel('english', 'E2', 4, true), 'E2');
-  assert.equal(P.nextLevel('english', 'E2', 0, true), 'E2');
-  assert.equal(P.nextLevel('english', 'E9', 4, false), 'E2');   // 不明な値は先頭扱い
+  const R = D.stageRange('S0', 'english');
+  assert.deepEqual(R, LV);
+  assert.equal(P.nextLevel('english', 'E1', 4, false, R), 'E2');
+  assert.equal(P.nextLevel('english', 'E3', 4, false, R), 'E3');
+  assert.equal(P.nextLevel('english', 'E1', 0, false, R), 'E1');
+  assert.equal(P.nextLevel('english', 'E3', 1, false, R), 'E2');
+  assert.equal(P.nextLevel('english', 'E2', 2, false, R), 'E2');
+  assert.equal(P.nextLevel('english', 'E2', 4, true, R), 'E2');
+  assert.equal(P.nextLevel('english', 'E2', 0, true, R), 'E2');
+  assert.equal(P.nextLevel('english', 'E9', 4, false, R), 'E2');   // 不明な値は先頭扱い
 });
 
 test('英語性質9: 語彙表の整合（en は小文字の英字とスペース、絵が存在、group あり、14語・id 重複なし）', () => {

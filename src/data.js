@@ -151,8 +151,10 @@
   // ---- レベルの階段（design-elementary 3.1）。ステージは LEVELS の上に重ねる「区切り」。STAGES を正として LEVELS を組み立てる ----
   // 呼び名（rank）は仮（U18）。letter/clock/english が空のステージは、一番近い下のステージの範囲で遊ぶ（stageRange）
   var STAGES = [
-    { id: 'S0', rank: 'みならい しょうぼうし', grade: 'みしゅうがく',
-      levels: { math: ['M1', 'M2', 'M3', 'M4', 'M5', 'M6', 'M7'], letter: ['K1', 'K2', 'K3', 'K4', 'K5', 'K6'], clock: ['T1', 'T2', 'T3', 'T4', 'T5', 'T6'], english: ['E1', 'E2', 'E3'] } }
+    { id: 'S0', rank: 'みならい しょうぼうし', short: 'みならい', grade: 'みしゅうがく',
+      levels: { math: ['M1', 'M2', 'M3', 'M4', 'M5', 'M6', 'M7'], letter: ['K1', 'K2', 'K3', 'K4', 'K5', 'K6'], clock: ['T1', 'T2', 'T3', 'T4', 'T5', 'T6'], english: ['E1', 'E2', 'E3'] } },
+    { id: 'S1', rank: 'しょうぼうし', short: 'しょうぼうし', grade: '小学1年生くらい',
+      levels: { math: ['M8', 'M9', 'M10'], letter: [], clock: [], english: [] } }   // もじ・とけい・えいごの S1 は R2-c 以降（それまでは S0 の範囲で遊ぶ）
   ];
   var GAMES = ['math', 'letter', 'clock', 'english'];
   var GATE_GAMES = ['math', 'letter', 'clock'];   // えいごは関門に入れない（U2）
