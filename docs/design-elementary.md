@@ -146,7 +146,8 @@ v2 が壊れていて v1 から取り込み直した場合、v1 は移行した�
 | `defaults(id, today)` | → v2 の既定（こども1 が 1 人） | 変更。`id`・`today` は呼ぶ側が渡す（テストで固定するため） |
 | `normalize(raw, id, today)` | → v2 | 変更。2.1 の規則。0 人なら `defaults` の 1 人を入れる |
 | `migrateV1(raw, id, today)` | → v2 | 追加（2.2） |
-| `load()` / `save(state)` / `clear()` / `isPersistent()` | | `load` は 2.2 の順番。`clear` は v1・v2 の両方を消す |
+| `load()` / `save(state)` / `clear()` / `isPersistent()` | | `load` は 2.2 の順番。`clear` は v1・v2・`KEY_BROKEN` をすべて消す |
+| `fresh()` | → v2 の既定 | I/O 側。新しい id と今日の日付を作って `defaults(id, today)` を返す（「データをけす」の後に ui.js が使う） |
 
 - 新しい id と今日の日付を作るのは I/O 側（`load` の中）だけ。純粋関数には引数で渡す。
 - `newId(now, rng)`（純粋）: `'p_' + now.toString(36) + '_' + 4桁の36進` 。R4 で別の端末のプロフィールと混ざらないよう、端末をまたいでも重ならない値にしておく（連番 `p1` は使わない）。
@@ -182,7 +183,7 @@ v2 が壊れていて v1 から取り込み直した場合、v1 は移行した�
 | `data.sound` の 9 か所（1章の表） | `dev.sound` に置き換え |
 | 新規 `useProfile(id)` | `state = PR.selectProfile(state, id); dev = state.device; data = PR.currentProfile(state); save();`。`seen` などは `data` 経由なので追加の処理は要らない |
 | `src/ui.js:94-107` `show` | 画面 `who`（2.5）を足す。`title` を出すたびにプロフィールの名札（2.5）を描き直す |
-| `src/ui.js:630-637` データ消去 | `S.clear(); state = S.normalize(null, ...); dev = ...; data = ...` |
+| `src/ui.js:630-637` データ消去 | `S.clear(); state = S.fresh(); rebind(); save();`（id と日付は storage 側で作る） |
 | `src/ui.js:645` `setData` | 確認パネル用。`data` を差し替えるのではなく、今のプロフィールを置き換える形にする（`main.js` の呼び方は変えない） |
 | 起動（`init` の最後、`src/ui.js:638`） | プロフィールが 2 人以上なら `show('who')`、1 人なら今どおり `show('title')` |
 
@@ -337,7 +338,7 @@ v2 が壊れていて v1 から取り込み直した場合、v1 は移行した�
   - v2 なし・v1 あり → 取り込み後に v2 が書かれ、v1 は元の文字列のまま残る。もう一度 `load` しても「こども1」が 2 人にならない。
   - v2 が壊れた文字列・v1 あり → `KEY_BROKEN` に退避され、v1 から取り込まれる。
   - v2 も v1 も壊れている → 既定。例外が出ない。
-  - `clear()` の後 → v1 も v2 も無い（次の `load` で v1 が戻らない）。
+  - `clear()` の後 → v1・v2・`KEY_BROKEN` のどれも無い（次の `load` で v1 が戻らない）。
   - `localStorage` が無い・例外 → 例外が出ず `isPersistent()` が false、プロフィールの操作もできる。
 
 プロフィール（profiles）:
@@ -360,7 +361,11 @@ v2 が壊れていて v1 から取り込み直した場合、v1 は移行した�
 - `D.LEVELS = { math: ['M1', …, 'M13'], letter: ['K1', …, 'K9'], clock: ['T1', …, 'T8'], english: ['E1', …, 'E5'] }`
 - `problems.js` は `var LEVELS = D.LEVELS`（`P.LEVELS` は今と同じ名前で出す。既存テスト `tests/clock.test.js:134` などはそのまま）。
 - `storage.js` の `MATH_LV` 等は `D.LEVELS.math` などに置き換え。`main.js` の確認ボタンも `D.LEVELS` から作る。
-- 注意: 既存テストに「範囲外は先頭に戻る」の例として `M8`・`K7`・`T7` を使っているもの（`tests/storage.test.js:61,78,85`）がある。M8 等を足す PR で、例を `M99` などに直す。
+- 注意（新しいレベルを足す PR で落ちる既存テスト）:
+  - 「範囲外は先頭に戻る」の例に `M8`・`K7`・`T7` を使っているもの（`tests/storage.test.js:61,78,85`）。例を `M99` などに直す。
+  - **列の上限で止まることを固定しているもの**: `tests/problems.test.js:159,161`（M7→M7）、`:165`（K6→K6）、`tests/clock.test.js:139`（T6→T6）、`tests/english.test.js:114`（E3→E3）。列が M13・K9・T8・E5 まで伸びると、`range` を省略した `nextLevel` はそこで止まらない。これらは「S0 の範囲を `range` に渡す」形（`P.nextLevel('math', 'M7', 4, false, stageRange('S0','math'))`）に直す。
+  - 列そのものを固定しているもの: `tests/clock.test.js:134`、`tests/english.test.js:112`。`STAGES` の S0 の列との一致に直す。
+  - R2-a では `STAGES` を S0 だけにするので（4章）、R2-a の時点ではこれらは落ちない。落ちるのはレベルを足す R2-b 以降。
 
 ステージは `LEVELS` の上に「区切り」として重ねる（企画 2.2「ステージは区切りとして重ねるだけ」）。
 
@@ -411,6 +416,8 @@ var GATE_GAMES = ['math', 'letter', 'clock'];   // えいごは関門に入れ�
 
 - 関門の記録（`cleared`）はどの場合でも、関門レベルで 4/4 なら付ける（すでにあれば日付を変えない）。記録はするだけで、解放を決めるのは 3.4。
 - 「固定」（`locked[g]`）は今と同じく `nextLevel` を止める。
+- **保護者がレベルを選んだとき**（保護者画面の「レベル」のドロップダウン、`src/ui.js:627`）: 選んだレベル L のステージに `stage.current` を揃える（`stage.current = stageOf(L)`）。揃えないと、たとえば S1 を選んでいる子に保護者が M5 を選んでも、上の表の「`lv` が s より下」に当たって M8 が出てしまい、保護者画面の表示と出題が食い違う。捨てた案: 固定（`locked`）のときだけ `playLevel` が `lv` をそのまま返す — 固定していないと同じ食い違いが残る。
+- 保護者画面のドロップダウンは**解放済みのステージの範囲のレベルだけ**を出す（今は `P.LEVELS[g]` を全部出している。`src/ui.js:512`）。未解放のレベルを選ばせたいときは、先にステージを「ひらく」（3.6）。
 - 下のステージへ自動で落とさない理由: S1 の入口（M8）で 0〜1/4 が続く子を S0 に戻すかどうかは、保護者が判断する方がよい（ステージ選択で S0 を選べる。保護者画面でレベルを選べる）。自動で落とすと「しょうぼうし なのに みならい の問題」になり、階級の見せ方（企画 2.5）と食い違う。
 
 関数（`src/ladder.js` を新規。純粋関数。`problems.js` の後に読む）:
@@ -467,7 +474,7 @@ var GATE_GAMES = ['math', 'letter', 'clock'];   // えいごは関門に入れ�
 手動解放・再ロック（保護者画面の「レベル」カードの上に「ステージ」カードを足す）:
 - 各ステージの行: 「みならい（みしゅうがく）」「しょうぼうし（小学1年生くらい）」…、関門の状態（`gateStatus`。「かず M7 ◯ 11/2」「もじ K6 ー」）、ボタン「ひらく」/「とじる」。
 - `unlockStage(S)`: `unlocked` を S まで上げ、`promoted[S]` に今日（すでにあれば変えない）。`current` は変えない。
-- `relockStage(S)`: `unlocked` を S の 1 つ下へ。`current` が上なら丸める。**下のステージの関門の記録（`cleared`）も消す**。消さないと次の出動の後に 3.4 の判定ですぐ再解放されるため。`levels[g]` が新しい `unlocked` より上なら、その最後のレベルに丸める。
+- `relockStage(S)`: `unlocked` を S の 1 つ下へ。`current` が上なら丸める。**S 以上を開く関門の記録（`cleared`）をすべて消す**（S の 1 つ下のステージの関門から上全部。例: `unlocked` が S2 のときに S1 を閉じる → S0 の関門 M7・K6・T6 と S1 の関門 M10・K8・T7 を消す）。下だけ消すと、S0 の関門を通り直して S1 が開いた次の出動で、残っていた S1 の関門の記録により S2 まで自動で開いてしまうため。S 以上の `promoted` も消す。`levels[g]` が新しい `unlocked` より上なら、その最後のレベルに丸める。
   - 捨てた案: 「保護者がとじた」印を持ち、印がある間は自動解放しない。記録は残るが、印を外す操作が増えて保護者画面が分かりにくい。「もう一度関門を通ったら開く」の方が子どもにも保護者にも説明しやすい。
 - 再ロックは 2 段階の確認（「とじると しょうぼうし の すすみぐあいは みならい に もどります」）。
 
