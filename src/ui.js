@@ -109,7 +109,8 @@
     var cv = doc.createElement('canvas'), sp = doc.createElement('span');
     sp.textContent = p.name;
     el.appendChild(cv); el.appendChild(sp);
-    drawCarIcon(cv, p.icon);
+    cv.setAttribute('data-car', p.icon);
+    drawCarIcon(cv, p.icon);   // DOM に入れた後に描く（clientWidth を使うため）
   }
   function updateBadges() {
     fillBadge($('btn-who'), data);
@@ -550,7 +551,8 @@
     var r = PR.renameProfile(state, p.id, input.value);
     if (!r.ok) {
       kidEdit.err = r.reason === 'chars' ? 'ひらがなで いれてね' : r.reason === 'long' ? '6もじ までに してね' : 'なまえを いれてね';
-      fillKids(); return;
+      var er = $('p-kids').querySelector('.err'); if (er) er.textContent = kidEdit.err; else fillKids();   // 入力欄は作り直さず、文字を残す
+      return;
     }
     state = r.state; rebind(); save(); kidEdit = null; fillParent();
   }
@@ -579,6 +581,7 @@
     $('p-kid-note').textContent = only
       ? 'したの 「すすみぐあい」「レベル」は、いま えらんでいる こ（★）の ものです。さいごの 1にんは けせません。'
       : 'したの 「すすみぐあい」「レベル」は、いま えらんでいる こ（★）の ものです。ほかの こを おすと きりかわります。';
+    [].forEach.call(box.querySelectorAll('canvas'), function (c) { var id = c.getAttribute('data-car'); if (id) drawCarIcon(c, id); });
     var inp = box.querySelector('input');
     if (inp) { inp.focus(); if (inp.scrollIntoView) inp.scrollIntoView({ block: 'center' }); }
   }
@@ -587,10 +590,11 @@
     var pan = el('div', 'kid-edit');
     if (kidEdit.mode === 'name') {
       var input = doc.createElement('input');
-      input.type = 'text'; input.maxLength = 12; input.value = ''; input.placeholder = p.name;
+      input.type = 'text'; input.maxLength = 12; input.value = kidEdit.value || ''; input.placeholder = p.name;
+      input.addEventListener('input', function () { kidEdit.value = input.value; });
       input.setAttribute('autocomplete', 'off'); input.setAttribute('autocapitalize', 'off'); input.setAttribute('spellcheck', 'false'); input.setAttribute('enterkeyhint', 'done');
       input.setAttribute('aria-label', 'なまえ');
-      input.addEventListener('keydown', function (e) { if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); submitName(p, input); } });
+      input.addEventListener('keydown', function (e) { if (e.key === 'Enter' && !e.isComposing && e.keyCode !== 229) { e.preventDefault(); submitName(p, input); } });
       pan.appendChild(input);
       pan.appendChild(el('p', 'err', kidEdit.err));
       pan.appendChild(el('p', 'note', 'ひらがなで 6もじ まで。ほんみょうでは なく、よびなを いれてください。'));
@@ -606,13 +610,13 @@
         b.disabled = used; b.setAttribute('aria-label', carById(id).name);
         var cv = doc.createElement('canvas'); b.appendChild(cv); g.appendChild(b);
         b.addEventListener('click', function () { state = PR.setIcon(state, p.id, id); rebind(); save(); kidEdit = null; fillParent(); });
-        drawCarIcon(cv, id);
+        cv.setAttribute('data-car', id);   // 描くのは行を DOM に入れた後（fillKids の最後）
       });
       pan.appendChild(g);
       var a2 = el('div', 'kid-acts'); a2.appendChild(kidBtn('やめる', 'sub', function () { kidEdit = null; fillKids(); }));
       pan.appendChild(a2);
     } else {
-      pan.appendChild(el('p', 'note warn', p.name + ' の きろくと あつめた くるまが きえます。もういちど おすと けします。'));
+      pan.appendChild(el('p', 'note warn', p.name + ' の きろくと あつめた くるまが きえます。もういちど おすと けします。' + (p === data ? 'いま えらんでいる こなので、★は ほかの こに うつります。' : '')));
       var a3 = el('div', 'kid-acts');
       a3.appendChild(kidBtn('ほんとうに けす', 'danger', function () {
         var r = PR.removeProfile(state, p.id);
@@ -625,7 +629,10 @@
     return pan;
   }
 
+  var addLock = 0;
   function addKid() {
+    if (state.profiles.length >= PR.MAX_PROFILES || now() < addLock) return;   // 連打しても 1 回ぶんだけ
+    addLock = now() + 0.8;
     var r = PR.addProfile(state, '', '', S.newId(Date.now(), Math.random), todayStr());
     if (!r.ok) return;
     state = r.state; rebind(); save();
@@ -796,7 +803,7 @@
     },
     useProfile: useProfile,
     get state() { return state; },
-    addDummyProfile: function () { addKid(); kidEdit = null; },
+    addDummyProfile: function () { addLock = 0; addKid(); kidEdit = null; },
     gotoReward: function (scene) {
       var r = grantReward(scene || 'kaji');
       save();

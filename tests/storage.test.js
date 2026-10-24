@@ -307,3 +307,16 @@ test('v1 あり・setItem が例外 → 取り込んだデータを返し v1 は
     assert.equal(S.isPersistent(), true); assert.ok(mem[S.KEY]);
   } finally { if (orig) Object.defineProperty(globalThis, 'localStorage', orig); else delete globalThis.localStorage; }
 });
+
+test('自動名「こども1〜4」は読み直しても変わらない（削除後・改名後も）', () => {
+  let st = S.defaults('p_a_0001', '2026-10-24');
+  st = PR.addProfile(st, '', '', 'p_a_0002', '2026-10-24').state;
+  st = PR.addProfile(st, '', '', 'p_a_0003', '2026-10-24').state;
+  assert.deepEqual(st.profiles.map(p => p.name), ['こども1', 'こども2', 'こども3']);
+  st = PR.removeProfile(st, 'p_a_0002').state;
+  let back = S.normalize(JSON.parse(JSON.stringify(st)), 'p_z_0000', '2026-10-24');
+  assert.deepEqual(back.profiles.map(p => p.name), ['こども1', 'こども3']);
+  st = PR.renameProfile(st, 'p_a_0001', 'たろう').state;
+  back = S.normalize(JSON.parse(JSON.stringify(st)), 'p_z_0000', '2026-10-24');
+  assert.deepEqual(back.profiles.map(p => p.name), ['たろう', 'こども3']);
+});

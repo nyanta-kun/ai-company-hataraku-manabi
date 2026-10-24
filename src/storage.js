@@ -39,6 +39,7 @@
     var r = Math.floor((rng ? rng() : Math.random()) * 1679616);   // 36^4
     return 'p_' + Math.floor(now).toString(36) + '_' + ('0000' + r.toString(36)).slice(-4);
   }
+  var AUTO_NAME_RE = /^こども[1-4]$/;
   var ID_RE = /^p_[0-9a-z_]{1,24}$/, DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
   // 名前の検査（保護者が入力する。ひらがな 1〜6 文字。カタカナはひらがなに直す）
@@ -117,7 +118,7 @@
       if (list.length >= MAX_PROFILES || !isObj(rp)) return;
       if (typeof rp.id !== 'string' || !ID_RE.test(rp.id) || seen[rp.id]) return;
       seen[rp.id] = true;
-      var nm = normalizeName(rp.name);
+      var nm = AUTO_NAME_RE.test(rp.name) ? { ok: true, name: rp.name } : normalizeName(rp.name);   // 自動名「こども1〜4」は数字入りでもそのまま
       list.push(makeProfile(rp.id, nm.ok ? nm.name : '', ICON_ORDER.indexOf(rp.icon) >= 0 ? rp.icon : '',
         (typeof rp.created === 'string' && DATE_RE.test(rp.created)) ? rp.created : '', normalizeProfile(rp)));
     });
