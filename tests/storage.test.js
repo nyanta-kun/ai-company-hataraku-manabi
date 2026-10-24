@@ -1,6 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const S = require('../src/storage.js');
+const PR = require('../src/profiles.js');
 
 const ID = 'p_aaa_0001', ID2 = 'p_aaa_0002', TODAY = '2026-10-25';
 
@@ -247,4 +248,62 @@ test('localStorage が無い／例外でもクラッシュせず isPersistent �
   } finally {
     if (orig) Object.defineProperty(globalThis, 'localStorage', orig); else delete globalThis.localStorage;
   }
+});
+
+test('normalize: lastProfileId が constructor 等の継承名でも先頭になる', () => {
+  for (const k of ['constructor', '__proto__', 'toString', 'hasOwnProperty'])
+    assert.equal(S.normalize({ device: { lastProfileId: k }, profiles: [prof('p_x_0001'), prof('p_x_0002')] }, ID, TODAY).device.lastProfileId, 'p_x_0001', k);
+});
+
+test('addProfile: 不正な id・today は追加しない', () => {
+  const st = S.defaults(ID, TODAY);
+  for (const bad of [undefined, '', 'x1', 'P_A', 5]) assert.equal(PR.addProfile(st, 'はな', undefined, bad, TODAY).reason, 'id');
+  for (const bad of [undefined, '', '2026/10/25', 5]) assert.equal(PR.addProfile(st, 'はな', undefined, ID2, bad).reason, 'id');
+  assert.equal(PR.addProfile(st, 'はな', undefined, S.newId(Date.now(), Math.random), TODAY).ok, true);
+});
+
+test('load: v2 が有効なプロフィール 0 人 → 退避して v1 から取り込む（v1 が無ければ既定）', () => {
+  const empty = JSON.stringify({ version: 2, device: {}, profiles: [] });
+  withStorage({ [S.KEY]: empty, [S.KEY_V1]: V1_TEXT }, mem => {
+    const st = S.load();
+    assert.equal(mem[S.KEY_BROKEN], empty); assert.equal(st.profiles[0].levels.math, 'M7'); assert.equal(st.device.restoredFromV1, true);
+  });
+  withStorage({ [S.KEY]: empty }, mem => {
+    const st = S.load();
+    assert.equal(mem[S.KEY_BROKEN], empty); assert.equal(st.profiles.length, 1); assert.equal(st.profiles[0].levels.math, 'M1');
+  });
+});
+
+test('load は v2 を書き直さない（読むだけ）', () => {
+  const t = V2_TEXT();
+  withStorage({ [S.KEY]: t }, mem => { S.load(); assert.equal(mem[S.KEY], t); });
+});
+
+test('プロフィール操作 → save → load で往復できる', () => {
+  withStorage({}, () => {
+    let st = S.load();
+    st = PR.addProfile(st, 'はな', undefined, S.newId(Date.now(), Math.random), TODAY).state;
+    st = PR.selectProfile(st, st.profiles[1].id);
+    PR.currentProfile(st).cards.dump = 2;
+    st = PR.renameProfile(st, st.profiles[0].id, 'たろう').state;
+    S.save(st);
+    const back = S.load();
+    assert.deepEqual(back, st);
+    assert.equal(PR.currentProfile(back).name, 'はな'); assert.equal(PR.currentProfile(back).cards.dump, 2);
+  });
+});
+
+test('v1 あり・setItem が例外 → 取り込んだデータを返し v1 は残り isPersistent は false。成功後は true に戻る', () => {
+  const mem = { [S.KEY_V1]: V1_TEXT }; let fail = true;
+  const orig = Object.getOwnPropertyDescriptor(globalThis, 'localStorage');
+  Object.defineProperty(globalThis, 'localStorage', { value: {
+    getItem: k => (k in mem ? mem[k] : null),
+    setItem: (k, v) => { if (fail) throw new Error('quota'); mem[k] = String(v); }, removeItem: k => { delete mem[k]; } }, configurable: true, writable: true });
+  try {
+    const st = S.load();
+    assert.equal(st.profiles[0].levels.math, 'M7'); assert.equal(mem[S.KEY_V1], V1_TEXT);
+    assert.equal(S.isPersistent(), false); assert.ok(!(S.KEY in mem));
+    fail = false; S.save(st);
+    assert.equal(S.isPersistent(), true); assert.ok(mem[S.KEY]);
+  } finally { if (orig) Object.defineProperty(globalThis, 'localStorage', orig); else delete globalThis.localStorage; }
 });

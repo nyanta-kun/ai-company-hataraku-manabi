@@ -23,7 +23,7 @@
     if (nm.ok) label = nm.name;
     else if (nm.reason === 'empty') label = S.nextName(state.profiles);
     else return fail(state, nm.reason);
-    if (typeof id !== 'string' || indexOf(state, id) >= 0) return fail(state, 'id');
+    if (!S.isId(id) || !S.isDate(today) || indexOf(state, id) >= 0) return fail(state, 'id');
     var used = state.profiles.some(function (p) { return p.icon === icon; });
     var ic = (ICON_ORDER.indexOf(icon) >= 0 && !used) ? icon : freeIcon(state);
     var next = clone(state);

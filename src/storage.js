@@ -112,7 +112,7 @@
     var d = defaults(id, today);
     if (!isObj(raw)) return d;
     var dev = isObj(raw.device) ? raw.device : {};
-    var list = [], seen = {};
+    var list = [], seen = Object.create(null);
     (Array.isArray(raw.profiles) ? raw.profiles : []).forEach(function (rp) {
       if (list.length >= MAX_PROFILES || !isObj(rp)) return;
       if (typeof rp.id !== 'string' || !ID_RE.test(rp.id) || seen[rp.id]) return;
@@ -157,6 +157,10 @@
 
   var persistent = true;
   function store() { try { return root.localStorage || null; } catch (e) { return null; } }
+  function isId(v) { return typeof v === 'string' && ID_RE.test(v); }
+  function isDate(v) { return typeof v === 'string' && DATE_RE.test(v); }
+  // v2 として使えるか（有効な id のプロフィールが 1 人以上ある）
+  function hasProfile(v) { return Array.isArray(v.profiles) && v.profiles.some(function (p) { return isObj(p) && isId(p.id); }); }
   function parseObj(text) {   // 壊れていたら undefined
     try { var v = JSON.parse(text); return isObj(v) ? v : undefined; } catch (e) { return undefined; }
   }
@@ -168,7 +172,7 @@
     try { t2 = ls.getItem(KEY); } catch (e) { persistent = false; return fresh(); }
     if (t2) {
       v2 = parseObj(t2);
-      if (v2) return normalize(v2, newId(Date.now(), Math.random), todayLocal());
+      if (v2 && hasProfile(v2)) return normalize(v2, newId(Date.now(), Math.random), todayLocal());
       broken = true;
       try { ls.setItem(KEY_BROKEN, t2); } catch (e) {}
     }
@@ -198,7 +202,7 @@
   var api = {
     KEY: KEY, KEY_V1: KEY_V1, KEY_BROKEN: KEY_BROKEN, MAX_PROFILES: MAX_PROFILES, ICON_ORDER: ICON_ORDER,
     defaultProgress: defaultProgress, normalizeProfile: normalizeProfile, defaultProfile: defaultProfile, defaults: defaults,
-    normalize: normalize, migrateV1: migrateV1, normalizeName: normalizeName, nextName: nextName, freeIconIn: freeIconIn, newId: newId,
+    normalize: normalize, migrateV1: migrateV1, normalizeName: normalizeName, isId: isId, isDate: isDate, nextName: nextName, freeIconIn: freeIconIn, newId: newId,
     load: load, save: save, clear: clear, fresh: fresh, isPersistent: isPersistent
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;

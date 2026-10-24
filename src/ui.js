@@ -649,7 +649,11 @@
     get data() { return data; },
     setData: function (d) {   // 今のプロフィールを置き換える
       var i = state.profiles.indexOf(data);
-      if (i >= 0) state.profiles[i] = d;
+      if (i >= 0) {
+        var cur = state.profiles[i];
+        ['id', 'name', 'icon', 'created'].forEach(function (k) { if (d[k] === undefined) d[k] = cur[k]; });
+        state.profiles[i] = d;
+      }
       data = d; applySound(); save();
     },
     useProfile: useProfile,

@@ -107,6 +107,7 @@
 1. `localStorage` が使えない（取得・`getItem` で例外） → `persistent=false`。メモリ上の既定（こども1 が 1 人）で動く。
 2. v2 キーがあり、`JSON.parse` できる → `normalize(raw)`。
 3. v2 キーがあるが `JSON.parse` できない（壊れた文字列） → 壊れた文字列を `hataraku-manabi:v2:broken` に 1 つだけ退避（上書き）し、4 へ進む。
+   - JSON として読めても object でない、または有効な id のプロフィールが 0 人の場合も、壊れた扱い（3）にする。
 4. v1 キーがあり、`JSON.parse` できる → `migrateV1(raw, id, today)` で取り込み、**すぐ v2 に保存**する。v1 キーは消さない。
 5. どれでもない（新しい端末、または v1 も壊れている） → 既定（こども1 が 1 人）。保存は最初の `save()` のとき。
 
@@ -163,13 +164,13 @@ v2 が壊れていて v1 から取り込み直した場合、v1 は移行した�
 | `ICON_ORDER` | 車 id の配列 | 新しいプロフィールの既定アイコンの順番: `shoubousha, kyukyu, hashigo, dump, shovel, chodai, mizutank, gomi, bulldozer, forklift, nekoguruma` |
 | `freeIcon(state)` | → 車 id | `ICON_ORDER` のうち、まだ誰も使っていない先頭 |
 | `addProfile(state, name, icon, id, today)` | → `{ state, ok, reason }` | 4 人いれば `ok:false, reason:'full'`。名前は `normalizeName`、空なら `'こども' + n`（使われていない最小の n） |
-| `renameProfile(state, id, name)` | → `{ state, ok, reason }` | `normalizeName` が空なら `ok:false, reason:'empty'` |
+| `renameProfile(state, id, name)` | → `{ state, ok, reason }` | `normalizeName` が不正なら `ok:false`（`reason` は `'empty'`・`'chars'`・`'long'`、id が無ければ `'none'`） |
 | `setIcon(state, id, icon)` | → state | 他の子が使っているアイコンは選べない（同じ絵だと子どもが見分けられない）。不正値は変えない |
 | `removeProfile(state, id)` | → `{ state, ok, reason }` | **最後の 1 人は消せない**（`reason:'last'`。全部消したいときは「データをけす」）。消したのが `lastProfileId` なら先頭に移す |
 | `selectProfile(state, id)` | → state | `device.lastProfileId = id` |
 | `currentProfile(state)` | → プロフィール | `lastProfileId` の子（いなければ先頭） |
 | `orderForPicker(state)` | → プロフィールの配列 | 直前に遊んだ子が先頭、残りは作った順 |
-| `normalizeName(s)` | → 文字列（0〜6 文字） | 2.6 |
+| `normalizeName(s)` | → `{ ok:true, name }` または `{ ok:false, reason:'empty'\|'chars'\|'long' }` | 2.6 |
 
 置き場所の比較: storage.js に全部入れる案もあるが、storage.js は「保存の形と I/O」、profiles.js は「プロフィールの操作」と分けた方がテストの見通しが良い。依存は `profiles.js → storage.js / data.js` の一方向。
 
