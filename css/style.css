@@ -168,5 +168,56 @@ canvas { display: block; }
 #s-title { background: #7bbf6a; }
 #titleCanvas { bottom: auto; height: 60%; }
 #s-title .title-box { position: static; margin-top: auto; margin-bottom: 3vh; }
-#s-title h1 { position: absolute; top: 5vh; left: 0; right: 0; margin: 0; z-index: 3; text-align: center; }
+#s-title h1 { position: absolute; top: max(5vh, 84px); left: 0; right: 0; margin: 0; z-index: 3; text-align: center; }
 @media (max-aspect-ratio: 1/1) { #s-title h1 { top: 100px; } }
+
+/* 名札（タイトル上端の中央・出動えらび・保護者画面の見出し） */
+.badge { display: inline-flex; align-items: center; gap: 6px; padding: 4px 12px 4px 8px; border-radius: 999px; background: rgba(255,255,255,.88); border: 3px solid rgba(58,43,36,.35); font-weight: bold; font-size: 20px; line-height: 1.2; max-width: 100%; }
+.badge canvas { width: 44px; height: 33px; flex: none; }
+.badge span { white-space: nowrap; }
+button.badge { position: absolute; z-index: 5; top: max(18px, calc(env(safe-area-inset-top) + 6px)); left: 50%; transform: translateX(-50%); min-height: 56px; }
+button.badge:active { transform: translateX(-50%) translateY(2px); }
+.badge.small { font-size: 16px; padding: 2px 10px 2px 6px; border-width: 2px; vertical-align: middle; }
+.badge.small canvas { width: 32px; height: 24px; }
+#pick-badge { margin-bottom: 12px; }
+h3 .badge { margin-left: 8px; }
+
+/* だれが あそぶ？: 横は 1 列（最大 4）、iPhone 縦は 2×2 */
+.who-box { margin: auto; width: 100%; padding: 16px; text-align: center; }
+.who-box h2 { font-size: clamp(26px, 6vmin, 44px); margin: 0 0 clamp(14px, 4vmin, 28px); }
+#who-list { display: flex; gap: 16px; justify-content: center; flex-wrap: wrap; }
+.who-btn { width: clamp(120px, 20vw, 200px); min-height: 120px; padding: 10px 6px; border-radius: 24px; background: #fff; border: 5px solid #3a7bd5; border-bottom-width: 9px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; }
+.who-btn:active { transform: translateY(3px); }
+.who-btn canvas { width: 100%; max-width: 150px; aspect-ratio: 4 / 3; height: auto; }
+.who-btn span { font-size: clamp(18px, 4.5vmin, 28px); font-weight: bold; white-space: nowrap; }
+@media (max-width: 599px) and (orientation: portrait) {
+  #who-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); max-width: 380px; margin: 0 auto; }
+  .who-btn { width: auto; min-height: 150px; }
+}
+@media (orientation: landscape) and (max-height: 520px) {
+  .who-box h2 { margin-bottom: 8px; }
+  .who-btn { min-height: 100px; width: clamp(120px, 20vw, 170px); }
+  .who-btn canvas { max-width: 110px; }
+  button.badge { min-height: 48px; }
+  .badge canvas { width: 36px; height: 27px; }
+}
+
+/* 保護者画面: こども */
+.kid { border: 2px solid #e5dcc8; border-radius: 14px; padding: 6px; margin-bottom: 10px; }
+.kid.cur { border-color: #3a7bd5; background: #eef5ff; }
+.kid-main { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 56px; text-align: left; font-size: 20px; }
+.kid-main .cur-mark { color: #f2a900; font-size: 22px; }
+.kid-acts { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
+.kid-acts .pbtn { min-height: 48px; padding: 0 14px; margin: 0; }
+.pbtn.sub { background: #8a7f6c; }
+.kid-edit { margin-top: 8px; padding-top: 8px; border-top: 1px dashed #d9cdb4; }
+.kid-edit input[type=text] { width: 100%; font-size: 20px; min-height: 52px; padding: 0 12px; border: 3px solid #3a7bd5; border-radius: 12px; font-family: inherit; user-select: text; -webkit-user-select: text; }
+.kid-edit .err { color: #c62828; font-weight: bold; font-size: 16px; margin: 6px 0 0; min-height: 1.3em; }
+.icons { display: grid; grid-template-columns: repeat(auto-fill, minmax(76px, 1fr)); gap: 8px; }
+.icons button { border: 3px solid #d9cdb4; border-radius: 12px; background: #fff; padding: 2px; }
+.icons button.sel { border-color: #3a7bd5; background: #eef5ff; }
+.icons button:disabled { opacity: .3; background: #ddd; }
+.icons canvas { width: 100%; aspect-ratio: 4 / 3; height: auto; }
+.note.warn { color: #c0560a; font-weight: bold; }
+ul.note { padding-left: 20px; }
+ul.note li { margin-bottom: 4px; }

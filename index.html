@@ -15,6 +15,7 @@
     <button id="btn-gear" class="corner tr" type="button" aria-label="おうちのひと"><canvas width="64" height="64" data-icon="gear"></canvas><span class="ring"></span></button>
     <button id="btn-sound" class="corner tl" type="button" aria-label="おと"><canvas width="64" height="64" data-icon="speaker"></canvas></button>
     <div class="voice-x" hidden><canvas width="48" height="48" data-icon="speakerx"></canvas></div>
+    <button id="btn-who" class="badge" type="button" aria-label="だれが あそぶ"></button>
     <div class="title-box">
       <h1>はたらくまなび</h1>
       <div class="row">
@@ -24,10 +25,19 @@
     </div>
   </section>
 
+  <!-- だれが あそぶ？ -->
+  <section id="s-who" class="screen">
+    <div class="who-box">
+      <h2>だれが あそぶ？</h2>
+      <div id="who-list"></div>
+    </div>
+  </section>
+
   <!-- 出動えらび -->
   <section id="s-pick" class="screen">
     <button id="btn-pick-back" class="corner tl" type="button" aria-label="もどる"><canvas width="64" height="64" data-icon="back"></canvas></button>
     <div class="pick-box">
+      <div id="pick-badge" class="badge small"></div>
       <h2>どれで しゅつどう？</h2>
       <div class="row">
         <button id="btn-math" class="big math" type="button"><canvas width="96" height="96" data-icon="kazu"></canvas><span>かず</span></button>
@@ -87,7 +97,12 @@
       <h2>おうちのひと</h2>
     </header>
     <div id="parent-body">
-      <div class="card"><h3>すすみぐあい</h3><div id="p-progress"></div></div>
+      <div class="card"><h3>こども（4にん まで）</h3>
+        <div id="p-kids"></div>
+        <button id="p-kid-add" type="button" class="pbtn">こどもを ふやす</button>
+        <p id="p-kid-note" class="note">したの 「すすみぐあい」「レベル」は、いま えらんでいる こ（★）の ものです。ほかの こを おすと きりかわります。</p>
+      </div>
+      <div class="card"><h3>すすみぐあい <span class="who-tag badge small"></span></h3><div id="p-progress"></div></div>
       <div class="card"><h3>おと</h3>
         <label class="chk"><input type="checkbox" id="p-sfx"> こうかおん</label>
         <label class="chk"><input type="checkbox" id="p-voice"> よみあげ</label>
@@ -96,7 +111,7 @@
         <button id="p-test-en" type="button" class="pbtn">えいごテスト</button>
         <p id="p-en-note" class="note"></p>
       </div>
-      <div class="card"><h3>レベル</h3>
+      <div class="card"><h3>レベル <span class="who-tag badge small"></span></h3>
         <div class="lv"><span>かず</span><select id="p-lv-math"></select><label class="chk"><input type="checkbox" id="p-lock-math"> このレベルでこてい</label></div>
         <div class="lv"><span>もじ</span><select id="p-lv-letter"></select><label class="chk"><input type="checkbox" id="p-lock-letter"> このレベルでこてい</label></div>
         <div class="lv"><span>とけい</span><select id="p-lv-clock"></select><label class="chk"><input type="checkbox" id="p-lock-clock"> このレベルでこてい</label></div>
@@ -104,7 +119,14 @@
         <p class="note">こていしないと、4もん ぜんぶ 1かいで せいかいで 1つ上がり、0〜1もんで 1つ下がります。もじ の K4〜K6 はカタカナです（ひらがなだけにしたいときは K3 でこてい）。</p>
       </div>
       <div class="card"><h3>データ</h3>
-        <button id="p-clear" type="button" class="pbtn danger">データをけす</button>
+        <p id="p-restored" class="note warn" hidden>ほぞんデータが こわれていたので、まえの きろくから もどしました。</p>
+        <p class="note">きろくは この たんまつの ブラウザの なかだけに ほぞんします（そとには おくりません）。</p>
+        <ul class="note keep">
+          <li>iPad / iPhone の Safari で ひらいて いる ときは、7にちくらい あそばないと きろくが きえる ことが あります。<b>さきに「ホームがめんに ついか」してから</b> あそぶと きえにくく なります。</li>
+          <li>Safari で あそんだ きろくは、あとから ホームがめんに ついかした ほうには ひきつがれません（べつの ほぞんばしょ に なります）。</li>
+          <li>たんまつを かえたり、ブラウザの データを けしたり すると きろくは きえます。</li>
+        </ul>
+        <button id="p-clear" type="button" class="pbtn danger">ぜんぶの こどもの きろくを けす</button>
         <p id="p-clear-note" class="note"></p>
         <p id="p-storage-note" class="note" hidden>この たんまつでは ほぞんできません（とじると きえます）。</p>
       </div>

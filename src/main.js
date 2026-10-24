@@ -52,6 +52,8 @@
     btn('全車なし', function () { ui.data.cards = {}; ui.setData(ui.data); });
     btn('しゃこ', function () { ui.show('garage'); });
     btn('おうちのひと', function () { ui.show('parent'); });
+    btn('こども+', function () { ui.addDummyProfile(); });
+    btn('だれ', function () { ui.show('who'); });
     btn('タイトル', function () { ui.show('title'); });
     btn('えいちらん', togglePicGrid);
     btn('声なし', function () { M.speech.forceVoiceless(); });
@@ -69,6 +71,7 @@
     else if (g[0] === 'reward') ui.gotoReward(g[1] || 'kaji');
     else if (g[0] === 'garage') ui.previewGarage();
     else if (g[0] === 'parent') ui.show('parent');
+    else if (g[0] === 'who') ui.show('who');
     return log;
   }
 

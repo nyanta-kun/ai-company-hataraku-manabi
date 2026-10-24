@@ -94,6 +94,42 @@
   }
   function drawAllIcons() { [].forEach.call(doc.querySelectorAll('canvas[data-icon]'), function (cv) { drawIcon(cv, cv.getAttribute('data-icon')); }); }
 
+  // ---- プロフィールの絵・名札 ----
+  // 車の絵を canvas に描く（枠は 4:3。css の大きさに合わせて解像度を決める）
+  function drawCarIcon(cv, carId) {
+    var car = carById(carId); if (!car) return;
+    var dpr = root.devicePixelRatio || 1, w = cv.clientWidth || 44, h = Math.round(w * 0.75);
+    cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr);
+    var ctx = cv.getContext('2d'); ctx.setTransform(cv.width / w, 0, 0, cv.height / h, 0, 0);
+    V.drawVehicle(ctx, car.stage, w / 2, h * 0.45, w * 0.85);
+  }
+  // 要素の中に「車の絵 + 名前」を作る（名前は textContent で入れる）
+  function fillBadge(el, p) {
+    el.textContent = '';
+    var cv = doc.createElement('canvas'), sp = doc.createElement('span');
+    sp.textContent = p.name;
+    el.appendChild(cv); el.appendChild(sp);
+    drawCarIcon(cv, p.icon);
+  }
+  function updateBadges() {
+    fillBadge($('btn-who'), data);
+    fillBadge($('pick-badge'), data);
+    [].forEach.call(doc.querySelectorAll('.who-tag'), function (e) { fillBadge(e, data); });
+  }
+  function buildWho() {
+    var box = $('who-list'); box.textContent = '';
+    PR.orderForPicker(state).forEach(function (p) {
+      var b = doc.createElement('button'); b.type = 'button'; b.className = 'who-btn';
+      var cv = doc.createElement('canvas'), sp = doc.createElement('span');
+      sp.textContent = p.name; b.appendChild(cv); b.appendChild(sp); box.appendChild(b);
+      b.addEventListener('click', function () {
+        sfx('tap'); useProfile(p.id); show('title');
+        say(p.name + 'さん、しゅつどうの じゅんび！');
+      });
+      drawCarIcon(cv, p.icon);
+    });
+  }
+
   // ---- 画面切替 ----
   var lockUntil = 0;
   function show(name) {
@@ -103,8 +139,9 @@
     if (name !== 'play' && name !== 'reward') SP.cancel();
     [].forEach.call(doc.querySelectorAll('.screen'), function (s) { s.classList.toggle('active', s.id === 's-' + name); });
     updateVoiceMark();
-    if (name === 'title') { drawTitle(); kick(); }
-    if (name === 'pick') { updatePick(); later(300, function () { say('どれで出動する？'); }); }
+    if (name === 'who') { buildWho(); later(300, function () { say('だれが遊ぶ？'); }); }
+    if (name === 'title') { updateBadges(); drawTitle(); kick(); }
+    if (name === 'pick') { updateBadges(); updatePick(); later(300, function () { say('どれで出動する？'); }); }
     if (name === 'garage') buildGarage();
     if (name === 'parent') fillParent();
     if (name === 'play' && stage) { stage.resize(); stage.draw(now()); }
@@ -500,6 +537,102 @@
 
   // ---- おうちのひと ----
   var clearStep = 0;
+  var kidEdit = null;          // { id, mode: 'name' | 'icon' | 'del', err } 開いている編集欄（1 つだけ）
+  var restoredShown = false;   // 「もどしました」の表示は保護者画面を出ている間だけ（フラグは出した時点で消す）
+
+  function kidBtn(label, cls, fn) {
+    var b = doc.createElement('button'); b.type = 'button'; b.className = 'pbtn' + (cls ? ' ' + cls : ''); b.textContent = label;
+    b.addEventListener('click', fn); return b;
+  }
+  function el(tag, cls, text) { var e = doc.createElement(tag); if (cls) e.className = cls; if (text) e.textContent = text; return e; }
+
+  function submitName(p, input) {
+    var r = PR.renameProfile(state, p.id, input.value);
+    if (!r.ok) {
+      kidEdit.err = r.reason === 'chars' ? 'ひらがなで いれてね' : r.reason === 'long' ? '6もじ までに してね' : 'なまえを いれてね';
+      fillKids(); return;
+    }
+    state = r.state; rebind(); save(); kidEdit = null; fillParent();
+  }
+
+  function fillKids() {
+    var box = $('p-kids'); box.textContent = '';
+    var only = state.profiles.length <= 1;
+    state.profiles.forEach(function (p) {
+      var row = el('div', 'kid' + (p === data ? ' cur' : ''));
+      var main = el('button', 'kid-main'); main.type = 'button';
+      var badge = el('span', 'badge small'); fillBadge(badge, p);
+      main.appendChild(badge);
+      if (p === data) main.appendChild(el('span', 'cur-mark', '★ いま'));
+      main.addEventListener('click', function () { if (p !== data) { useProfile(p.id); kidEdit = null; fillParent(); } });
+      row.appendChild(main);
+      var acts = el('div', 'kid-acts');
+      acts.appendChild(kidBtn('なまえ', '', function () { kidEdit = { id: p.id, mode: 'name', err: '' }; fillKids(); }));
+      acts.appendChild(kidBtn('えを かえる', '', function () { kidEdit = { id: p.id, mode: 'icon', err: '' }; fillKids(); }));
+      if (!only) acts.appendChild(kidBtn('けす', 'danger', function () { kidEdit = { id: p.id, mode: 'del', err: '' }; fillKids(); }));
+      row.appendChild(acts);
+      if (kidEdit && kidEdit.id === p.id) row.appendChild(kidEditPanel(p));
+      box.appendChild(row);
+    });
+    $('p-kid-add').disabled = state.profiles.length >= PR.MAX_PROFILES;
+    $('p-kid-add').textContent = state.profiles.length >= PR.MAX_PROFILES ? '4にん いるので ふやせません' : 'こどもを ふやす';
+    $('p-kid-note').textContent = only
+      ? 'したの 「すすみぐあい」「レベル」は、いま えらんでいる こ（★）の ものです。さいごの 1にんは けせません。'
+      : 'したの 「すすみぐあい」「レベル」は、いま えらんでいる こ（★）の ものです。ほかの こを おすと きりかわります。';
+    var inp = box.querySelector('input');
+    if (inp) { inp.focus(); if (inp.scrollIntoView) inp.scrollIntoView({ block: 'center' }); }
+  }
+
+  function kidEditPanel(p) {
+    var pan = el('div', 'kid-edit');
+    if (kidEdit.mode === 'name') {
+      var input = doc.createElement('input');
+      input.type = 'text'; input.maxLength = 12; input.value = ''; input.placeholder = p.name;
+      input.setAttribute('autocomplete', 'off'); input.setAttribute('autocapitalize', 'off'); input.setAttribute('spellcheck', 'false'); input.setAttribute('enterkeyhint', 'done');
+      input.setAttribute('aria-label', 'なまえ');
+      input.addEventListener('keydown', function (e) { if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); submitName(p, input); } });
+      pan.appendChild(input);
+      pan.appendChild(el('p', 'err', kidEdit.err));
+      pan.appendChild(el('p', 'note', 'ひらがなで 6もじ まで。ほんみょうでは なく、よびなを いれてください。'));
+      var acts = el('div', 'kid-acts');
+      acts.appendChild(kidBtn('きめる', '', function () { submitName(p, input); }));
+      acts.appendChild(kidBtn('やめる', 'sub', function () { kidEdit = null; fillKids(); }));
+      pan.appendChild(acts);
+    } else if (kidEdit.mode === 'icon') {
+      var g = el('div', 'icons');
+      PR.ICON_ORDER.forEach(function (id) {
+        var b = el('button', id === p.icon ? 'sel' : ''); b.type = 'button';
+        var used = state.profiles.some(function (q) { return q.id !== p.id && q.icon === id; });
+        b.disabled = used; b.setAttribute('aria-label', carById(id).name);
+        var cv = doc.createElement('canvas'); b.appendChild(cv); g.appendChild(b);
+        b.addEventListener('click', function () { state = PR.setIcon(state, p.id, id); rebind(); save(); kidEdit = null; fillParent(); });
+        drawCarIcon(cv, id);
+      });
+      pan.appendChild(g);
+      var a2 = el('div', 'kid-acts'); a2.appendChild(kidBtn('やめる', 'sub', function () { kidEdit = null; fillKids(); }));
+      pan.appendChild(a2);
+    } else {
+      pan.appendChild(el('p', 'note warn', p.name + ' の きろくと あつめた くるまが きえます。もういちど おすと けします。'));
+      var a3 = el('div', 'kid-acts');
+      a3.appendChild(kidBtn('ほんとうに けす', 'danger', function () {
+        var r = PR.removeProfile(state, p.id);
+        if (r.ok) { state = r.state; rebind(); save(); }
+        kidEdit = null; fillParent();
+      }));
+      a3.appendChild(kidBtn('やめる', 'sub', function () { kidEdit = null; fillKids(); }));
+      pan.appendChild(a3);
+    }
+    return pan;
+  }
+
+  function addKid() {
+    var r = PR.addProfile(state, '', '', S.newId(Date.now(), Math.random), todayStr());
+    if (!r.ok) return;
+    state = r.state; rebind(); save();
+    kidEdit = { id: state.profiles[state.profiles.length - 1].id, mode: 'name', err: '' };
+    fillKids();
+  }
+
   function fillParent() {
     var st = data.stats, have = 0, stars = 0;
     D.CARS.forEach(function (c) { var n = data.cards[c.id] || 0; if (n) have++; stars += n; });
@@ -518,8 +651,11 @@
       sel.value = data.levels[g]; $('p-lock-' + g).checked = data.locked[g];
     });
     voiceNote(); enNote();
+    if (dev.restoredFromV1) { restoredShown = true; delete dev.restoredFromV1; save(); }
+    $('p-restored').hidden = !restoredShown;
     $('p-storage-note').hidden = S.isPersistent();
-    clearStep = 0; $('p-clear').textContent = 'データをけす'; $('p-clear-note').textContent = '';
+    clearStep = 0; $('p-clear').textContent = 'ぜんぶの こどもの きろくを けす'; $('p-clear-note').textContent = '';
+    updateBadges(); fillKids();
   }
   function voiceNote() {
     var n = $('p-voice-note');
@@ -615,7 +751,9 @@
     $('btn-r-garage').addEventListener('click', function () { sfx('tap'); show('garage'); });
     $('btn-r-again').addEventListener('click', function () { sfx('tap'); show('pick'); });
     $('btn-g-back').addEventListener('click', function () { sfx('tap'); show('title'); });
-    $('btn-p-back').addEventListener('click', function () { show('title'); });
+    $('btn-p-back').addEventListener('click', function () { kidEdit = null; restoredShown = false; show('title'); });
+    $('btn-who').addEventListener('click', function () { sfx('tap'); if (state.profiles.length > 1) show('who'); });
+    $('p-kid-add').addEventListener('click', addKid);
 
     // 保護者画面
     $('p-sfx').addEventListener('change', function () { dev.sound.sfx = this.checked; applySound(); save(); updateVoiceMark(); sfx('correct'); });
@@ -634,13 +772,13 @@
     });
     $('p-clear').addEventListener('click', function () {
       clearStep++;
-      if (clearStep === 1) { this.textContent = 'ほんとうに けしますか？（もういちど おす）'; $('p-clear-note').textContent = 'あつめた くるまと すすみぐあいが すべて きえます。'; }
+      if (clearStep === 1) { this.textContent = 'ほんとうに けしますか？（もういちど おす）'; $('p-clear-note').textContent = state.profiles.length + 'にん ぶんの きろくと あつめた くるまが すべて きえます。'; }
       else {
-        S.clear(); state = S.fresh(); rebind(); applySound(); save(); fillParent(); updateVoiceMark();
+        S.clear(); state = S.fresh(); rebind(); kidEdit = null; restoredShown = false; applySound(); save(); fillParent(); updateVoiceMark();
         $('p-clear-note').textContent = 'データを けしました。';
       }
     });
-    show('title');
+    show(state.profiles.length > 1 ? 'who' : 'title');
   }
 
   // main.js から使う / デバッグ用
@@ -657,6 +795,8 @@
       data = d; applySound(); save();
     },
     useProfile: useProfile,
+    get state() { return state; },
+    addDummyProfile: function () { addKid(); kidEdit = null; },
     gotoReward: function (scene) {
       var r = grantReward(scene || 'kaji');
       save();
