@@ -610,7 +610,8 @@ R2-a・R2-b を実装して、設計から変えた点と、設計に無かっ�
 - `file://` では Google ログインは動かない。Firebase Authentication は `http` / `https` などのページでしか動かない（Firebase の FAQ とエラーの報告）。Google Identity Services も「承認済みの JavaScript 生成元」が要る。→ **ホスティング（公開された URL）が必須**。`file://` で開いたときは、ログインの項目を出さずに第1段階（R1）のまま動かす。
 - `localhost` は Firebase Authentication の承認済みドメインに最初から入っている（開発時の確認はローカルサーバーで可能）。
 - iPad/iPhone の Safari（16.1 以降）は第三者のストレージを遮断するので、Firebase の `signInWithRedirect` は、アプリと `authDomain` を同じオリジンにする等の対応が無いと動かない。**Firebase Hosting（`<プロジェクト>.web.app`）に置き、`authDomain` をアプリのドメインにする**のが公式の推奨の 1 つ。`signInWithPopup` を使う手もあるが、モバイルでは使い勝手が落ちる・ブロックされることがある（Firebase 公式）。
-- GitHub Pages は、無料プランでは**公開リポジトリだけ**（このリポジトリは private）。private のまま使うには有料プラン（Pro）が要る（GitHub 公式）。
+- GitHub Pages は、無料プランでは公開リポジトリだけ（GitHub 公式）。**（2026-10-24 更新）リポジトリは public になり、テスト版は GitHub Pages（`https://nyanta-kun.github.io/ai-company-hataraku-manabi/`）に決まった**。CI が main のたびに `index.html`・`css`・`src` を公開する（`.github/workflows/ci.yml:35-38`）。
+- **（R4-0 で追記）GitHub Pages でのログインの方式**: このアプリは `nyanta-kun.github.io` の下の階層にあり、ドメイン直下（`/__/auth/`）に補助ファイルを置けず、中継（リバースプロキシ）もできない。残る現実的な方法は **`signInWithPopup`**。ただし、ホーム画面に追加したアプリ（2.8 で勧めている）ではポップアップのログインが失敗するという報告がある（公式ではない）。→ **R4-1 の最初に実機で確かめ、動かなければ「ログインする家庭は Safari で使う」か「Firebase Hosting に移す」をユーザーに選んでもらう**。比較は `docs/r4-firebase-setup.md` 2 章（こちらが正）。
 
 ### 7.2 案の比較
 
@@ -619,10 +620,10 @@ R2-a・R2-b を実装して、設計から変えた点と、設計に無かっ�
 | 保存先 | 運営（このアプリのプロジェクト）の Firestore | 保護者自身の Google ドライブの「アプリ専用の隠しフォルダ」。他のアプリや保護者のドライブ画面からは見えない。アプリをドライブから外すと消える（Google 公式） |
 | ログインの続き | Firebase Auth が端末内にログイン状態を保つので、**保護者が一度ログインすれば、子どもが遊ぶたびに裏で同期できる** | GIS のトークン方式は**ブラウザにリフレッシュトークンを持たない**。アクセストークンは短命で、切れたら「ボタンを押すなど利用者の操作から」取り直す（Google 公式）。→ 子どもが遊んでいる間に切れると同期できず、保護者が「つなぐ」を押し直す運用になる |
 | 個人情報の説明 | 運営側に子どものニックネームと進み具合を預かる。保護者のメールアドレス・表示名は Firebase Authentication の利用者一覧に入り、プロジェクトの管理者がコンソールで見られる | 運営は子どものデータを持たない（説明しやすい）。必要なスコープは `drive.appdata`（Google の分類で非センシティブ） |
-| 料金 | Spark プラン（無料）: 請求先の登録不要。Firestore は保存 1 GiB、読み取り 5 万／日、書き込み 2 万／日、削除 2 万／日、転送 10 GiB／月。超えても課金ではなく、その月はその機能が止まる。Google ログインは無料。Hosting は保存 10 GB、転送 10 GB／月（Firebase 公式） | Drive API の利用は無料。保存は保護者のドライブの容量（数 KB） |
+| 料金 | Spark プラン（無料）: 請求先の登録不要。Firestore は保存 1 GiB、読み取り 5 万／日、書き込み 2 万／日、削除 2 万／日、転送 10 GiB／月。超えても課金ではなく、その月はその機能が止まる。Google ログインは無料。（R4-0 更新）GitHub Pages に置くので Hosting は使わない（Firebase Hosting に移す場合の枠は `docs/r4-firebase-setup.md` 2 章） | Drive API の利用は無料。保存は保護者のドライブの容量（数 KB） |
 | 想定の使用量 | 1 家族あたり 1 出動 1 書き込み、起動時 1 読み取り。家族で使う範囲では無料枠の 1% にも届かない | — |
 | SDK の読み込み | 公式の CDN（`https://www.gstatic.com/firebasejs/<版>/firebase-app.js` など）は ES モジュール（`import`）。公式は npm + バンドラを強く勧めるが、CDN も手段として載っている | GIS は `https://accounts.google.com/gsi/client` を Google から読む。**自前で置くことは非対応**（Google 公式）。Drive は REST を `fetch` で呼べる（gapi は不要） |
-| ホスティング | Firebase Hosting が素直（7.1 の Safari の件） | どこでも良い（GitHub Pages なら公開リポジトリが条件） |
+| ホスティング | （R4-0 更新）GitHub Pages に決定。ログインは `signInWithPopup`（7.1）。実機で動かなければ Firebase Hosting に移す案が残る | どこでも良い |
 | 作る量 | ログイン・同期・削除。オフラインは R1 の端末内保存が正なので、Firestore のオフライン機能は使わない | ログイン・手動の保存/読み込み・削除。トークン切れの扱いが増える |
 
 **推奨: A**。決め手は「一度ログインすれば裏で同期できる」こと。B は保護者がそのつど「つなぐ」を押す運用になり、依頼の「次回以降引き続き」「別の端末で引き継ぎ」を自然に満たせない。また、iPad/iPhone の Safari では R1 の記録が 7 日ルールで消えうる（2.8）ので、**裏で自動的にクラウドへ写しておけること自体が記録を守る手段になる**（Firebase のログイン状態も同じルールで消えうるが、そのときは記録はクラウドに残っており、ログインし直せば戻る）。
@@ -638,18 +639,19 @@ B を選ぶべき場合: 「運営側に子どものデータを一切置かな�
 | 3. ビルド工程を入れる | npm + バンドラ | 方針（ビルドなし）を崩す。採らない |
 
 - 動的 `import()` は classic script の中からも使える（`type="module"` に書き換える必要はない）。
+- **（R4-0 で追記）ポップアップとの相性**: ブラウザは利用者のタップの処理の中で開いたポップアップだけを通す。「ログイン」を押してから `await import()` で SDK を読み、その後に `signInWithPopup` を呼ぶと、間に待ちが入って Safari が塞ぐおそれがある（未検証）。そこで読み込みの時を「ログインを押したとき」から**「説明と同意の画面で『同意して次へ』を押したとき」**に変え、読み終わってから出す「Google でログイン」のボタンの処理の中で、待たずに `signInWithPopup` を呼ぶ。ログインしない家庭・`file://` では通信が起きない原則は変わらない。ログイン済みの起動時は、ログインの状態を確かめるために SDK を読む（このときはポップアップを開かないので問題ない）。説明の文面は `docs/r4-data-and-privacy.md` (b)。
 - 名前空間版（compat、`firebase-app-compat.js` を `<script>` で読む形）は、今回の調査では公式文書で現行の配布状況を確かめられなかった。使うなら着手時に確認する。
 
 ### 7.4 保存の形（Firestore）
 
-- 文書: `families/{uid}`（uid は Firebase Authentication の利用者 ID）。中身は `{ profiles: [...], deleted: { <id>: 'YYYY-MM-DD' }, updatedAt }`。プロフィールの形は R1 の v2 と同じ（`device` は送らない）。
-- セキュリティルール（下書き）: `families/{uid}` は `request.auth.uid == uid` の本人だけ読み書き可。他はすべて拒否。
-- 送る時: 出動が終わって保存したとき（数秒まとめてから 1 回）、保護者画面でプロフィールを変えたとき。失敗しても遊びは止めない（企画 4.2）。次の保存のときにもう一度送る。
+- 文書: `families/{uid}`（uid は Firebase Authentication の利用者 ID）。中身は `{ v: 1, profiles: [...], deleted: { <id>: 'YYYY-MM-DD' }, updatedAt }`。プロフィールの形は R1 の v2 から `seen` を除き、`updatedAt`・`ladderAt`（7.5）を足したもの（`device` は送らない）。`deleted` は最大 16 件。文書の `updatedAt` はサーバーの時刻（`serverTimestamp()`）。**項目の正は `docs/r4-firebase-setup.md` 4 章**（R4-0 で確定）。
+- セキュリティルール: `families/{uid}` は Google でログインした本人（`request.auth.uid == uid`）だけ読み書き可。項目の名前・型・件数・文字列の形を検査する。他はすべて拒否。**全文は `docs/r4-firebase-setup.md` 5 章**。
+- 送る時: 出動が終わって保存したとき（数秒まとめてから 1 回）、保護者画面でプロフィールを変えたとき。**トランザクション（読む → `mergeProfiles` → 書く）**で送り、2 台が同時に書いても片方の変更を消さない（R4-0 で追記）。失敗しても遊びは止めない（企画 4.2）。次の保存のときにもう一度送る。
 - 受け取る時: 起動時（ログイン済みなら）と、保護者画面を開いたとき。
 
 ### 7.5 端末内の記録の引き継ぎとマージの規則（企画 4.3。U13 で確認）
 
-R4 で足す項目: プロフィールごとに `updatedAt`（名前・絵・固定・ステージの手動操作をした時刻）、`ladderAt`（`stage` を変えた時刻）、家族の `deleted`（消したプロフィールの id と日付。消したものが別の端末から戻ってくるのを防ぐ）。
+R4 で足す項目: プロフィールごとに `updatedAt`（名前・絵・固定・ステージの手動操作をした時刻）、`ladderAt`（`stage` を変えた時刻）、家族の `deleted`（消したプロフィールの id と日付。消したものが別の端末から戻ってくるのを防ぐ）。時刻は端末の時計のミリ秒（整数）。`deleted` は最大 16 件で、超えたら古いものから捨てる（R4-0 で確定）。
 
 純粋関数 `mergeProfiles(local, remote)`（テスト対象）:
 
@@ -662,7 +664,7 @@ R4 で足す項目: プロフィールごとに `updatedAt`（名前・絵・固
 | `stats` | 項目ごとに**大きい方**（足し算はしない＝二重に数えない） |
 | `cleared`・`promoted` | 和集合。日付は早い方 |
 | `stage` | `ladderAt` が新しい方（保護者の再ロックを、古い端末の記録で取り消さないため） |
-| `seen` | 新しい方（`lastPlayed` で比べる） |
+| `seen` | （R4-0 で変更）**クラウドに送らない**。端末ごとに持ち、マージしない。理由: 問題の偏りを防ぐための端末内の目安で、引き継ぐ価値が小さい。送らなければ保存する項目が減り（企画 5.1 の最小限）、ルールで 12 個の文字列を 1 つずつ検査せずに済む |
 | 片方の `deleted` にある id | 両方から消す |
 | マージ後に 5 人以上 | 自動で決めない。保護者画面で「どの こを のこす？」を選ばせる |
 
@@ -674,6 +676,8 @@ R4 で足す項目: プロフィールごとに `updatedAt`（名前・絵・固
 テスト観点: 規則の各行、`deleted` の効き、元の 2 つを書き換えない、`mergeProfiles(a, a)` が `a` と同じ（同じものを何度マージしても変わらない）、`merge(a,b)` と `merge(b,a)` の結果が同じ（`updatedAt` が同じときの決め方を固定して）。
 
 ### 7.6 保存する項目の一覧（ユーザー・保護者に見せる用）
+
+> （R4-0 で更新）**正は `docs/r4-data-and-privacy.md` (a)**。下の表との違い: 「直近に出した絵」は送らないことにした（7.5）。子どもの番号（id）・作った日・変更した時刻・消した子の番号を足した。Google が扱う IP アドレスなどを別の表にした。案 B の列は使わない（保存先は A に決定）。
 
 | 保存するもの | 中身 | 場所 |
 |---|---|---|
@@ -689,6 +693,8 @@ R4 で足す項目: プロフィールごとに `updatedAt`（名前・絵・固
 
 ### 7.7 承認後の手順（下書き。実行は承認を得てから。人間が行うか、承認のうえで実施）
 
+> （R4-0 で更新）**手順の正は `docs/r4-firebase-setup.md`**（承認の順番は 0 章）。下の下書きとの違い: 1 と 6 は GitHub Pages に決まったので不要（Firebase Hosting は 7.1 の実機確認で動かなかったときの代わり）。5 の設定値は秘密ではないと公式で確かめた（公開リポジトリに置いてよい。置き場所は `src/cloud.js`）。App Check は入れない。
+
 1. （承認）ホスティング先を決める。推奨は Firebase Hosting（7.1）。公開範囲（家族だけ＝URL を知る人だけ／一般公開）を決める（U10）。
 2. （承認）Firebase コンソールでプロジェクトを作る。**Spark プランのまま、請求先アカウントを紐づけない**（紐づけると Blaze へ自動で上がる。Firebase 公式）。Google アナリティクスはオフ。
 3. Authentication で Google のログインを有効にする。承認済みドメインに Hosting のドメインがあることを確認。
@@ -703,7 +709,8 @@ R4 で足す項目: プロフィールごとに `updatedAt`（名前・絵・固
 
 - プロフィール単位: 端末内から消し、`deleted` に記録して Firestore を更新。
 - アカウント全体: Firestore の `families/{uid}` を消し、Firebase Authentication の利用者も消す（再ログインを求められることがある）。端末内の記録を消すかは保護者が選ぶ。
-- バックアップからの完全な消去にかかる時間は、着手時に Google Cloud の文書で確認して説明文に書く。
+- バックアップからの完全な消去にかかる時間: （R4-0 で確認）Google Cloud は削除の依頼から**最長で約 6 か月（180 日）**で消す。Firebase Authentication の IP アドレスの記録は数週間で消える。説明文に書いた。
+- 順番は「Firestore の文書 → Authentication の利用者」。利用者を先に消すと文書を消す権限が無くなる。流れの正は `docs/r4-data-and-privacy.md` (d)。
 
 ---
 
@@ -723,7 +730,7 @@ R2 の前に:
 
 R4 の準備で（企画 U9〜U11・U13・U14・U17）:
 9. 保存先 A（Firebase。推奨）か B（保護者のドライブ）か。
-10. ホスティングを Firebase Hosting にするか（推奨）。GitHub Pages は無料ではリポジトリの公開が条件。
+10. ~~ホスティングを Firebase Hosting にするか~~ → GitHub Pages に決定（リポジトリは public）。残る確認は `docs/r4-firebase-setup.md` 2 章（ホーム画面のアプリでポップアップのログインが動かないときの選択）。
 11. ログインするときだけ gstatic から SDK を読む（外部 CDN の例外）でよいか。
 12. マージの規則（7.5）でよいか。
 
@@ -744,3 +751,5 @@ R4 の準備で（企画 U9〜U11・U13・U14・U17）:
 - Google Identity Services のトークン方式（利用者の操作で取得、短命）: https://developers.google.com/identity/oauth2/web/guides/use-token-model
 - GIS の読み込み（Google 配信必須、自己ホスト非対応）: https://developers.google.com/identity/oauth2/web/guides/load-3p-authorization-library
 - GitHub のプラン（Free の Pages は公開リポジトリ）: https://docs.github.com/en/get-started/learning-about-github/githubs-plans
+
+R4-0（2026-10-24 に確認）で足した出典は `docs/r4-firebase-setup.md` 11 章にまとめた（API キー、Firestore の上限と場所、Authentication の上限、App Check、データの削除、プロジェクトの削除、OAuth の審査など）。
