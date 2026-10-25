@@ -226,6 +226,8 @@
 
   root.Manabi = root.Manabi || {};
   // 乗り物 stage -> 効果音の名前（data.js の CARS.stage）
-  function carSound(stage) { return 'car' + stage; }
+  // 救助隊の車（stage が文字列）は data.js の RESCUE_CARS の sound を使う。ここでは同じ対応を持つ（tests/audio.test.js で一致を確かめる）
+  var RESCUE_SOUND = { rescueWork: 'car4', rescueChem: 'car9', rescueCmd: 'car7', rescueHeli: 'car11' };
+  function carSound(stage) { return typeof stage === 'string' ? (RESCUE_SOUND[stage] || 'car8') : 'car' + stage; }
   root.Manabi.audio = { carSound: carSound, unlock: unlock, setEnabled: setEnabled, isEnabled: isEnabled, play: play, names: Object.keys(SOUNDS) };
 })(typeof window !== 'undefined' ? window : globalThis);

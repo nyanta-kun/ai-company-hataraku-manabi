@@ -7,7 +7,7 @@
 
   function $(id) { return doc.getElementById(id); }
   function now() { return root.performance.now() / 1000; }
-  function carById(id) { for (var i = 0; i < D.CARS.length; i++) if (D.CARS[i].id === id) return D.CARS[i]; return null; }
+  function carById(id) { for (var i = 0; i < D.ALL_CARS.length; i++) if (D.ALL_CARS[i].id === id) return D.ALL_CARS[i]; return null; }
   function todayStr() { var d = new Date(); return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2); }
 
   var state = S.load();             // v2 全体（device ＋ プロフィール配列）
@@ -271,7 +271,7 @@
     };
     if (!stage) stage = new SC.Stage($('sceneCanvas'));
     show('play');
-    stage.setScene(run.scene); stage.setProgress(0);
+    stage.setScene(run.scene); stage.setRank(D.stageIndex(D.stageOf(run.level))); stage.setProgress(0);
     updateLamps(0);
     stage.resize();
     sfx(A.carSound(DISPATCH_STAGE[run.scene]));   // 出動する車の音（現場ごと）
@@ -482,8 +482,9 @@
   }
 
   // ごほうびを抽選して data.cards に反映する（通常の流れと確認パネルで共通）
-  function grantReward(scene) {
-    var a = R.applyReward(data.cards, scene, Math.random);
+  // rank: 遊んだレベルのステージの番号。S1 以上のときだけ救助隊の車も出る（rewards.js）。省略は S0 と同じ
+  function grantReward(scene, rank) {
+    var a = R.applyReward(data.cards, scene, Math.random, rank);
     data.cards = a.cards;
     return a.r;
   }
@@ -494,7 +495,7 @@
     st[game].questions += P.QUESTIONS_PER_SESSION; st[game].firstTry += run.firstTry;
     var res = LD.afterSession(data, game, run.level, run.firstTry, run.review, todayStr());
     replaceData(res.profile);
-    var r = grantReward(run.scene);
+    var r = grantReward(run.scene, D.stageIndex(D.stageOf(run.level)));
     data.lastPlayed = todayStr();
     save();
     reward = { r: r, t0: 0, promo: res.promotedTo };   // 昇格したら、ごほうびの次に しょうかく の画面を出す
@@ -567,10 +568,16 @@
 
   // ---- しゃこ ----
   var slots = [];
+  // しゃこに並べる車。S0 の子には今までの 11 種だけ（救助隊の車は、S1 以上を解放しているか、もう持っているときに並ぶ）
+  function garageCars() {
+    var show = D.stageIndex(data.stage.unlocked) >= D.RESCUE_FROM || D.RESCUE_CARS.some(function (c) { return data.cards[c.id] > 0; });
+    return show ? D.ALL_CARS : D.CARS;
+  }
   function buildGarage() {
     var grid = $('garage-grid'); grid.innerHTML = ''; slots = [];
     var have = 0;
-    D.CARS.forEach(function (car) {
+    var cars = garageCars();
+    cars.forEach(function (car) {
       var n = data.cards[car.id] || 0; if (n) have++;
       // button だと iOS Safari が中身の高さを枠に数えず、絵と名前が枠の外にはみ出すので div にする
       var el = doc.createElement('div');
@@ -590,7 +597,7 @@
         slot.drive = now(); sfx(A.carSound(car.stage)); say(carYomi(car)); kick();
       });
     });
-    $('g-count').textContent = have + ' / 11';
+    $('g-count').textContent = have + ' / ' + cars.length;
     drawGarage();
   }
   function drawGarage() {
@@ -717,7 +724,8 @@
   function fillParent() {
     relockAsk = '';   // 「とじる」の確認は、ほかの操作で描き直したら消える
     var st = data.stats, have = 0, stars = 0;
-    D.CARS.forEach(function (c) { var n = data.cards[c.id] || 0; if (n) have++; stars += n; });
+    var shelf = garageCars();
+    shelf.forEach(function (c) { var n = data.cards[c.id] || 0; if (n) have++; stars += n; });
     function pct(g) { var q = st[g].questions; return q ? Math.round(st[g].firstTry / q * 100) + '%' : '-'; }
     $('p-progress').innerHTML =
       '<div class="prow"><span>しゅつどうの かいすう</span><b>' + st.sessions + '</b></div>' +
@@ -725,7 +733,7 @@
       '<div class="prow"><span>もじ：いまのレベル</span><b>' + data.levels.letter + '（1かいめで せいかい ' + pct('letter') + '）</b></div>' +
       '<div class="prow"><span>とけい：いまのレベル</span><b>' + data.levels.clock + '（1かいめで せいかい ' + pct('clock') + '）</b></div>' +
       '<div class="prow"><span>えいご：いまのレベル</span><b>' + data.levels.english + '（1かいめで せいかい ' + pct('english') + '）</b></div>' +
-      '<div class="prow"><span>あつめた くるま</span><b>' + have + ' / 11（★ ' + stars + '）</b></div>';
+      '<div class="prow"><span>あつめた くるま</span><b>' + have + ' / ' + shelf.length + '（★ ' + stars + '）</b></div>';
     $('p-sfx').checked = dev.sound.sfx; $('p-voice').checked = dev.sound.voice;
     ['math', 'letter', 'clock', 'english'].forEach(function (g) {
       var sel = $('p-lv-' + g);
@@ -923,8 +931,8 @@
     gotoPromote: function (stageId) { promo = { stage: stageId || 'S1', t0: 0 }; show('promote'); },
     get state() { return state; },
     addDummyProfile: function () { addLock = 0; addKid(); kidEdit = null; },
-    gotoReward: function (scene) {
-      var r = grantReward(scene || 'kaji');
+    gotoReward: function (scene, rank) {   // rank: 確認用。省略は S0 と同じ
+      var r = grantReward(scene || 'kaji', rank);
       save();
       reward = { r: r, t0: 0 }; show('reward');
     },

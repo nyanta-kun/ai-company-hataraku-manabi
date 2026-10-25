@@ -411,7 +411,60 @@
     circ(ctx, 0.82, -0.2, 0.06, '#8a8f94');
   };
 
-  pics.motorbike = function (ctx) {   // N14 オートバイ
+  // ---- 救助隊の車（design-elementary 3.12。S1・S2 のごほうび。実在のロゴ・マークは描かない）----
+  pics.rescueHeli = function (ctx, t) {   // きゅうじょへり（白＋オレンジの帯。ローターは t で回る）
+    var L = 0.75 * (0.35 + 0.65 * Math.abs(Math.cos((t || 0) * 14)));
+    poly(ctx, [[0.2, -0.1], [0.8, -0.24], [0.8, -0.12], [0.2, 0.1]], '#fafafa');            // テール
+    poly(ctx, [[0.66, -0.22], [0.78, -0.5], [0.86, -0.5], [0.8, -0.14]], '#f08a24');
+    ell(ctx, -0.18, 0.0, 0.5, 0.32, '#fafafa');                                               // 胴体
+    ctx.save(); ctx.beginPath(); ctx.ellipse(-0.18, 0.0, 0.5, 0.32, 0, 0, Math.PI * 2); ctx.clip();
+    stripe(ctx, -0.7, 0.06, 1.0, 0.1, '#f08a24'); ctx.restore();
+    ell(ctx, -0.18, 0.0, 0.5, 0.32, null);
+    ell(ctx, -0.42, -0.04, 0.22, 0.2, '#bfe6fb');                                             // 風防
+    rr(ctx, -0.24, -0.42, 0.1, 0.14, 0.02, '#555');                                           // マスト
+    line(ctx, -0.19 - L, -0.46, -0.19 + L, -0.46, 0.08, OUT); line(ctx, -0.19 - L, -0.46, -0.19 + L, -0.46, 0.04, '#8a8f94');
+    line(ctx, -0.5, 0.42, 0.1, 0.42, 0.06);                                                   // スキッド
+    line(ctx, -0.36, 0.28, -0.4, 0.42, 0.045); line(ctx, -0.0, 0.3, 0.0, 0.42, 0.045);
+    circ(ctx, 0.82, -0.2, 0.06, '#8a8f94');
+  };
+  pics.rescueWork = function (ctx) {   // きゅうじょこうさくしゃ（オレンジの箱型。小さなクレーンと照明塔）
+    rr(ctx, -0.82, -0.12, 0.46, 0.48, 0.08, '#f08a24');
+    win(ctx, -0.76, -0.06, 0.32, 0.24);
+    rr(ctx, -0.4, -0.34, 1.2, 0.68, 0.06, '#f08a24');
+    stripe(ctx, -0.36, 0.0, 1.12, 0.07, '#fafafa'); rr(ctx, -0.4, -0.34, 1.2, 0.68, 0.06, null);
+    rr(ctx, -0.3, -0.26, 0.34, 0.2, 0.03, '#d9dde0'); rr(ctx, 0.1, -0.26, 0.34, 0.2, 0.03, '#d9dde0');   // 道具のとびら
+    line(ctx, 0.66, -0.34, 0.66, -0.62, 0.05); rr(ctx, 0.52, -0.76, 0.28, 0.14, 0.04, '#ffe680');          // 照明塔
+    line(ctx, 0.45, -0.34, 0.1, -0.58, 0.1, OUT); line(ctx, 0.45, -0.34, 0.1, -0.58, 0.055, '#d9dde0');    // 小さなクレーン
+    line(ctx, 0.1, -0.58, 0.1, -0.42, 0.025); circ(ctx, 0.1, -0.4, 0.04, '#8a8f94');
+    light(ctx, -0.58, -0.12, '#ffd23f');
+    headlamp(ctx, -0.8, 0.12);
+    wheel(ctx, -0.55, 0.4, 0.16); wheel(ctx, 0.3, 0.4, 0.16); wheel(ctx, 0.6, 0.4, 0.16);
+  };
+  pics.rescueChem = function (ctx) {   // かがくしょうぼうしゃ（赤い車体に、あわの薬剤タンクと屋根のノズル）
+    fireCab(ctx, '#e53935');
+    rr(ctx, -0.3, -0.12, 1.08, 0.48, 0.06, '#e53935');
+    stripe(ctx, -0.26, 0.2, 1.0, 0.08, '#fafafa'); rr(ctx, -0.3, -0.12, 1.08, 0.48, 0.06, null);
+    rr(ctx, -0.24, -0.5, 0.96, 0.4, 0.2, '#fff3b0');                                          // 薬剤タンク（黄）
+    stripe(ctx, -0.04, -0.5, 0.06, 0.4, '#e8c93a'); stripe(ctx, 0.3, -0.5, 0.06, 0.4, '#e8c93a'); rr(ctx, -0.24, -0.5, 0.96, 0.4, 0.2, null);
+    line(ctx, -0.5, -0.12, -0.5, -0.28, 0.05); line(ctx, -0.5, -0.28, -0.72, -0.36, 0.07);    // 屋根のノズル
+    circ(ctx, -0.5, -0.12, 0.05, '#8a8f94');
+    light(ctx, 0.74, -0.52, '#ffd23f');
+    headlamp(ctx, -0.77, 0.14);
+    wheel(ctx, -0.5, 0.4, 0.16); wheel(ctx, 0.25, 0.4, 0.16); wheel(ctx, 0.58, 0.4, 0.16);
+  };
+  pics.rescueCmd = function (ctx) {   // しきしゃ（白いワゴンに青い帯、アンテナ、回転灯）
+    rr(ctx, -0.8, -0.26, 1.6, 0.66, 0.14, '#fafafa');
+    stripe(ctx, -0.76, 0.06, 1.52, 0.1, '#3a7bd5'); stripe(ctx, -0.76, 0.2, 1.52, 0.04, '#e53935'); rr(ctx, -0.8, -0.26, 1.6, 0.66, 0.14, null);
+    poly(ctx, [[-0.7, -0.2], [-0.5, -0.2], [-0.5, 0.0], [-0.74, 0.0]], '#bfe6fb');
+    win(ctx, -0.42, -0.2, 0.26, 0.2); win(ctx, -0.1, -0.2, 0.26, 0.2); win(ctx, 0.22, -0.2, 0.26, 0.2);
+    rr(ctx, 0.54, -0.2, 0.18, 0.2, 0.03, '#bfe6fb');
+    line(ctx, 0.42, -0.26, 0.42, -0.72, 0.035); circ(ctx, 0.42, -0.74, 0.05, '#e53935');     // アンテナ
+    rr(ctx, -0.28, -0.4, 0.12, 0.12, 0.03, '#e53935'); rr(ctx, -0.16, -0.4, 0.12, 0.12, 0.03, '#3a7bd5');   // 回転灯
+    headlamp(ctx, -0.78, 0.2);
+    wheel(ctx, -0.5, 0.4, 0.17); wheel(ctx, 0.5, 0.4, 0.17);
+  };
+
+  pics.motorbike =function (ctx) {   // N14 オートバイ
     ctx.translate(0, -0.14);
     line(ctx, 0.2, 0.2, 0.5, 0.36, 0.08);                                                     // 後ろのアーム
     wheel(ctx, -0.56, 0.36, 0.22); wheel(ctx, 0.52, 0.36, 0.22);
@@ -840,7 +893,8 @@
   }
 
   var DIRECTIONAL = { airplane: 1, train: 1, shinkansen: 1, ship: 1, steam: 1, postcar: 1, taxi: 1, motorbike: 1, crane: 1,
-    truck: 1, patrol: 1, heli: 1, bus: 1, roller: 1 };
+    truck: 1, patrol: 1, heli: 1, bus: 1, roller: 1,
+    rescueHeli: 1, rescueWork: 1, rescueChem: 1, rescueCmd: 1 };
   // 絵の id 一覧（出題に使える絵）
   var PICS = ['v1', 'v2', 'v3', 'v4', 'v5', 'v6', 'v7', 'v8', 'v9', 'v10', 'v11', 'hose', 'flame'].concat(Object.keys(pics));
   function hasPic(id) { return typeof id === 'string' && PICS.indexOf(id) >= 0; }

@@ -54,7 +54,8 @@
       e.target.textContent = off ? 'えいご声あり' : 'えいご声なし';
     });
     btn('ごほうび', function () { ui.gotoReward('kaji'); });
-    btn('全車★3', function () { D.CARS.forEach(function (c) { ui.data.cards[c.id] = 3; }); ui.setData(ui.data); });
+    btn('ごほうびS2', function () { ui.gotoReward('kaji', 2); });
+    btn('全車★3', function () { D.ALL_CARS.forEach(function (c) { ui.data.cards[c.id] = 3; }); ui.setData(ui.data); });
     btn('全車なし', function () { ui.data.cards = {}; ui.setData(ui.data); });
     btn('しゃこ', function () { ui.show('garage'); });
     btn('おうちのひと', function () { ui.show('parent'); });
@@ -78,7 +79,7 @@
       if (g[4]) root.setTimeout(function () { ui.debugProgress(+g[4]); }, 50);
     } else if (g[0] === 'pics') togglePicGrid();
     else if (g[0] === 'pick') ui.show('pick');
-    else if (g[0] === 'reward') ui.gotoReward(g[1] || 'kaji');
+    else if (g[0] === 'reward') ui.gotoReward(g[1] || 'kaji', +g[2] || 0);
     else if (g[0] === 'garage') ui.previewGarage();
     else if (g[0] === 'parent') ui.show('parent');
     else if (g[0] === 'who') ui.show('who');
