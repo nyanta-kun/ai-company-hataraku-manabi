@@ -164,7 +164,7 @@
   function stageIdx() { return D.stageIndex(LD.currentStage(data)); }
   function buildStageTabs() {
     var box = $('stage-tabs'), top = D.stageIndex(data.stage.unlocked);
-    box.textContent = ''; box.hidden = top < 1;
+    box.textContent = ''; box.hidden = top < 1; box.classList.toggle('three', top >= 2);   // 3 つ並ぶとき（S2）は iPhone 縦で収まるよう札を少し詰める
     if (top < 1) return;
     var cur = stageIdx();
     D.STAGES.slice(0, top + 1).forEach(function (stg, i) {
@@ -183,8 +183,8 @@
   function replaceData(np) { Object.keys(np).forEach(function (k) { data[k] = np[k]; }); }   // data は state.profiles の要素そのものなので、中身を差し替える
   // 出動えらびの一行（S1 以降だけ。ふりがな付き）。S0 の子には今までと同じ画面。札で S0 に切り替えたときも消す
   function updatePickSub() {
-    var sub = $('pick-sub'); sub.hidden = stageIdx() < 1;
-    sub.innerHTML = sub.hidden ? '' : kidText(D.TEXT.pickSub);
+    var sub = $('pick-sub'); sub.hidden = stageIdx() < 1; sub.classList.toggle('s2', stageIdx() >= 2);
+    sub.innerHTML = sub.hidden ? '' : kidText(stageIdx() >= 2 ? D.TEXT.pickSub2 : D.TEXT.pickSub);   // S2 は K9 の字も使う別の一行。S1 は今までのまま
   }
   function updatePick() {
     buildStageTabs(); updatePickSub();
@@ -241,7 +241,7 @@
   }
   function drawTitle() {
     var c = sizeCanvas($('titleCanvas'));
-    SC.drawTitle(c.ctx, c.w, c.h, now() - titleStart + 1.2, litWindows());
+    SC.drawTitle(c.ctx, c.w, c.h, now() - titleStart + 1.2, litWindows(), stageIdx());   // S2 だけ消防署の見た目が少し変わる
   }
 
   // ---- 出動 ----
@@ -286,18 +286,20 @@
     if (p.kind === 'count') return 'いくつあるかな？';
     if (p.kind === 'add') return NUMK[p.a] + 'たす' + NUMK[p.b] + 'は、いくつ？';   // 数字で渡すと「1たす4」などの読みが揺れるので、数の読み（よん・なな）で渡す
     if (p.kind === 'sub') return NUMK[p.a] + 'ひく' + NUMK[p.b] + 'は、いくつ？';
+    if (p.kind === 'mul') return 'ひとはこに、' + NUMK[p.a] + 'こずつ。' + D.HAKO_KANA[p.b] + 'で、ぜんぶでいくつ？';   // 数字で渡さず数の読みで。「かける」は式の絵に任せる
     if (p.kind === 'clock') {
       if (p.form === 'read') return '時計を見てね。出動の時間は、何時かな？';
       if (p.form === 'readmin') return '時計を見てね。出動の時間は、何時何分かな？';
+      if (p.form === 'ampm') return '出動は、' + P.readTime(p.h, p.m) + '。ごぜんかな、ごごかな？';   // 絵（朝・夕方・夜）と時計を見て選ぶ。午前・午後はひらがなで読む
       if (p.form === 'elapsed') return '今は、' + P.readTime(p.h0, p.m0) + '。' + P.readMinutes(p.dm) + 'たったら、どの時計かな？';
       return '出動は、' + P.readTime(p.h, p.m) + '。どの時計かな？';
     }
     if (p.kind === 'english') return 'どれかな？';   // 英語の意味は日本語で言わない（言うと英語を聞かなくても答えられる）
     if (p.level === 'K7') return p.word + '。最初の音は、どれかな？';   // 拗音（しょ）を選ぶ。ひらがなの語をそのまま読む
-    if (p.level === 'K8') return p.speech + '。どの かんじかな？';             // 読み上げ文はひらがなだけ（漢字を渡さない）
+    if (p.script === 'kanji') return p.speech + '。どの かんじかな？';          // K8・K9。読み上げ文はひらがなだけ（漢字を渡さない）
     return yomiOf(wordOf(p.wordId)) + '。最初の文字は、どれかな？';
   }
-  function isSpecialLetter(q) { return q.kind === 'letter' && (q.level === 'K7' || q.level === 'K8'); }
+  function isSpecialLetter(q) { return q.kind === 'letter' && (q.level === 'K7' || q.script === 'kanji'); }
   // 語の読み上げ（漢字・カタカナまじりで自然に読ませる。data.js の YOMI）
   function yomiOf(w) { var id = w.id.replace(/_k$/, ''); return D.YOMI[id] || w.kata || (w.script === 'kata' ? w.label : w.speech); }
   function carYomi(car) { return D.CAR_YOMI[car.id] || car.name; }
@@ -351,10 +353,11 @@
       var b = doc.createElement('button');
       b.type = 'button'; b.className = pickClock ? 'ans clk' : pickPic ? 'ans pic' : 'ans'; b.setAttribute('data-v', String(c));
       if (pickClock || pickPic) b.innerHTML = '<canvas></canvas>';
+      else if (q.kind === 'clock' && q.form === 'ampm') b.innerHTML = '<span class="ampm-l">' + D.AMPM_LABEL[c] + '<small>' + q.h + 'じ' + (q.m === 30 ? 'はん' : '') + '</small></span>';   // T8: 「ごぜん 7じ」「ごご 7じ」（ひらがな）
       else if (q.kind === 'clock') b.innerHTML = '<span class="num">' + c + '</span>';
       else if (q.kind === 'english' && q.form === 'alpha') b.innerHTML = '<span class="kana">' + c + '</span>';   // E5: 大文字
       else if (q.kind === 'letter') b.innerHTML = '<span class="kana' + (c.length > 1 ? ' two' : '') + '">' + c + '</span>';   // 拗音（しょ）は 2 文字なので少し小さく
-      else if (q.choices.some(function (v) { return v > 10; })) b.innerHTML = '<span class="num">' + c + '</span>';   // 11 以上は数字だけ（点は 10 まで。S1 の子は数字が読める）
+      else if (q.kind === 'mul' || q.choices.some(function (v) { return v > 10; })) b.innerHTML = '<span class="num">' + c + '</span>';   // 11 以上は数字だけ（点は 10 まで。S1 の子は数字が読める）
       else {
         var dots = '';
         for (var i = 0; i < c; i++) { dots += '<i></i>'; if (i === 4 && c > 5) dots += '<b></b>'; }
@@ -416,7 +419,7 @@
           seq([{ text: q.en + '?', lang: 'en' }, { text: 'こっちかな？', lang: 'ja', gap: 250 }]);
           stage.bouncePic(now());
         } else say('こっちかな？');
-        if (q.kind === 'count' || q.kind === 'add' || q.kind === 'sub') countAloud(q);
+        if (q.kind === 'count' || q.kind === 'add' || q.kind === 'sub' || q.kind === 'mul') countAloud(q);
         else if (q.kind === 'letter') stage.bouncePic(now());
         kick();
       });
@@ -448,8 +451,9 @@
     var done = run.idx + 1, my0 = run.token;
     run.countWait = false;
     if (q.level === 'K7') say('そう！' + q.answer + '！ ' + q.word + 'の ' + q.answer + '。');
-    else if (q.level === 'K8') say('そう！' + q.yomi + '！');
+    else if (q.script === 'kanji') say('そう！' + q.yomi + '！');
     else if (q.kind === 'letter') say('そう！' + D.toHira(q.answer) + '！ ' + correctExample(q) + 'の ' + D.toHira(q.answer) + '。');
+    else if (q.kind === 'clock' && q.form === 'ampm') say('そう！' + D.AMPM_LABEL[q.ap] + '、' + P.readTime(q.h, q.m) + '！');
     else if (q.kind === 'clock') say('そう！' + P.readTime(q.h, q.m) + '！');
     else if (q.kind === 'english') {
       var ok = [{ text: 'そう！', lang: 'ja' }, { text: q.en + '!', lang: 'en' }];
@@ -756,7 +760,7 @@
           g.appendChild(el('b', '', GATE_LABEL[k] + ' ' + D.gateOf(stg.id)[k] + ' ' + (gate[k] ? '◯ ' + mdOf(gate[k]) : 'ー')));
         });
         row.appendChild(g);
-        if (stg.id === 'S0') row.appendChild(el('p', 'note', '「' + D.STAGES[1].rank + '」に すすむ じょうけん：かんもんの 3つを、それぞれ 1かい 4もん ぜんぶ 1かいで せいかい（えいごは ふくみません）。'));
+        row.appendChild(el('p', 'note', '「' + D.STAGES[i + 1].rank + '」に すすむ じょうけん：かんもんの 3つを、それぞれ 1かい 4もん ぜんぶ 1かいで せいかい（えいごは ふくみません）。'));
       }
       if (i > 0) {
         var acts = el('div', 'kid-acts');

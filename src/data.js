@@ -154,7 +154,10 @@
     { id: 'S0', rank: 'みならい しょうぼうし', short: 'みならい', grade: 'みしゅうがく',
       levels: { math: ['M1', 'M2', 'M3', 'M4', 'M5', 'M6', 'M7'], letter: ['K1', 'K2', 'K3', 'K4', 'K5', 'K6'], clock: ['T1', 'T2', 'T3', 'T4', 'T5', 'T6'], english: ['E1', 'E2', 'E3'] } },
     { id: 'S1', rank: 'しょうぼうし', short: 'しょうぼうし', grade: '小学1年生くらい',
-      levels: { math: ['M8', 'M9', 'M10'], letter: ['K7', 'K8'], clock: ['T7'], english: ['E4', 'E5'] } }
+      levels: { math: ['M8', 'M9', 'M10'], letter: ['K7', 'K8'], clock: ['T7'], english: ['E4', 'E5'] } },
+    // S2: えいごは追加なし（S1 の範囲で遊ぶ。stageRange）
+    { id: 'S2', rank: 'たいいん', short: 'たいいん', grade: '小学2年生くらい',
+      levels: { math: ['M11', 'M12', 'M13'], letter: ['K9'], clock: ['T8'], english: [] } }
   ];
   var GAMES = ['math', 'letter', 'clock', 'english'];
   var GATE_GAMES = ['math', 'letter', 'clock'];   // えいごは関門に入れない（U2）
@@ -236,8 +239,34 @@
     { ch: '森', yomi: 'もり',   pic: 'forest',   speech: 'もり。きが たくさんの もり', sim: 'w' },
     { ch: '竹', yomi: 'たけ',   pic: 'bamboo',   speech: 'たけ。ながい たけ', sim: 'w' }
   ];
-  // 子ども向け画面に出してよい漢字（教材で出した漢字だけ。U4）。S0 はひらがなのみ
-  var KANJI = { S0: [], S1: KANJI_WORDS.map(function (w) { return w.ch; }) };
+  // ---- K9（S2）: 同じ形で、小学2年の配当漢字から 20 字（学年別漢字配当表）。乗り物・時間・天気・季節の名詞だけ。
+  // 方針は K8 と同じ（絵で意味が決まり、読みが 1 つに決まる語。読み上げ文はひらがなだけ）。読みが揺れる字（光・家・分・時・行・長・後・前・午 など）は入れない。
+  // 時・分・午・前・後 は 絵で意味が決まらないので入れず、時間のつながりは 朝・昼・夜・春夏秋冬 で持たせた（とけい T8 の午前・午後の場面と同じ絵）。
+  // sim = 形が似た字のグループ（雨かんむりの 電・雲・雪 / 馬・鳥 / 海・池 / 夏・冬）。同じ問題の選択肢に同じグループを 2 つ並べない
+  var KANJI_WORDS2 = [
+    { ch: '電', yomi: 'でん',   pic: 'bolt',    speech: 'でん。でんきの でん', sim: 'r' },
+    { ch: '船', yomi: 'ふね',   pic: 'ship',    speech: 'ふね。うみを いく ふね' },
+    { ch: '道', yomi: 'みち',   pic: 'road',    speech: 'みち。くるまが とおる みち' },
+    { ch: '線', yomi: 'せん',   pic: 'rail',    speech: 'せん。せんろの せん' },
+    { ch: '門', yomi: 'もん',   pic: 'gate',    speech: 'もん。おおきな もん' },
+    { ch: '海', yomi: 'うみ',   pic: 'sea',     speech: 'うみ。なみの ある うみ', sim: 'w' },
+    { ch: '池', yomi: 'いけ',   pic: 'pond',    speech: 'いけ。みずの たまった いけ', sim: 'w' },
+    { ch: '馬', yomi: 'うま',   pic: 'horse',   speech: 'うま。ぱかぱか うま', sim: 'b' },
+    { ch: '鳥', yomi: 'とり',   pic: 'bird',    speech: 'とり。そらを とぶ とり', sim: 'b' },
+    { ch: '朝', yomi: 'あさ',   pic: 'morning', speech: 'あさ。おひさまが のぼる あさ' },
+    { ch: '昼', yomi: 'ひる',   pic: 'noon',    speech: 'ひる。おひさまが たかい ひる' },
+    { ch: '夜', yomi: 'よる',   pic: 'night',   speech: 'よる。おつきさまの でる よる' },
+    { ch: '雲', yomi: 'くも',   pic: 'cloud',   speech: 'くも。しろい くも', sim: 'r' },
+    { ch: '雪', yomi: 'ゆき',   pic: 'snow',    speech: 'ゆき。ふってくる ゆき', sim: 'r' },
+    { ch: '風', yomi: 'かぜ',   pic: 'wind',    speech: 'かぜ。ふいてくる かぜ' },
+    { ch: '星', yomi: 'ほし',   pic: 'star',    speech: 'ほし。きらきら ほし' },
+    { ch: '春', yomi: 'はる',   pic: 'spring',  speech: 'はる。さくらの さく はる' },
+    { ch: '夏', yomi: 'なつ',   pic: 'summer',  speech: 'なつ。あつい なつ', sim: 's' },
+    { ch: '秋', yomi: 'あき',   pic: 'autumn',  speech: 'あき。はっぱが あかくなる あき' },
+    { ch: '冬', yomi: 'ふゆ',   pic: 'winter',  speech: 'ふゆ。さむい ふゆ', sim: 's' }
+  ];
+  // 子ども向け画面に出してよい漢字（教材で出した漢字だけ。U4）。S0 はひらがなのみ。ステージごとに足す字（allowedKanji が下のステージの字も合わせる）
+  var KANJI = { S0: [], S1: KANJI_WORDS.map(function (w) { return w.ch; }), S2: KANJI_WORDS2.map(function (w) { return w.ch; }) };
   // ステージ stageId まで（それ以下）で使ってよい漢字
   function allowedKanji(stageId) {
     var out = [], i = stageIndex(stageId);
@@ -268,8 +297,23 @@
   // 子ども向け画面の文言（ふりがな付きの書き方）。固定の表だけ。子どもの名前など外から来る文字は通さない
   var TEXT = {
     pickSub: 'ぼくらは {火|ひ}を けす {車|くるま}の なかま！',   // 出動えらび（S1 以降だけ出す）
-    rewardNew: 'あたらしい {車|くるま}！'                       // ごほうび（S0 では今までと同じ「あたらしい くるま！」）
+    rewardNew: 'あたらしい {車|くるま}！',                      // ごほうび（S0 では今までと同じ「あたらしい くるま！」）
+    pickSub2: '{朝|あさ}も {夜|よる}も、{火|ひ}を けす {車|くるま}の たいいん！'   // 出動えらびの一行（S2 だけ。S1 の画面は pickSub のまま）
   };
+  // T8（S2）: 午前・午後。場面ごとの時刻（1〜12 時の h と分 m）。朝は午前、夕方・夜は午後と絵で決まる場面だけを使う（昼の空は午前にも午後にもなるので出さない）。
+  // scene: morning（日の出）/ evening（夕焼け）/ night（月と星）。時刻はちょうど・はんだけ
+  var AMPM_CASES = (function () {
+    var out = [];
+    function add(hs, ap, scene) { hs.forEach(function (h) { [0, 30].forEach(function (m) { out.push({ h: h, m: m, ap: ap, scene: scene }); }); }); }
+    add([6, 7, 8, 9], 'am', 'morning');
+    add([4, 5, 6], 'pm', 'evening');
+    add([7, 8, 9, 10], 'pm', 'night');
+    return out;
+  })();
+  var AMPM_LABEL = { am: 'ごぜん', pm: 'ごご' };
+
+  // 「◯はこ」の読み（M13。ひとはこ・さんばこ・ろっぱこ・はっぱこ。数の読みに「はこ」を付けると いちはこ・さんはこ になるため別に持つ）。index = 1..9
+  var HAKO_KANA = ['', 'ひとはこ', 'ふたはこ', 'さんばこ', 'よんはこ', 'ごはこ', 'ろっぱこ', 'ななはこ', 'はっぱこ', 'きゅうはこ'];
 
   // 時刻の読み（数の読みとは別。よじ・しちじ・くじ）。index = 時 1..12
   var TIME_KANA = ['', 'いちじ', 'にじ', 'さんじ', 'よじ', 'ごじ', 'ろくじ', 'しちじ', 'はちじ', 'くじ', 'じゅうじ', 'じゅういちじ', 'じゅうにじ'];
@@ -327,10 +371,10 @@
   var NUM_EN = ['', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten'];
 
   var api = {
-    ENGLISH_WORDS: ENGLISH_WORDS, NUM_EN: NUM_EN, TIME_KANA: TIME_KANA, MIN_KANA: MIN_KANA, WORDS: WORDS, KATA_WORDS: KATA_WORDS, ALL_WORDS: ALL_WORDS, EXTRA_KATA: EXTRA_KATA, CONFUSABLE_KATA: CONFUSABLE_KATA, toHira: toHira, CATS: CATS, SEEN_MAX: SEEN_MAX, cleanSeen: cleanSeen, addSeen: addSeen, CONFUSABLE: CONFUSABLE, ROW: ROW, FAMILY: FAMILY, CARS: CARS,
+    ENGLISH_WORDS: ENGLISH_WORDS, NUM_EN: NUM_EN, TIME_KANA: TIME_KANA, MIN_KANA: MIN_KANA, HAKO_KANA: HAKO_KANA, WORDS: WORDS, KATA_WORDS: KATA_WORDS, ALL_WORDS: ALL_WORDS, EXTRA_KATA: EXTRA_KATA, CONFUSABLE_KATA: CONFUSABLE_KATA, toHira: toHira, CATS: CATS, SEEN_MAX: SEEN_MAX, cleanSeen: cleanSeen, addSeen: addSeen, CONFUSABLE: CONFUSABLE, ROW: ROW, FAMILY: FAMILY, CARS: CARS,
     SCENES: SCENES, SCENE_CARS: SCENE_CARS, NUM_KANA: NUM_KANA, YOMI: YOMI, CAR_YOMI: CAR_YOMI,
     COLORS: COLORS, COLOR_CLASH: COLOR_CLASH, ALPHA_LETTERS: ALPHA_LETTERS, ALPHA_CLASH: ALPHA_CLASH,
-    STAGES: STAGES, GAMES: GAMES, YOUON_WORDS: YOUON_WORDS, YOUON_SMALL: YOUON_SMALL, YOUON_CONS: YOUON_CONS, KANJI_WORDS: KANJI_WORDS, KANJI: KANJI, allowedKanji: allowedKanji, furigana: furigana, TEXT: TEXT,
+    STAGES: STAGES, GAMES: GAMES, YOUON_WORDS: YOUON_WORDS, YOUON_SMALL: YOUON_SMALL, YOUON_CONS: YOUON_CONS, KANJI_WORDS: KANJI_WORDS, KANJI_WORDS2: KANJI_WORDS2, AMPM_CASES: AMPM_CASES, AMPM_LABEL: AMPM_LABEL, KANJI: KANJI, allowedKanji: allowedKanji, furigana: furigana, TEXT: TEXT,
      GATE_GAMES: GATE_GAMES, LEVELS: LEVELS, stageIndex: stageIndex, stageOf: stageOf, stageRange: stageRange, gateOf: gateOf, gateLevels: gateLevels, topLevelUpTo: topLevelUpTo
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;

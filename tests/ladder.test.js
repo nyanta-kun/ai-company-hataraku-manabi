@@ -122,17 +122,18 @@ function gateClear(p, today) {   // M7・K6・T6 を順に 4/4 する。最後�
   return r;
 }
 
-test('S1 階段1: STAGES は S0・S1。S1 は かず M8〜M10・もじ K7〜K8・とけい T7・えいご E4〜E5', () => {
-  assert.deepEqual(D.STAGES.map((s) => s.id), ['S0', 'S1']);
+test('S1 階段1: STAGES は S0・S1・S2。S1 は かず M8〜M10・もじ K7〜K8・とけい T7・えいご E4〜E5', () => {
+  assert.deepEqual(D.STAGES.map((s) => s.id), ['S0', 'S1', 'S2']);
   assert.deepEqual(D.stageRange('S1', 'math'), ['M8', 'M9', 'M10']);
   assert.deepEqual(D.stageRange('S1', 'letter'), ['K7', 'K8']);
   assert.deepEqual(D.stageRange('S1', 'clock'), ['T7']);
   assert.deepEqual(D.stageRange('S1', 'english'), ['E4', 'E5']);
-  assert.deepEqual(D.LEVELS.math, ['M1', 'M2', 'M3', 'M4', 'M5', 'M6', 'M7', 'M8', 'M9', 'M10']);
-  assert.deepEqual(D.LEVELS.letter, ['K1', 'K2', 'K3', 'K4', 'K5', 'K6', 'K7', 'K8']);
+  assert.deepEqual(D.LEVELS.math.slice(0, 10), ['M1', 'M2', 'M3', 'M4', 'M5', 'M6', 'M7', 'M8', 'M9', 'M10']);
+  assert.deepEqual(D.LEVELS.letter.slice(0, 8), ['K1', 'K2', 'K3', 'K4', 'K5', 'K6', 'K7', 'K8']);
   assert.equal(L.stageOf('M8'), 'S1');
   assert.deepEqual(L.gateOf('S0'), { math: 'M7', letter: 'K6', clock: 'T6' });
   assert.deepEqual(L.gateOf('S1'), { math: 'M10', letter: 'K8', clock: 'T7' });   // えいごは関門に入れない
+  assert.deepEqual(L.gateOf('S2'), { math: 'M13', letter: 'K9', clock: 'T8' });   // S2 は最後のステージ。次が無いので記録だけ付く
 });
 
 test('S1 階段2: 3 つのうち 2 つだけでは開かない。3 つ目で開き promotedTo が返る。もう一度では二重に返らない。current は変わらない', () => {
@@ -293,7 +294,7 @@ test('S1 階段12: こてい中は、遊んだレベルが保存されたレベ�
   assert.equal(L.afterSession(q, 'math', 'M8', 4, false, TODAY).profile.levels.math, 'M8');
 });
 
-test('R2-c: T7 を 4/4 で終えると cleared.T7 が付く（S2 が無いので何も開かない）。3/4 では付かない', () => {
+test('R2-c: T7 を 4/4 で終えると cleared.T7 が付く（M10・K8 がまだなら何も開かない）。3/4 では付かない', () => {
   let p = L.selectStage(gateClear(prof()).profile, 'S1');
   p.levels.clock = 'T7';
   assert.equal(L.afterSession(p, 'clock', 'T7', 3, false, TODAY).profile.cleared.T7, undefined);

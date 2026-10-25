@@ -118,7 +118,7 @@ test('K7・K8: 前の語は避けられる（generateLetter の prevWordId）。
     assert.notEqual(p.wordId, 'kyukyu');
     assert.notEqual(P.generateLetter('K8', rngOf(i), 'kanji_火').answer, '火');
   }
-  assert.throws(() => P.generateLetter('K9', rngOf(1)), RangeError);
+  assert.throws(() => P.generateLetter('K99', rngOf(1)), RangeError);
 });
 
 test('K7・K8: 昇降級は S1 の範囲（K7〜K8）で止まる', () => {

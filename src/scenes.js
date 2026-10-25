@@ -87,7 +87,7 @@
     segments.forEach(function (sg, i) {
       var mid = cx + widths[i] / 2;
       ctx.font = 'bold ' + bs + 'px sans-serif'; ctx.fillText(sg.t, mid, y);
-      if (sg.r) { ctx.font = 'bold ' + rs + 'px sans-serif'; ctx.fillText(sg.r, mid, y - bs * 0.62); }
+      if (sg.r) { ctx.font = 'bold ' + rs + 'px sans-serif'; ctx.fillText(sg.r, mid, y - bs * 0.72); }
       cx += widths[i];
     });
     ctx.restore();
@@ -150,6 +150,54 @@
   }
   function flat(groups) { return [].concat.apply([], groups); }
 
+  // M11（S2）: 100 までの数を「10 の束 + ばら」で並べる。束（10 個入りの帯。値 10）は上に 5 列、ばらはその下に 5 列。
+  // → { items:[{x,y,s,v,bundle,w,h}…（束 → ばらの順。数え聞かせもこの順）] }。束は 1 つで v = 10
+  function tensLayout(n, rect, cap) {
+    var t = Math.floor(n / 10), o = n % 10, items = [], both = t > 0 && o > 0;
+    if (t > 0) {
+      var bh0 = both ? rect.h * 0.58 : rect.h, cols = Math.min(t, 5), rows = Math.ceil(t / cols);
+      var cw = Math.min(rect.w / cols, bh0 / rows * 2, cap * 2), bw = cw * 0.9, bh = bw / 2;   // 束は横長（2:1）
+      var y0 = rect.y + bh0 / 2 - rows * cw / 4;
+      for (var i = 0; i < t; i++) {
+        var r = Math.floor(i / cols), c = i % cols, inRow = Math.min(cols, t - r * cols);
+        items.push({ x: rect.x + rect.w / 2 + (c - (inRow - 1) / 2) * cw, y: y0 + (r + 0.5) * cw / 2, s: bw * 0.6, v: 10, bundle: true, w: bw, h: bh });
+      }
+    }
+    if (o > 0) {
+      var ly = both ? rect.y + rect.h * 0.6 : rect.y, lh = both ? rect.h * 0.4 : rect.h;
+      grid(o, Math.min(o, 5), { x: rect.x, y: ly, w: rect.w, h: lh }, cap).forEach(function (g) { items.push(g); });
+    }
+    return { items: items };
+  }
+  // M13（S2）: d こずつ入った箱が m ばこ。箱を並べて、中にものを d 個ずつ。
+  // → { boxes:[rect…], minis:[{x,y,s}…]（中のもの）, items:[{x,y,s,v:d,ghost:true}…]（箱ごとの「手がかり」。数え聞かせ・タップはこれ）}
+  function groupLayout(m, d, rect, cap) {
+    var GW = d + 0.6, GH = 1.5, GAP = 0.4, best = null, c;
+    for (c = 1; c <= Math.min(m, 5); c++) {
+      var rows = Math.ceil(m / c), W0 = c * GW + (c - 1) * GAP, H0 = rows * GH + (rows - 1) * GAP, cell = Math.min(rect.w / W0, rect.h / H0, cap);
+      if (!best || cell > best.cell + 1e-9) best = { cell: cell, cols: c, rows: rows, W: W0, H: H0 };
+    }
+    var cell = best.cell, oy = rect.y + (rect.h - best.H * cell) / 2, out = { boxes: [], minis: [], items: [] };
+    for (var i = 0; i < m; i++) {
+      var r = Math.floor(i / best.cols), cc = i % best.cols, inRow = Math.min(best.cols, m - r * best.cols);
+      var rowW = inRow * GW + (inRow - 1) * GAP, rx = rect.x + (rect.w - rowW * cell) / 2;
+      var x = rx + cc * (GW + GAP) * cell, y = oy + r * (GH + GAP) * cell, w = GW * cell, h = GH * cell;
+      out.boxes.push({ x: x, y: y, w: w, h: h });
+      for (var k = 0; k < d; k++) out.minis.push({ x: x + 0.3 * cell + (k + 0.5) * cell, y: y + h / 2, s: cell * 0.82 });
+      out.items.push({ x: x + w / 2, y: y + h / 2, s: h * 1.1, v: d, ghost: true });
+    }
+    return out;
+  }
+
+  // 10 の束（M11）: 10 個入りの帯。中に 5×2 のものと、まん中に ひも
+  function drawBundle(ctx, scene, b, sc, dy, now) {
+    var w = b.w * sc, h = b.h * sc, x = b.x - w / 2, y = b.y - h / 2 + dy;
+    fillRR(ctx, x, y, w, h, 8, 'rgba(226,185,120,0.55)', '#9a6a2e', 3);
+    var cell = Math.min(w / 5.4, h / 2.3);
+    linepx(ctx, x + w * 0.5, y + 2, x + w * 0.5, y + h - 2, Math.max(3, w * 0.025), 'rgba(154,106,46,0.8)');   // ひも（ものの うしろ）
+    for (var k = 0; k < 10; k++) drawItem(ctx, scene, b.x + ((k % 5) - 2) * cell, b.y + dy + (Math.floor(k / 5) - 0.5) * cell, cell * 0.86, now);
+  }
+
   // ======== 現場ステージ ========
   function Stage(canvas) {
     this.canvas = canvas;
@@ -160,6 +208,9 @@
     this.prob = null;
     this.items = [];
     this.boxes = [];         // 10 個入りの箱（S1。うしろに描く）
+    this.minis = [];         // M13: 箱の中のもの
+    this.eq = '';            // M12・M13: 式の文字（盤に大きく出す）
+    this.eqAns = '';         // 正解のあとに足す「＝ 答え」
     this.gone = [];          // ひきざん: いなくなる b 個（items には入れない）
     this.subT0 = null;       // ひきざん: 出題の時刻（描画で最初に決める）
     this.marks = [];
@@ -197,13 +248,23 @@
   Stage.prototype.layout = function () {
     var p = this.prob, b = this.board(), it = [], pad = 14;
     var inner = { x: b.x + pad, y: b.y + pad, w: b.w - pad * 2, h: b.h - pad * 2 };
-    var gone = [], boxes = [];
+    var gone = [], boxes = [], minis = [], eq = '', eqPos = null;
     this.plus = null; this.pic = null; this.clock = null; this.speaker = null;
-    if (p && p.kind === 'count' && p.n > 10) {
+    if (p && p.kind === 'count' && p.tens) {   // M11: 10 の束 + ばら
+      it = tensLayout(p.n, inner, 90).items;
+    } else if (p && p.kind === 'count' && p.n > 10) {
       var cl = boxLayout(tensTokens(p.n), inner, 110);
       it = flat(cl.groups); boxes = cl.boxes;
     } else if (p && p.kind === 'count') {
       it = grid(p.n, p.n <= 5 ? p.n : 5, inner, 150);
+    } else if (p && p.mental) {   // M12: 暗算。ものは出さず、式を大きく出す
+      eq = p.a + ' ' + (p.kind === 'add' ? '+' : '\u2212') + ' ' + p.b + ' = ';
+      eqPos = { x: inner.x + inner.w / 2, y: inner.y + inner.h / 2, w: inner.w, h: inner.h * 0.6 };
+    } else if (p && p.kind === 'mul') {   // M13: d こずつ入った箱が m ばこ
+      var gl = groupLayout(p.b, p.a, { x: inner.x, y: inner.y, w: inner.w, h: inner.h * 0.78 }, 96);
+      it = gl.items; boxes = gl.boxes; minis = gl.minis;
+      eq = p.a + ' \u00d7 ' + p.b + ' = ';
+      eqPos = { x: inner.x + inner.w / 2, y: inner.y + inner.h * 0.89, w: inner.w, h: inner.h * 0.2 };
     } else if (p && p.kind === 'add' && p.a > 10) {   // M8: 12+3 は「箱 + ばら」+ ばら
       var al = boxLayout(tensTokens(p.a).concat([{ t: 'plus' }, { t: 'loose', n: p.b }]), inner, 110);
       it = flat(al.groups); boxes = al.boxes; this.plus = al.plus;
@@ -231,7 +292,7 @@
       var s = Math.min(inner.w * 0.7, inner.h * 1.0);
       this.pic = { x: inner.x + inner.w / 2, y: inner.y + inner.h / 2, s: s };
     }
-    this.items = it; this.gone = gone; this.boxes = boxes;
+    this.items = it; this.gone = gone; this.boxes = boxes; this.minis = minis; this.eq = eq; this.eqPos = eqPos;
   };
   Stage.prototype.bounce = function (i, now) { this.bounceIdx = i; this.bounceT0 = now; };
   Stage.prototype.bouncePic = function (now) { this.picBounceT0 = now; };
@@ -250,9 +311,11 @@
     }
     return best;
   };
+  // i 番目に印を付ける。返すのは「ここまでに数えた合計」（ふつうは 1, 2, 3…。束や箱は v 個ぶん進む: 10, 20, 30, 31…）
   Stage.prototype.mark = function (i) {
     if (i < 0 || this.marks[i]) return 0;
-    var n = this.marks.filter(Boolean).length + 1;
+    var n = this.items[i].v || 1;
+    for (var j = 0; j < this.items.length; j++) if (this.marks[j]) n += this.items[j].v || 1;
     this.marks[i] = n;
     return n;
   };
@@ -284,7 +347,7 @@
     if (p && p.kind === 'letter' && this.pic) {
       var pb = this.pic, bt = now - this.picBounceT0, k = bt >= 0 && bt < 0.6 ? 1 + 0.18 * Math.sin(bt / 0.6 * Math.PI) : 1;
       var dy = bt >= 0 && bt < 0.6 ? -Math.sin(bt / 0.6 * Math.PI) * 18 : 0;
-      if (p.level === 'K8' && this.reveal) {   // K8: 正解のあとは、絵を左に寄せて、漢字をふりがなつきで右に大きく出す
+      if (p.script === 'kanji' && this.reveal) {   // K8・K9: 正解のあとは、絵を左に寄せて、漢字をふりがなつきで右に大きく出す
         var bd0 = this.board(), ks = Math.min(pb.s * 0.62, bd0.h * 0.4, bd0.w * 0.26), ps = Math.min(pb.s * 0.72, bd0.w * 0.4, bd0.h * 0.8);   // 縦長の画面でも ボードに収める
         V().drawPic(ctx, this.word.pic, bd0.x + bd0.w * 0.3, pb.y + dy, ps * k, now);
         drawRuby(ctx, [{ t: p.answer, r: p.yomi }], bd0.x + bd0.w * 0.7, pb.y + ks * 0.12, ks);
@@ -301,6 +364,17 @@
     } else if (p && p.kind === 'clock' && this.clock) {
       var ck = this.clock;
       if (p.form === 'read') root.Manabi.clockface.drawClock(ctx, ck.x, ck.y, ck.r, p.h + ':00', { numbers: 12, pulse: this.pulseAt(now) });
+      else if (p.form === 'ampm') {   // T8: 場面（朝・夕方・夜）の空の上に時計。正解のあとは「ごぜん／ごご」の札を出す
+        drawAmPmSky(ctx, b, p.scene, now);
+        var cr = ck.r * 0.8, cy2 = ck.y - ck.h * 0.07;   // 時計を少し上に。下の帯に、正解のあと「ごぜん／ごご」の札を出す
+        root.Manabi.clockface.drawClock(ctx, ck.x, cy2, cr, p.h + ':' + (p.m < 10 ? '0' : '') + p.m, { numbers: 12 });
+        if (this.reveal) {
+          var lab = root.Manabi.data.AMPM_LABEL[p.ap], lw2 = Math.min(b.w * 0.4, 230), lh2 = Math.min(b.h * 0.15, 56), ly2 = b.y + b.h - 12 - lh2;
+          fillRR(ctx, ck.x - lw2 / 2, ly2, lw2, lh2, lh2 / 2, '#fff8e1', OUT, 4);
+          ctx.fillStyle = OUT; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.font = 'bold ' + Math.round(lh2 * 0.62) + 'px sans-serif';
+          ctx.fillText(lab, ck.x, ly2 + lh2 / 2 + 2);
+        }
+      }
       else if (p.form === 'readmin') {   // T7: 1 分刻みの大きな時計（外周に 5,10,…の数字）。ヒントは短針と長針を一緒にふくらませる
         var rp = this.pulseAt(now);
         root.Manabi.clockface.drawClock(ctx, ck.x, ck.y, ck.r, p.h + ':' + (p.m < 10 ? '0' : '') + p.m, { numbers: 12, ticks: 60, minuteNums: true, pulse: rp, pulseMin: rp });
@@ -314,10 +388,12 @@
       } else drawSign(ctx, ck, p);
     } else {
       this.boxes.forEach(function (bx) { fillRR(ctx, bx.x, bx.y, bx.w, bx.h, 10, 'rgba(226,185,120,0.55)', '#9a6a2e', 3); });   // 10 個入りの箱
+      for (i = 0; i < this.minis.length; i++) drawItem(ctx, this.scene, this.minis[i].x, this.minis[i].y, this.minis[i].s, now);   // M13: 箱の中
       for (i = 0; i < this.items.length; i++) {
         var it = this.items[i], sc = 1, dy2 = 0, bt2 = now - this.bounceT0;
         if (i === this.bounceIdx && bt2 >= 0 && bt2 < 0.55) { var q = Math.sin(bt2 / 0.55 * Math.PI); sc = 1 + 0.3 * q; dy2 = -q * 14; }
-        drawItem(ctx, this.scene, it.x, it.y + dy2, it.s * sc, now);
+        if (it.bundle) drawBundle(ctx, this.scene, it, sc, dy2, now);   // M11: 10 の束
+        else if (!it.ghost) drawItem(ctx, this.scene, it.x, it.y + dy2, it.s * sc, now);
         if (this.marks[i]) {
           circle(ctx, it.x + it.s * 0.36, it.y - it.s * 0.36, Math.max(14, it.s * 0.2), '#3a9d5d', '#fff', 3);
           ctx.fillStyle = '#fff'; ctx.font = 'bold ' + Math.max(16, it.s * 0.24) + 'px sans-serif';
@@ -354,6 +430,13 @@
         var pl = this.plus;
         linePlus(ctx, pl.x, pl.y, pl.s);
       }
+      if (this.eq && this.eqPos) {   // M12・M13: 式。正解のあとは「= 答え」まで出す（まだのときは「= ？」）
+        var ep = this.eqPos, et = this.eq + (this.reveal ? p.answer : '?');
+        ctx.fillStyle = OUT; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        var efs = Math.round(Math.max(24, Math.min(ep.h * 0.9, ep.w / (et.length * 0.62), p.mental ? 150 : 64)));
+        ctx.font = 'bold ' + efs + 'px sans-serif';
+        ctx.fillText(et, ep.x, ep.y, ep.w * 0.96);
+      }
     }
     // えいご: 聞いた英語のつづりを下に出す（正解のあとも出したまま）
     if (p && p.kind === 'english' && this.caption) {
@@ -362,6 +445,31 @@
       ctx.fillText(this.caption, b.x + b.w / 2, b.y + b.h - Math.max(22, b.h * 0.1), b.w * 0.9);
     }
   };
+  // T8: 場面の空（盤の中だけ）。morning = 日の出 / evening = 夕焼け / night = 月と星
+  function drawAmPmSky(ctx, b, scene, now) {
+    ctx.save(); rrect(ctx, b.x, b.y, b.w, b.h, 28); ctx.clip();
+    var g = ctx.createLinearGradient(0, b.y, 0, b.y + b.h);
+    if (scene === 'night') { g.addColorStop(0, '#1d2a55'); g.addColorStop(1, '#3d4d88'); }
+    else if (scene === 'evening') { g.addColorStop(0, '#ff8f5a'); g.addColorStop(1, '#ffd9a0'); }
+    else { g.addColorStop(0, '#ffd7a8'); g.addColorStop(1, '#fff3d6'); }
+    ctx.fillStyle = g; ctx.fillRect(b.x, b.y, b.w, b.h);
+    var r = Math.min(b.h * 0.15, 70), sx = b.x + b.w * 0.13, gy = b.y + b.h * 0.88;
+    if (scene === 'morning') {   // 日の出: 左の地平線から半分
+      for (var i = 0; i < 9; i++) { var a = Math.PI + i * Math.PI / 8; linepx(ctx, sx + Math.cos(a) * r * 1.3, gy + Math.sin(a) * r * 1.3, sx + Math.cos(a) * r * 1.8, gy + Math.sin(a) * r * 1.8, 5, '#ffb733'); }
+      ctx.beginPath(); ctx.arc(sx, gy, r, Math.PI, 0); ctx.closePath(); ctx.fillStyle = '#ff9f1c'; ctx.fill(); ctx.lineWidth = 3; ctx.strokeStyle = OUT; ctx.stroke();
+    } else if (scene === 'evening') {   // 夕日: 右の低い位置
+      circle(ctx, b.x + b.w * 0.87, gy - r * 0.2, r * 1.1, '#e8501f', OUT, 3);
+    } else {   // 月と星
+      var mx = b.x + b.w * 0.13, my = b.y + b.h * 0.22;
+      circle(ctx, mx, my, r * 0.8, '#ffe680', null); circle(ctx, mx + r * 0.38, my - r * 0.2, r * 0.72, '#243263', null);
+      [[0.3, 0.14, 7], [0.78, 0.2, 9], [0.9, 0.55, 6], [0.2, 0.55, 6], [0.62, 0.08, 6]].forEach(function (st, k) { sparkle(ctx, b.x + b.w * st[0], b.y + b.h * st[1], st[2] + Math.sin(now * 3 + k) * 2, 0.9); });
+    }
+    ctx.fillStyle = scene === 'night' ? '#2c3f3a' : scene === 'evening' ? '#5a7a4a' : '#7bbf6a';
+    ctx.fillRect(b.x, gy, b.w, b.y + b.h - gy);
+    ctx.restore();
+    rrect(ctx, b.x, b.y, b.w, b.h, 28); ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(58,43,36,0.35)'; ctx.stroke();
+  }
+
   // えいご: 大きなスピーカー（音が出ているように波がゆれる）
   function drawSpeaker(ctx, x, y, s, t) {
     var r = s * 0.5;
@@ -558,7 +666,8 @@
   }
 
   // ======== タイトル ========
-  function drawTitle(ctx, cw, ch, now, lit) {
+  // rank = ステージの番号（0 = S0）。2（S2）のときだけ、消防署の屋根の帯が青くなり、壁に小さな階級章が付く（S0・S1 は今までと同じ）
+  function drawTitle(ctx, cw, ch, now, lit, rank) {
     var gy = ch * 0.8;
     var sky = ctx.createLinearGradient(0, 0, 0, gy);
     sky.addColorStop(0, '#9fd8f5'); sky.addColorStop(1, '#fff3d6');
@@ -569,7 +678,8 @@
     // しょうぼうしょ
     var bw = Math.min(cw * 0.5, ch * 0.7), bh = ch * 0.42, bx = cw * 0.06, by = gy - bh;
     fillRR(ctx, bx, by, bw, bh, 8, '#e8d9c3', OUT, 4);
-    fillRR(ctx, bx - 6, by - 14, bw + 12, 20, 6, '#e53935', OUT, 4);
+    fillRR(ctx, bx - 6, by - 14, bw + 12, 20, 6, rank >= 2 ? '#3a7bd5' : '#e53935', OUT, 4);
+    if (rank >= 2) drawWappen(ctx, bx + bw * 0.86, by + bh * 0.8, Math.min(bw * 0.12, 40), 2, 0);
     for (var i = 0; i < 4; i++) {
       var on = i < (lit || 0);
       fillRR(ctx, bx + bw * (0.08 + i * 0.23), by + bh * 0.16, bw * 0.16, bh * 0.28, 5, on ? '#ffe680' : '#8fb4c9', OUT, 3);
@@ -611,7 +721,7 @@
     ctx.fillStyle = '#7bbf6a'; ctx.fillRect(0, gy, cw, ch - gy);
     var bw = Math.min(cw * 0.8, ch * 1.2), bh = ch * 0.5, bx = (cw - bw) / 2, by = gy - bh;
     fillRR(ctx, bx, by, bw, bh, 8, '#e8d9c3', OUT, 4);
-    fillRR(ctx, bx - 6, by - 14, bw + 12, 20, 6, '#e53935', OUT, 4);
+    fillRR(ctx, bx - 6, by - 14, bw + 12, 20, 6, idx >= 2 ? '#3a7bd5' : '#e53935', OUT, 4);
     for (var i = 0; i < 4; i++) fillRR(ctx, bx + bw * (0.08 + i * 0.23), by + bh * 0.14, bw * 0.16, bh * 0.22, 5, '#ffe680', OUT, 3);
     fillRR(ctx, bx + bw * 0.3, by + bh * 0.52, bw * 0.4, bh * 0.48, 6, '#b7c2cc', OUT, 4);
     var u = clamp(t / 0.9, 0, 1), pop = u < 1 ? ease(u) * 1.15 : 1 + 0.04 * Math.sin(t * 4);
@@ -622,7 +732,7 @@
 
   var api = {
     Stage: Stage, drawCard: drawCard, drawTitle: drawTitle, drawCat: drawCat, drawRock: drawRock,
-    drawItem: drawItem, drawSpeaker: drawSpeaker, grid: grid, boxLayout: boxLayout, tensTokens: tensTokens, drawWappen: drawWappen, drawPromote: drawPromote, drawRuby: drawRuby, W: W
+    drawItem: drawItem, drawSpeaker: drawSpeaker, grid: grid, boxLayout: boxLayout, tensLayout: tensLayout, groupLayout: groupLayout, tensTokens: tensTokens, drawWappen: drawWappen, drawPromote: drawPromote, drawRuby: drawRuby, W: W
   };
   root.Manabi = root.Manabi || {};
   root.Manabi.scenes = api;

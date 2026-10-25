@@ -48,7 +48,7 @@ test('clock の不正値（レベル・負数・文字列）は戻る', () => {
   ['T4', 'T5', 'T6'].forEach(t => assert.equal(S.normalizeProfile({ levels: { clock: t } }).levels.clock, t));
   assert.equal(S.normalizeProfile({ levels: { clock: 'T7' } }).levels.clock, 'T6', 'S1 が未解放なら T7 は S0 の最後に丸める');
   assert.equal(S.normalizeProfile({ stage: { unlocked: 'S1', current: 'S1' }, levels: { clock: 'T7' } }).levels.clock, 'T7');
-  assert.equal(S.normalizeProfile({ levels: { clock: 'T8' } }).levels.clock, 'T1');
+  assert.equal(S.normalizeProfile({ levels: { clock: 'T99' } }).levels.clock, 'T1');
 });
 
 test('seen.letter: 旧データは空配列。配列でない値・文字列以外・未知の絵・重複・13個以上も正規化される', () => {
@@ -63,11 +63,11 @@ test('seen.letter: 旧データは空配列。配列でない値・文字列以�
   assert.deepEqual(S.normalizeProfile(JSON.parse(JSON.stringify(d))).seen.letter, ['v6', 'bus']);   // 保存して読み直しても同じ
 });
 
-test('letter レベル K4〜K6 を保存・読み込みでき、範囲外（K9）は K1 に戻る。K7 は未解放なら K6', () => {
+test('letter レベル K4〜K6 を保存・読み込みでき、範囲外（K99）は K1 に戻る。K7 は未解放なら K6', () => {
   for (const lv of ['K4', 'K5', 'K6']) assert.equal(S.normalizeProfile({ levels: { letter: lv } }).levels.letter, lv);
   assert.equal(S.normalizeProfile({ levels: { letter: 'K7' } }).levels.letter, 'K6', 'S1 が未解放なら K7 は S0 の最後に丸める');
   assert.equal(S.normalizeProfile({ stage: { unlocked: 'S1', current: 'S1' }, levels: { letter: 'K8' } }).levels.letter, 'K8');
-  assert.equal(S.normalizeProfile({ levels: { letter: 'K9' } }).levels.letter, 'K1');
+  assert.equal(S.normalizeProfile({ levels: { letter: 'K99' } }).levels.letter, 'K1');
   assert.equal(S.normalizeProfile({ levels: { letter: 'K2' }, locked: { letter: true } }).locked.letter, true);
 });
 
