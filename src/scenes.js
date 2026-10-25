@@ -150,6 +150,54 @@
   }
   function flat(groups) { return [].concat.apply([], groups); }
 
+  // M11（S2）: 100 までの数を「10 の束 + ばら」で並べる。束（10 個入りの帯。値 10）は上に 5 列、ばらはその下に 5 列。
+  // → { items:[{x,y,s,v,bundle,w,h}…（束 → ばらの順。数え聞かせもこの順）] }。束は 1 つで v = 10
+  function tensLayout(n, rect, cap) {
+    var t = Math.floor(n / 10), o = n % 10, items = [], both = t > 0 && o > 0;
+    if (t > 0) {
+      var bh0 = both ? rect.h * 0.58 : rect.h, cols = Math.min(t, 5), rows = Math.ceil(t / cols);
+      var cw = Math.min(rect.w / cols, bh0 / rows * 2, cap * 2), bw = cw * 0.9, bh = bw / 2;   // 束は横長（2:1）
+      var y0 = rect.y + bh0 / 2 - rows * cw / 4;
+      for (var i = 0; i < t; i++) {
+        var r = Math.floor(i / cols), c = i % cols, inRow = Math.min(cols, t - r * cols);
+        items.push({ x: rect.x + rect.w / 2 + (c - (inRow - 1) / 2) * cw, y: y0 + (r + 0.5) * cw / 2, s: bw * 0.6, v: 10, bundle: true, w: bw, h: bh });
+      }
+    }
+    if (o > 0) {
+      var ly = both ? rect.y + rect.h * 0.6 : rect.y, lh = both ? rect.h * 0.4 : rect.h;
+      grid(o, Math.min(o, 5), { x: rect.x, y: ly, w: rect.w, h: lh }, cap).forEach(function (g) { items.push(g); });
+    }
+    return { items: items };
+  }
+  // M13（S2）: d こずつ入った箱が m ばこ。箱を並べて、中にものを d 個ずつ。
+  // → { boxes:[rect…], minis:[{x,y,s}…]（中のもの）, items:[{x,y,s,v:d,ghost:true}…]（箱ごとの「手がかり」。数え聞かせ・タップはこれ）}
+  function groupLayout(m, d, rect, cap) {
+    var GW = d + 0.6, GH = 1.5, GAP = 0.4, best = null, c;
+    for (c = 1; c <= Math.min(m, 5); c++) {
+      var rows = Math.ceil(m / c), W0 = c * GW + (c - 1) * GAP, H0 = rows * GH + (rows - 1) * GAP, cell = Math.min(rect.w / W0, rect.h / H0, cap);
+      if (!best || cell > best.cell + 1e-9) best = { cell: cell, cols: c, rows: rows, W: W0, H: H0 };
+    }
+    var cell = best.cell, oy = rect.y + (rect.h - best.H * cell) / 2, out = { boxes: [], minis: [], items: [] };
+    for (var i = 0; i < m; i++) {
+      var r = Math.floor(i / best.cols), cc = i % best.cols, inRow = Math.min(best.cols, m - r * best.cols);
+      var rowW = inRow * GW + (inRow - 1) * GAP, rx = rect.x + (rect.w - rowW * cell) / 2;
+      var x = rx + cc * (GW + GAP) * cell, y = oy + r * (GH + GAP) * cell, w = GW * cell, h = GH * cell;
+      out.boxes.push({ x: x, y: y, w: w, h: h });
+      for (var k = 0; k < d; k++) out.minis.push({ x: x + 0.3 * cell + (k + 0.5) * cell, y: y + h / 2, s: cell * 0.82 });
+      out.items.push({ x: x + w / 2, y: y + h / 2, s: h * 1.1, v: d, ghost: true });
+    }
+    return out;
+  }
+
+  // 10 の束（M11）: 10 個入りの帯。中に 5×2 のものと、まん中に ひも
+  function drawBundle(ctx, scene, b, sc, dy, now) {
+    var w = b.w * sc, h = b.h * sc, x = b.x - w / 2, y = b.y - h / 2 + dy;
+    fillRR(ctx, x, y, w, h, 8, 'rgba(226,185,120,0.55)', '#9a6a2e', 3);
+    var cell = Math.min(w / 5.4, h / 2.3);
+    linepx(ctx, x + w * 0.5, y + 2, x + w * 0.5, y + h - 2, Math.max(3, w * 0.025), 'rgba(154,106,46,0.8)');   // ひも（ものの うしろ）
+    for (var k = 0; k < 10; k++) drawItem(ctx, scene, b.x + ((k % 5) - 2) * cell, b.y + dy + (Math.floor(k / 5) - 0.5) * cell, cell * 0.86, now);
+  }
+
   // ======== 現場ステージ ========
   function Stage(canvas) {
     this.canvas = canvas;
@@ -160,6 +208,9 @@
     this.prob = null;
     this.items = [];
     this.boxes = [];         // 10 個入りの箱（S1。うしろに描く）
+    this.minis = [];         // M13: 箱の中のもの
+    this.eq = '';            // M12・M13: 式の文字（盤に大きく出す）
+    this.eqAns = '';         // 正解のあとに足す「＝ 答え」
     this.gone = [];          // ひきざん: いなくなる b 個（items には入れない）
     this.subT0 = null;       // ひきざん: 出題の時刻（描画で最初に決める）
     this.marks = [];
@@ -197,13 +248,23 @@
   Stage.prototype.layout = function () {
     var p = this.prob, b = this.board(), it = [], pad = 14;
     var inner = { x: b.x + pad, y: b.y + pad, w: b.w - pad * 2, h: b.h - pad * 2 };
-    var gone = [], boxes = [];
+    var gone = [], boxes = [], minis = [], eq = '', eqPos = null;
     this.plus = null; this.pic = null; this.clock = null; this.speaker = null;
-    if (p && p.kind === 'count' && p.n > 10) {
+    if (p && p.kind === 'count' && p.tens) {   // M11: 10 の束 + ばら
+      it = tensLayout(p.n, inner, 90).items;
+    } else if (p && p.kind === 'count' && p.n > 10) {
       var cl = boxLayout(tensTokens(p.n), inner, 110);
       it = flat(cl.groups); boxes = cl.boxes;
     } else if (p && p.kind === 'count') {
       it = grid(p.n, p.n <= 5 ? p.n : 5, inner, 150);
+    } else if (p && p.mental) {   // M12: 暗算。ものは出さず、式を大きく出す
+      eq = p.a + ' ' + (p.kind === 'add' ? '+' : '\u2212') + ' ' + p.b + ' = ';
+      eqPos = { x: inner.x + inner.w / 2, y: inner.y + inner.h / 2, w: inner.w, h: inner.h * 0.6 };
+    } else if (p && p.kind === 'mul') {   // M13: d こずつ入った箱が m ばこ
+      var gl = groupLayout(p.b, p.a, { x: inner.x, y: inner.y, w: inner.w, h: inner.h * 0.78 }, 96);
+      it = gl.items; boxes = gl.boxes; minis = gl.minis;
+      eq = p.a + ' \u00d7 ' + p.b + ' = ';
+      eqPos = { x: inner.x + inner.w / 2, y: inner.y + inner.h * 0.89, w: inner.w, h: inner.h * 0.2 };
     } else if (p && p.kind === 'add' && p.a > 10) {   // M8: 12+3 は「箱 + ばら」+ ばら
       var al = boxLayout(tensTokens(p.a).concat([{ t: 'plus' }, { t: 'loose', n: p.b }]), inner, 110);
       it = flat(al.groups); boxes = al.boxes; this.plus = al.plus;
@@ -231,7 +292,7 @@
       var s = Math.min(inner.w * 0.7, inner.h * 1.0);
       this.pic = { x: inner.x + inner.w / 2, y: inner.y + inner.h / 2, s: s };
     }
-    this.items = it; this.gone = gone; this.boxes = boxes;
+    this.items = it; this.gone = gone; this.boxes = boxes; this.minis = minis; this.eq = eq; this.eqPos = eqPos;
   };
   Stage.prototype.bounce = function (i, now) { this.bounceIdx = i; this.bounceT0 = now; };
   Stage.prototype.bouncePic = function (now) { this.picBounceT0 = now; };
@@ -250,9 +311,11 @@
     }
     return best;
   };
+  // i 番目に印を付ける。返すのは「ここまでに数えた合計」（ふつうは 1, 2, 3…。束や箱は v 個ぶん進む: 10, 20, 30, 31…）
   Stage.prototype.mark = function (i) {
     if (i < 0 || this.marks[i]) return 0;
-    var n = this.marks.filter(Boolean).length + 1;
+    var n = this.items[i].v || 1;
+    for (var j = 0; j < this.items.length; j++) if (this.marks[j]) n += this.items[j].v || 1;
     this.marks[i] = n;
     return n;
   };
@@ -314,10 +377,12 @@
       } else drawSign(ctx, ck, p);
     } else {
       this.boxes.forEach(function (bx) { fillRR(ctx, bx.x, bx.y, bx.w, bx.h, 10, 'rgba(226,185,120,0.55)', '#9a6a2e', 3); });   // 10 個入りの箱
+      for (i = 0; i < this.minis.length; i++) drawItem(ctx, this.scene, this.minis[i].x, this.minis[i].y, this.minis[i].s, now);   // M13: 箱の中
       for (i = 0; i < this.items.length; i++) {
         var it = this.items[i], sc = 1, dy2 = 0, bt2 = now - this.bounceT0;
         if (i === this.bounceIdx && bt2 >= 0 && bt2 < 0.55) { var q = Math.sin(bt2 / 0.55 * Math.PI); sc = 1 + 0.3 * q; dy2 = -q * 14; }
-        drawItem(ctx, this.scene, it.x, it.y + dy2, it.s * sc, now);
+        if (it.bundle) drawBundle(ctx, this.scene, it, sc, dy2, now);   // M11: 10 の束
+        else if (!it.ghost) drawItem(ctx, this.scene, it.x, it.y + dy2, it.s * sc, now);
         if (this.marks[i]) {
           circle(ctx, it.x + it.s * 0.36, it.y - it.s * 0.36, Math.max(14, it.s * 0.2), '#3a9d5d', '#fff', 3);
           ctx.fillStyle = '#fff'; ctx.font = 'bold ' + Math.max(16, it.s * 0.24) + 'px sans-serif';
@@ -353,6 +418,13 @@
       if (this.plus) { // ＋
         var pl = this.plus;
         linePlus(ctx, pl.x, pl.y, pl.s);
+      }
+      if (this.eq && this.eqPos) {   // M12・M13: 式。正解のあとは「= 答え」まで出す（まだのときは「= ？」）
+        var ep = this.eqPos, et = this.eq + (this.reveal ? p.answer : '?');
+        ctx.fillStyle = OUT; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        var efs = Math.round(Math.max(24, Math.min(ep.h * 0.9, ep.w / (et.length * 0.62), p.mental ? 150 : 64)));
+        ctx.font = 'bold ' + efs + 'px sans-serif';
+        ctx.fillText(et, ep.x, ep.y, ep.w * 0.96);
       }
     }
     // えいご: 聞いた英語のつづりを下に出す（正解のあとも出したまま）
@@ -622,7 +694,7 @@
 
   var api = {
     Stage: Stage, drawCard: drawCard, drawTitle: drawTitle, drawCat: drawCat, drawRock: drawRock,
-    drawItem: drawItem, drawSpeaker: drawSpeaker, grid: grid, boxLayout: boxLayout, tensTokens: tensTokens, drawWappen: drawWappen, drawPromote: drawPromote, drawRuby: drawRuby, W: W
+    drawItem: drawItem, drawSpeaker: drawSpeaker, grid: grid, boxLayout: boxLayout, tensLayout: tensLayout, groupLayout: groupLayout, tensTokens: tensTokens, drawWappen: drawWappen, drawPromote: drawPromote, drawRuby: drawRuby, W: W
   };
   root.Manabi = root.Manabi || {};
   root.Manabi.scenes = api;

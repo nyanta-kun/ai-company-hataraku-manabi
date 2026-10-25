@@ -21,7 +21,12 @@
     // S1: M8 は 11〜20 の数を数える問題とくり上がりなしのたしざんを 1 回に 2 問ずつ混ぜる。M9 はくり上がり、M10 はくり下がり
     M8: { kind: 'mix',   max: 20, choices: 4, kinds: ['count', 'count', 'add', 'add'], countMin: 11 },
     M9: { kind: 'add',   max: 20, min: 10, choices: 4 },
-    M10: { kind: 'sub',  max: 10, choices: 4 }
+    M10: { kind: 'sub',  max: 10, choices: 4 },
+    // S2: M11 = 100 までの数（10 の束 + ばら）を読む。M12 = 2 けたのたしざん・ひきざん（暗算の範囲。くり上がり・くり下がりなし）を 1 回に 2 問ずつ。
+    // M13 = かけざんの入口（2・5・3・4 のだん × 1〜9。「d こずつ m ばこ」）
+    M11: { kind: 'count', tens: true, max: 100, min: 10, choices: 4 },
+    M12: { kind: 'mix',   mental: true, max: 99, min: 10, choices: 4, kinds: ['add', 'add', 'sub', 'sub'] },
+    M13: { kind: 'mul',   dans: [2, 5, 3, 4], maxMul: 9, max: 60, choices: 4 }
   };
   // sim = 形が似た文字を 1 つ混ぜてよい。script = 出す文字種（K6 は問題ごとに語の表記で決まる）
   var LETTER = {
@@ -90,10 +95,38 @@
     return out.sort(function (a, b) { return a - b; });
   }
 
+  // 答え＋近い数の選択肢。groups = [[差…]…]。グループごとに 1 つずつ（グループ内は無作為）、範囲 lo..hi で重ならないものを選び、
+  // 足りなければ全部の差から補う。first = 先に入れる誤答（あれば）。昇順に並べて返す
+  function pickNear(answer, groups, lo, hi, count, rng, first) {
+    var out = [answer], all = [];
+    function ok(v) { return v >= lo && v <= hi && out.indexOf(v) < 0; }
+    (first || []).forEach(function (v) { if (out.length < count && ok(v)) out.push(v); });
+    groups.forEach(function (g) {
+      all = all.concat(g);
+      if (out.length >= count) return;
+      var hit = shuffle(g, rng).map(function (d) { return answer + d; }).filter(ok)[0];
+      if (hit !== undefined) out.push(hit);
+    });
+    shuffle(all, rng).forEach(function (d) { if (out.length < count && ok(answer + d)) out.push(answer + d); });
+    return out.sort(function (a, b) { return a - b; });
+  }
+
+  // M11 の選択肢: 十の位と一の位の取り違え（37 に対して 73）→ ±10（束 1 つぶんのまちがい）→ ±1（ばら 1 つぶん）。足りなければ近い数で補う
+  function tensChoices(n, rng) {
+    var t = Math.floor(n / 10), o = n % 10, swap = o * 10 + t;
+    return pickNear(n, [[10, -10], [1, -1], [20, -20, 2, -2, 11, -11, 9, -9]], 10, 100, 4, rng, o >= 1 && t >= 1 && swap !== n ? [swap] : []);
+  }
+
   function generateCounting(level, rng) {
     rng = defRng(rng);
     var L = MATH[level];
     if (!L || (L.kind !== 'count' && L.kind !== 'mix')) throw new RangeError('count level: ' + level);
+    if (L.tens) {   // M11: 10 の束 + ばら。約 2 割は ちょうど 10 の束だけ（10〜100）、それ以外は 11〜99 のばらつき
+      var t11, o11;
+      if (rng() < 0.2) { t11 = randInt(rng, 1, 10); o11 = 0; } else { t11 = randInt(rng, 1, 9); o11 = randInt(rng, 1, 9); }
+      var n11 = t11 * 10 + o11;
+      return { kind: 'count', level: level, n: n11, tens: true, choices: tensChoices(n11, rng), answer: n11 };
+    }
     var n = L.kind === 'mix' ? randInt(rng, L.countMin, L.max) : randInt(rng, 1, L.max);
     // 11 以上を数える M8 は、選択肢も 10 以上（1 や 2 のような極端に小さい誤答を出さない）
     return { kind: 'count', level: level, n: n, choices: numberChoices(n, L.max, L.choices, rng, L.kind === 'mix' ? 10 : 1), answer: n };
@@ -103,6 +136,7 @@
     rng = defRng(rng);
     var L = MATH[level];
     if (!L || (L.kind !== 'add' && L.kind !== 'mix')) throw new RangeError('add level: ' + level);
+    if (L.mental) return generateMental('add', level, rng);
     // M8: 12+3 のような、一の位の和が 9 以下（くり上がりなし）。a は 11〜18、b は 1〜9-一の位
     if (level === 'M8') {
       var a8 = randInt(rng, 11, 18), b8 = randInt(rng, 1, 9 - a8 % 10);
@@ -126,7 +160,8 @@
   function generateSubtraction(level, rng) {
     rng = defRng(rng);
     var L = MATH[level];
-    if (!L || L.kind !== 'sub') throw new RangeError('sub level: ' + level);
+    if (!L || (L.kind !== 'sub' && !(L.mental && L.kind === 'mix'))) throw new RangeError('sub level: ' + level);
+    if (L.mental) return generateMental('sub', level, rng);
     // M10: 13−5 のようなくり下がり。a は 11〜18、b は 2〜9 で一の位 < b（答えは 2〜9）。選択肢は 1〜10
     if (level === 'M10') {
       var a10, b10;
@@ -139,6 +174,32 @@
     var b = randInt(rng, 1, a - 1), ans = a - b;
     // 選択肢は 1〜a（a は「引き忘れ」の誤答）。a より大きい数は答えになりえず消去法で当たるので出さない。a が小さく足りないときだけ広げる
     return { kind: 'sub', level: level, a: a, b: b, choices: numberChoices(ans, Math.max(a, L.choices), L.choices, rng), answer: ans };
+  }
+
+  // M12: 2 けたの暗算。「何十 ± 何十」と「2 けた ± 1 けた（くり上がり・くり下がりなし）」を半々。答えは 10〜99
+  // 誤答は ±10（十の位のまちがい）・±1（一の位のまちがい）。何十どうしのときは 10 きざみの数だけを出す（1 だけちがう数は消去法で当たるため）
+  function generateMental(kind, level, rng) {
+    var L = MATH[level], tensOnly = rng() < 0.5, a, b, ans;
+    if (tensOnly) {
+      if (kind === 'add') { a = randInt(rng, 1, 8) * 10; b = randInt(rng, 1, (90 - a) / 10) * 10; ans = a + b; }
+      else { a = randInt(rng, 2, 9) * 10; b = randInt(rng, 1, (a - 10) / 10) * 10; ans = a - b; }
+    } else if (kind === 'add') {
+      do { a = randInt(rng, 11, 98); } while (a % 10 < 1 || a % 10 > 8);
+      b = randInt(rng, 1, 9 - a % 10); ans = a + b;
+    } else {
+      do { a = randInt(rng, 11, 99); } while (a % 10 < 1);
+      b = randInt(rng, 1, a % 10); ans = a - b;
+    }
+    var groups = tensOnly ? [[10, -10], [20, -20], [30, -30], [40, -40]] : [[1, -1], [10, -10], [2, -2, 11, -11, 9, -9]];
+    return { kind: kind, level: level, a: a, b: b, mental: true, choices: pickNear(ans, groups, L.min, L.max, L.choices, rng), answer: ans };
+  }
+
+  // M13: かけざんの入口。d（ひとつぶん）= 2・5・3・4、m（いくつぶん）= 1〜9 の 36 通り。誤答は d×(m±1)・(d±1)×m に当たる数（答え ± d、答え ± m）
+  function generateMultiplication(level, rng) {
+    var L = MATH[level];
+    if (!L || L.kind !== 'mul') throw new RangeError('mul level: ' + level);
+    var d = L.dans[randInt(rng, 0, L.dans.length - 1)], m = randInt(rng, 1, L.maxMul), ans = d * m;
+    return { kind: 'mul', level: level, a: d, b: m, choices: pickNear(ans, [[d, -d], [m, -m], [d, -d, m, -m], [1, -1, 2, -2]], 1, L.max, L.choices, rng), answer: ans };
   }
 
   function wordPool(level) {
@@ -512,7 +573,7 @@
   function sameProblem(p, q) {
     if (!p || !q || p.kind !== q.kind) return false;
     if (p.kind === 'count') return p.n === q.n;
-    if (p.kind === 'add' || p.kind === 'sub') return p.a === q.a && p.b === q.b;
+    if (p.kind === 'add' || p.kind === 'sub' || p.kind === 'mul') return p.a === q.a && p.b === q.b;
     if (p.kind === 'clock') {
       if (p.form === 'elapsed' || q.form === 'elapsed') {
         return p.form === q.form && ((p.h0 === q.h0 && p.m0 === q.m0 && p.dm === q.dm) || (p.h === q.h && p.m === q.m));
@@ -539,7 +600,7 @@
       var prev = list[list.length - 1], p;
       if (game === 'math') {
         var kind = plan ? plan[list.length] : MATH[level].kind;
-        p = kind === 'count' ? generateCounting(level, rng) : kind === 'sub' ? generateSubtraction(level, rng) : generateAddition(level, rng);
+        p = kind === 'count' ? generateCounting(level, rng) : kind === 'sub' ? generateSubtraction(level, rng) : kind === 'mul' ? generateMultiplication(level, rng) : generateAddition(level, rng);
         if (sameProblem(prev, p) && ++tries < 1000) continue;
       } else if (game === 'clock') {
         p = generateClock(level, rng, prev && clockKey(prev.h, prev.m));
@@ -567,7 +628,7 @@
     QUESTIONS_PER_SESSION: QUESTIONS_PER_SESSION, PROMOTE_AT: PROMOTE_AT, DEMOTE_AT: DEMOTE_AT,
     LEVELS: LEVELS, MATH: MATH, LETTER: LETTER, CLOCK: CLOCK, ENGLISH: ENGLISH,
     generateEnglish: generateEnglish, buildEnglish: buildEnglish, colorOf: colorOf,
-    generateCounting: generateCounting, generateAddition: generateAddition, generateSubtraction: generateSubtraction,
+    generateCounting: generateCounting, generateAddition: generateAddition, generateSubtraction: generateSubtraction, generateMultiplication: generateMultiplication,
     generateLetter: generateLetter, buildLetter: buildLetter, buildYouon: buildYouon, buildKanji: buildKanji, generateClock: generateClock, handAngles: handAngles, readTime: readTime, readMinutes: readMinutes,
     clockKey: clockKey, sameProblem: sameProblem, generateSession: generateSession, nextLevel: nextLevel
   };

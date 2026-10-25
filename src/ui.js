@@ -286,6 +286,7 @@
     if (p.kind === 'count') return 'いくつあるかな？';
     if (p.kind === 'add') return NUMK[p.a] + 'たす' + NUMK[p.b] + 'は、いくつ？';   // 数字で渡すと「1たす4」などの読みが揺れるので、数の読み（よん・なな）で渡す
     if (p.kind === 'sub') return NUMK[p.a] + 'ひく' + NUMK[p.b] + 'は、いくつ？';
+    if (p.kind === 'mul') return 'ひとはこに、' + NUMK[p.a] + 'こずつ。' + NUMK[p.b] + 'はこで、ぜんぶでいくつ？';   // 数字で渡さず数の読みで。「かける」は式の絵に任せる
     if (p.kind === 'clock') {
       if (p.form === 'read') return '時計を見てね。出動の時間は、何時かな？';
       if (p.form === 'readmin') return '時計を見てね。出動の時間は、何時何分かな？';
@@ -354,7 +355,7 @@
       else if (q.kind === 'clock') b.innerHTML = '<span class="num">' + c + '</span>';
       else if (q.kind === 'english' && q.form === 'alpha') b.innerHTML = '<span class="kana">' + c + '</span>';   // E5: 大文字
       else if (q.kind === 'letter') b.innerHTML = '<span class="kana' + (c.length > 1 ? ' two' : '') + '">' + c + '</span>';   // 拗音（しょ）は 2 文字なので少し小さく
-      else if (q.choices.some(function (v) { return v > 10; })) b.innerHTML = '<span class="num">' + c + '</span>';   // 11 以上は数字だけ（点は 10 まで。S1 の子は数字が読める）
+      else if (q.kind === 'mul' || q.choices.some(function (v) { return v > 10; })) b.innerHTML = '<span class="num">' + c + '</span>';   // 11 以上は数字だけ（点は 10 まで。S1 の子は数字が読める）
       else {
         var dots = '';
         for (var i = 0; i < c; i++) { dots += '<i></i>'; if (i === 4 && c > 5) dots += '<b></b>'; }
@@ -416,7 +417,7 @@
           seq([{ text: q.en + '?', lang: 'en' }, { text: 'こっちかな？', lang: 'ja', gap: 250 }]);
           stage.bouncePic(now());
         } else say('こっちかな？');
-        if (q.kind === 'count' || q.kind === 'add' || q.kind === 'sub') countAloud(q);
+        if (q.kind === 'count' || q.kind === 'add' || q.kind === 'sub' || q.kind === 'mul') countAloud(q);
         else if (q.kind === 'letter') stage.bouncePic(now());
         kick();
       });
@@ -756,7 +757,7 @@
           g.appendChild(el('b', '', GATE_LABEL[k] + ' ' + D.gateOf(stg.id)[k] + ' ' + (gate[k] ? '◯ ' + mdOf(gate[k]) : 'ー')));
         });
         row.appendChild(g);
-        if (stg.id === 'S0') row.appendChild(el('p', 'note', '「' + D.STAGES[1].rank + '」に すすむ じょうけん：かんもんの 3つを、それぞれ 1かい 4もん ぜんぶ 1かいで せいかい（えいごは ふくみません）。'));
+        row.appendChild(el('p', 'note', '「' + D.STAGES[i + 1].rank + '」に すすむ じょうけん：かんもんの 3つを、それぞれ 1かい 4もん ぜんぶ 1かいで せいかい（えいごは ふくみません）。'));
       }
       if (i > 0) {
         var acts = el('div', 'kid-acts');

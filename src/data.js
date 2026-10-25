@@ -154,7 +154,10 @@
     { id: 'S0', rank: 'みならい しょうぼうし', short: 'みならい', grade: 'みしゅうがく',
       levels: { math: ['M1', 'M2', 'M3', 'M4', 'M5', 'M6', 'M7'], letter: ['K1', 'K2', 'K3', 'K4', 'K5', 'K6'], clock: ['T1', 'T2', 'T3', 'T4', 'T5', 'T6'], english: ['E1', 'E2', 'E3'] } },
     { id: 'S1', rank: 'しょうぼうし', short: 'しょうぼうし', grade: '小学1年生くらい',
-      levels: { math: ['M8', 'M9', 'M10'], letter: ['K7', 'K8'], clock: ['T7'], english: ['E4', 'E5'] } }
+      levels: { math: ['M8', 'M9', 'M10'], letter: ['K7', 'K8'], clock: ['T7'], english: ['E4', 'E5'] } },
+    // S2: えいごは追加なし（S1 の範囲で遊ぶ）。もじ・とけいは K9・T8 が入るまで S1 の範囲で遊ぶ（stageRange）
+    { id: 'S2', rank: 'たいいん', short: 'たいいん', grade: '小学2年生くらい',
+      levels: { math: ['M11', 'M12', 'M13'], letter: [], clock: [], english: [] } }
   ];
   var GAMES = ['math', 'letter', 'clock', 'english'];
   var GATE_GAMES = ['math', 'letter', 'clock'];   // えいごは関門に入れない（U2）

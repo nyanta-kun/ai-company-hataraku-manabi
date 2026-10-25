@@ -100,7 +100,7 @@ test('S1 数6: 数の読み上げ（NUM_KANA）が問題の全ての数・答え
 });
 
 test('S1 数7: 範囲外のレベルは RangeError。M8 の部品は M8 以外で呼ぶとたしざん／数えるの通常動作', () => {
-  assert.throws(() => P.generateSession('math', 'M11', rngOf(1)), RangeError);
+  assert.throws(() => P.generateSession('math', 'M99', rngOf(1)), RangeError);
   assert.throws(() => P.generateCounting('M9', rngOf(1)), RangeError);
   assert.throws(() => P.generateSubtraction('M9', rngOf(1)), RangeError);
   assert.throws(() => P.generateAddition('M10', rngOf(1)), RangeError);
