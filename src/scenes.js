@@ -87,7 +87,7 @@
     segments.forEach(function (sg, i) {
       var mid = cx + widths[i] / 2;
       ctx.font = 'bold ' + bs + 'px sans-serif'; ctx.fillText(sg.t, mid, y);
-      if (sg.r) { ctx.font = 'bold ' + rs + 'px sans-serif'; ctx.fillText(sg.r, mid, y - bs * 0.62); }
+      if (sg.r) { ctx.font = 'bold ' + rs + 'px sans-serif'; ctx.fillText(sg.r, mid, y - bs * 0.72); }
       cx += widths[i];
     });
     ctx.restore();

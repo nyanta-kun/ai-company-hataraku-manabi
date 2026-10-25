@@ -110,13 +110,15 @@ test('R3 階段7: 再ロック。S2 を閉じると S1 の関門の記録（M10�
   assert.equal(L.afterSession(q, 'math', 'M10', 4, false, TODAY).promotedTo, null);
 });
 
-test('R3 階段8: 保存の補正。S2 が未解放なら M11 以降のレベルは M10 に丸める。解放済みならそのまま。cleared に M13 などは残せない（S2 に次が無い）', () => {
+test('R3 階段8: 保存の補正。S2 が未解放なら M11 以降のレベルは M10 に丸める。解放済みならそのまま。cleared は関門レベル（M10・K8・T7・M13・K9・T8 など）だけ残り、未知のキーは捨てる', () => {
   assert.equal(S.normalizeProfile({ levels: { math: 'M12' }, stage: { unlocked: 'S1', current: 'S1' } }).levels.math, 'M10');
   assert.equal(S.normalizeProfile({ levels: { math: 'M12' }, stage: { unlocked: 'S2', current: 'S2' } }).levels.math, 'M12');
   assert.equal(S.normalizeProfile({ levels: { math: 'M12' }, stage: { unlocked: 'S2', current: 'S5' } }).stage.current, 'S0');
   const n = S.normalizeProfile({ stage: { unlocked: 'S2', current: 'S2' }, promoted: { S2: '2026-11-22' }, cleared: { M10: '2026-11-20', M99: '2026-11-20' } });
   assert.equal(n.promoted.S2, '2026-11-22');
   assert.deepEqual(n.cleared, { M10: '2026-11-20' });
+  const n2 = S.normalizeProfile({ stage: { unlocked: 'S2', current: 'S2' }, cleared: { M13: '2026-11-20', K9: '2026-11-21', T8: '2026-11-22', M99: '2026-11-20' } });
+  assert.deepEqual(n2.cleared, { M13: '2026-11-20', K9: '2026-11-21', T8: '2026-11-22' }, 'S2 の関門の記録は残る');
   assert.deepEqual(L.selectableLevels(L.unlockStage(prof(), 'S2', TODAY), 'math').slice(-3), ['M11', 'M12', 'M13']);
   assert.equal(L.selectableLevels(L.unlockStage(prof(), 'S1', TODAY), 'math').slice(-1)[0], 'M10');
 });

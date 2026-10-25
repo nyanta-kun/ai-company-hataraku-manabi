@@ -25,3 +25,18 @@ test('S0・S1 の出題は R3 の前と同じ（固定シードの SHA-256）', 
   }));
   assert.equal(h.digest('hex'), EXPECT);
 });
+
+// 国語の「直近の絵」（seen）が空でないときも同じ（K1〜K8 を、直近の絵 8 個つきで）。旧版（origin/main）と同じ値
+const EXPECT_SEEN = '8a97a2e2eb8be0878618877d76e885c74fa177f280577fcb30fab73558a8ca4f';
+test('S0・S1 の国語の出題は、直近の絵があっても R3 の前と同じ', () => {
+  const seen = ['v8', 'hose', 'flame', 'bus', 'ship', 'train', 'airplane', 'taxi'];
+  const h = crypto.createHash('sha256');
+  LV.letter.forEach((l) => {
+    for (let s = 1; s <= 30; s++) {
+      const r = rngOf(s * 7919), seq = [];
+      for (let i = 0; i < 3; i++) seq.push(P.generateSession('letter', l, r, seen));
+      h.update(l + ':' + s + JSON.stringify(seq));
+    }
+  });
+  assert.equal(h.digest('hex'), EXPECT_SEEN);
+});
