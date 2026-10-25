@@ -347,7 +347,7 @@
     if (p && p.kind === 'letter' && this.pic) {
       var pb = this.pic, bt = now - this.picBounceT0, k = bt >= 0 && bt < 0.6 ? 1 + 0.18 * Math.sin(bt / 0.6 * Math.PI) : 1;
       var dy = bt >= 0 && bt < 0.6 ? -Math.sin(bt / 0.6 * Math.PI) * 18 : 0;
-      if (p.level === 'K8' && this.reveal) {   // K8: 正解のあとは、絵を左に寄せて、漢字をふりがなつきで右に大きく出す
+      if (p.script === 'kanji' && this.reveal) {   // K8・K9: 正解のあとは、絵を左に寄せて、漢字をふりがなつきで右に大きく出す
         var bd0 = this.board(), ks = Math.min(pb.s * 0.62, bd0.h * 0.4, bd0.w * 0.26), ps = Math.min(pb.s * 0.72, bd0.w * 0.4, bd0.h * 0.8);   // 縦長の画面でも ボードに収める
         V().drawPic(ctx, this.word.pic, bd0.x + bd0.w * 0.3, pb.y + dy, ps * k, now);
         drawRuby(ctx, [{ t: p.answer, r: p.yomi }], bd0.x + bd0.w * 0.7, pb.y + ks * 0.12, ks);
@@ -364,6 +364,17 @@
     } else if (p && p.kind === 'clock' && this.clock) {
       var ck = this.clock;
       if (p.form === 'read') root.Manabi.clockface.drawClock(ctx, ck.x, ck.y, ck.r, p.h + ':00', { numbers: 12, pulse: this.pulseAt(now) });
+      else if (p.form === 'ampm') {   // T8: 場面（朝・夕方・夜）の空の上に時計。正解のあとは「ごぜん／ごご」の札を出す
+        drawAmPmSky(ctx, b, p.scene, now);
+        var cr = ck.r * 0.8, cy2 = ck.y - ck.h * 0.07;   // 時計を少し上に。下の帯に、正解のあと「ごぜん／ごご」の札を出す
+        root.Manabi.clockface.drawClock(ctx, ck.x, cy2, cr, p.h + ':' + (p.m < 10 ? '0' : '') + p.m, { numbers: 12 });
+        if (this.reveal) {
+          var lab = root.Manabi.data.AMPM_LABEL[p.ap], lw2 = Math.min(b.w * 0.4, 230), lh2 = Math.min(b.h * 0.15, 56), ly2 = b.y + b.h - 12 - lh2;
+          fillRR(ctx, ck.x - lw2 / 2, ly2, lw2, lh2, lh2 / 2, '#fff8e1', OUT, 4);
+          ctx.fillStyle = OUT; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.font = 'bold ' + Math.round(lh2 * 0.62) + 'px sans-serif';
+          ctx.fillText(lab, ck.x, ly2 + lh2 / 2 + 2);
+        }
+      }
       else if (p.form === 'readmin') {   // T7: 1 分刻みの大きな時計（外周に 5,10,…の数字）。ヒントは短針と長針を一緒にふくらませる
         var rp = this.pulseAt(now);
         root.Manabi.clockface.drawClock(ctx, ck.x, ck.y, ck.r, p.h + ':' + (p.m < 10 ? '0' : '') + p.m, { numbers: 12, ticks: 60, minuteNums: true, pulse: rp, pulseMin: rp });
@@ -434,6 +445,31 @@
       ctx.fillText(this.caption, b.x + b.w / 2, b.y + b.h - Math.max(22, b.h * 0.1), b.w * 0.9);
     }
   };
+  // T8: 場面の空（盤の中だけ）。morning = 日の出 / evening = 夕焼け / night = 月と星
+  function drawAmPmSky(ctx, b, scene, now) {
+    ctx.save(); rrect(ctx, b.x, b.y, b.w, b.h, 28); ctx.clip();
+    var g = ctx.createLinearGradient(0, b.y, 0, b.y + b.h);
+    if (scene === 'night') { g.addColorStop(0, '#1d2a55'); g.addColorStop(1, '#3d4d88'); }
+    else if (scene === 'evening') { g.addColorStop(0, '#ff8f5a'); g.addColorStop(1, '#ffd9a0'); }
+    else { g.addColorStop(0, '#ffd7a8'); g.addColorStop(1, '#fff3d6'); }
+    ctx.fillStyle = g; ctx.fillRect(b.x, b.y, b.w, b.h);
+    var r = Math.min(b.h * 0.15, 70), sx = b.x + b.w * 0.13, gy = b.y + b.h * 0.88;
+    if (scene === 'morning') {   // 日の出: 左の地平線から半分
+      for (var i = 0; i < 9; i++) { var a = Math.PI + i * Math.PI / 8; linepx(ctx, sx + Math.cos(a) * r * 1.3, gy + Math.sin(a) * r * 1.3, sx + Math.cos(a) * r * 1.8, gy + Math.sin(a) * r * 1.8, 5, '#ffb733'); }
+      ctx.beginPath(); ctx.arc(sx, gy, r, Math.PI, 0); ctx.closePath(); ctx.fillStyle = '#ff9f1c'; ctx.fill(); ctx.lineWidth = 3; ctx.strokeStyle = OUT; ctx.stroke();
+    } else if (scene === 'evening') {   // 夕日: 右の低い位置
+      circle(ctx, b.x + b.w * 0.87, gy - r * 0.2, r * 1.1, '#e8501f', OUT, 3);
+    } else {   // 月と星
+      var mx = b.x + b.w * 0.13, my = b.y + b.h * 0.22;
+      circle(ctx, mx, my, r * 0.8, '#ffe680', null); circle(ctx, mx + r * 0.38, my - r * 0.2, r * 0.72, '#243263', null);
+      [[0.3, 0.14, 7], [0.78, 0.2, 9], [0.9, 0.55, 6], [0.2, 0.55, 6], [0.62, 0.08, 6]].forEach(function (st, k) { sparkle(ctx, b.x + b.w * st[0], b.y + b.h * st[1], st[2] + Math.sin(now * 3 + k) * 2, 0.9); });
+    }
+    ctx.fillStyle = scene === 'night' ? '#2c3f3a' : scene === 'evening' ? '#5a7a4a' : '#7bbf6a';
+    ctx.fillRect(b.x, gy, b.w, b.y + b.h - gy);
+    ctx.restore();
+    rrect(ctx, b.x, b.y, b.w, b.h, 28); ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(58,43,36,0.35)'; ctx.stroke();
+  }
+
   // えいご: 大きなスピーカー（音が出ているように波がゆれる）
   function drawSpeaker(ctx, x, y, s, t) {
     var r = s * 0.5;
@@ -630,7 +666,8 @@
   }
 
   // ======== タイトル ========
-  function drawTitle(ctx, cw, ch, now, lit) {
+  // rank = ステージの番号（0 = S0）。2（S2）のときだけ、消防署の屋根の帯が青くなり、壁に小さな階級章が付く（S0・S1 は今までと同じ）
+  function drawTitle(ctx, cw, ch, now, lit, rank) {
     var gy = ch * 0.8;
     var sky = ctx.createLinearGradient(0, 0, 0, gy);
     sky.addColorStop(0, '#9fd8f5'); sky.addColorStop(1, '#fff3d6');
@@ -641,7 +678,8 @@
     // しょうぼうしょ
     var bw = Math.min(cw * 0.5, ch * 0.7), bh = ch * 0.42, bx = cw * 0.06, by = gy - bh;
     fillRR(ctx, bx, by, bw, bh, 8, '#e8d9c3', OUT, 4);
-    fillRR(ctx, bx - 6, by - 14, bw + 12, 20, 6, '#e53935', OUT, 4);
+    fillRR(ctx, bx - 6, by - 14, bw + 12, 20, 6, rank >= 2 ? '#3a7bd5' : '#e53935', OUT, 4);
+    if (rank >= 2) drawWappen(ctx, bx + bw * 0.86, by + bh * 0.8, Math.min(bw * 0.12, 40), 2, 0);
     for (var i = 0; i < 4; i++) {
       var on = i < (lit || 0);
       fillRR(ctx, bx + bw * (0.08 + i * 0.23), by + bh * 0.16, bw * 0.16, bh * 0.28, 5, on ? '#ffe680' : '#8fb4c9', OUT, 3);
@@ -683,7 +721,7 @@
     ctx.fillStyle = '#7bbf6a'; ctx.fillRect(0, gy, cw, ch - gy);
     var bw = Math.min(cw * 0.8, ch * 1.2), bh = ch * 0.5, bx = (cw - bw) / 2, by = gy - bh;
     fillRR(ctx, bx, by, bw, bh, 8, '#e8d9c3', OUT, 4);
-    fillRR(ctx, bx - 6, by - 14, bw + 12, 20, 6, '#e53935', OUT, 4);
+    fillRR(ctx, bx - 6, by - 14, bw + 12, 20, 6, idx >= 2 ? '#3a7bd5' : '#e53935', OUT, 4);
     for (var i = 0; i < 4; i++) fillRR(ctx, bx + bw * (0.08 + i * 0.23), by + bh * 0.14, bw * 0.16, bh * 0.22, 5, '#ffe680', OUT, 3);
     fillRR(ctx, bx + bw * 0.3, by + bh * 0.52, bw * 0.4, bh * 0.48, 6, '#b7c2cc', OUT, 4);
     var u = clamp(t / 0.9, 0, 1), pop = u < 1 ? ease(u) * 1.15 : 1 + 0.04 * Math.sin(t * 4);

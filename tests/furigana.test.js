@@ -59,8 +59,35 @@ test('furigana: 読みを付けた文字列からひらがなを復元すると�
   });
 });
 
-test('furigana: KANJI の定義（S0 は空、S1 は K8 の 20 字、S2 以降は未定義でも落ちない）', () => {
+test('furigana: KANJI の定義（S0 は空、S1 は K8 の 20 字、S2 は K9 の 20 字、未知のステージは落ちない）', () => {
   assert.deepEqual(D.KANJI.S0, []);
   assert.equal(D.KANJI.S1.length, 20);
+  assert.equal(D.KANJI.S2.length, 20);
+  assert.equal(new Set(D.KANJI.S1.concat(D.KANJI.S2)).size, 40, 'K8 と K9 の字は重ならない');
   assert.deepEqual(D.allowedKanji('S9'), []);
+});
+
+test('furigana S2: S2 では漢字は K8 + K9 の字だけで、すべて読みがつく。K9 の字は S2 でだけ読みつきで出る（S0 は全部ひらがな、S1 は K8 の字だけ）', () => {
+  const S2 = D.allowedKanji('S2'), S1 = D.allowedKanji('S1'), S0 = D.allowedKanji('S0');
+  assert.deepEqual(S2, D.KANJI.S1.concat(D.KANJI.S2));
+  const k9used = new Set();
+  Object.keys(D.TEXT).forEach((k) => {
+    D.furigana(D.TEXT[k], S2).forEach((g) => {
+      if (KANJI_RE.test(g.t)) {
+        assert.ok(g.t.split('').every((c) => S2.includes(c)), k + ': ' + g.t + ' は K8・K9 の字ではない');
+        assert.ok(g.r && HIRA.test(g.r), k + ': ' + g.t + ' に読みが無い');
+        g.t.split('').forEach((c) => { if (D.KANJI.S2.includes(c)) k9used.add(c); });
+      } else assert.equal(g.r, undefined);
+    });
+    // S1 では K9 の字は出ない（読みのひらがなになる）
+    D.furigana(D.TEXT[k], S1).forEach((g) => g.t.split('').forEach((c) => assert.ok(!D.KANJI.S2.includes(c), k + ': S1 に K9 の字 ' + c)));
+    // S0 は全部ひらがな
+    D.furigana(D.TEXT[k], S0).forEach((g) => { assert.equal(g.r, undefined); assert.ok(!KANJI_RE.test(g.t)); });
+    // 読みを復元すると S0 の文字列と一致
+    assert.equal(D.furigana(D.TEXT[k], S2).map((g) => g.r || g.t).join(''), D.furigana(D.TEXT[k], []).map((g) => g.t).join(''), k);
+  });
+  assert.ok(k9used.size >= 2, 'S2 の画面で K9 の字が読みつきで出る（出動えらびの一行）: ' + [...k9used].join(''));
+  // S1 の文言（pickSub・rewardNew）は S1 でそのまま（K8 の字だけ）。S2 用の一行は別
+  assert.equal(D.furigana(D.TEXT.pickSub, S1).filter((g) => g.r).map((g) => g.t).join(''), '火車');
+  assert.ok(D.furigana(D.TEXT.pickSub2, S2).filter((g) => g.r).map((g) => g.t).join('').includes('朝'));
 });

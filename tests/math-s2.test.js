@@ -145,3 +145,9 @@ test('S2 数8: 部品は別のレベルで呼ぶと RangeError。M12 の部品�
   assert.throws(() => P.generateAddition('M10', rngOf(1)), RangeError);
   assert.throws(() => P.generateSession('math', 'M14', rngOf(1)), RangeError);
 });
+
+test('S2 数9: M13 の読み上げに使う「◯はこ」の読み（HAKO_KANA）は 1〜9 すべてひらがなで、ばこ・ぱこの読みが正しい', () => {
+  assert.equal(D.HAKO_KANA.length, 10);
+  for (let m = 1; m <= 9; m++) assert.match(D.HAKO_KANA[m], /^[ぁ-ゖー]+$/);
+  assert.deepEqual([1, 3, 6, 8].map((m) => D.HAKO_KANA[m]), ['ひとはこ', 'さんばこ', 'ろっぱこ', 'はっぱこ']);
+});

@@ -33,7 +33,9 @@
     K1: { choices: 2 }, K2: { choices: 3 }, K3: { choices: 4, sim: true },
     K4: { choices: 2, script: 'kata' }, K5: { choices: 4, script: 'kata', sim: true }, K6: { choices: 4, script: 'mixed', sim: true },
     // S1: K7 = 小さい「ゃゅょ」のある語の最初の音（2 文字）。K8 = 絵と読み上げから漢字を選ぶ（小1 の 20 字）。どちらも専用の生成関数
-    K7: { choices: 4, form: 'youon' }, K8: { choices: 4, form: 'kanji' }
+    K7: { choices: 4, form: 'youon' }, K8: { choices: 4, form: 'kanji' },
+    // S2: K9 = K8 と同じ形で、小2 の 20 字（data.KANJI_WORDS2）
+    K9: { choices: 4, form: 'kanji' }
   };
 
   // とけい: form = read（時計を見て数字）/ pick（読み上げを聞いて時計を選ぶ）、half = ○じはんを出す
@@ -47,7 +49,9 @@
     T5: { form: 'pick', mins: [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55], choices: 4, ticks: 60 },
     T6: { form: 'elapsed', starts: [0, 30], durations: [10, 20, 30, 40, 60], choices: 4, ticks: 60 },
     // T7（S1）: 1 分刻みの時計を見て「3:17」を 4 択で選ぶ（readmin）。分は 0〜59 のどれでも出る
-    T7: { form: 'readmin', choices: 4, ticks: 60 }
+    T7: { form: 'readmin', choices: 4, ticks: 60 },
+    // T8（S2）: 場面の絵（朝・夕方・夜）と時計から「ごぜん」か「ごご」を選ぶ（2 択）。時刻はちょうど・はん
+    T8: { form: 'ampm', choices: 2 }
   };
 
   // えいご: 問題の form = word（乗り物の英語を聞いて絵を選ぶ）/ number（英語の数を聞いて数を選ぶ）
@@ -262,10 +266,11 @@
       choices: shuffle(out, rng), answer: ans };
   }
   // ---- K8: 絵と読み上げから漢字を選ぶ。誤答は形が似た字（sim が同じグループ）を避けた別の字 ----
+  function kanjiTable(level) { return level === 'K9' ? D.KANJI_WORDS2 : D.KANJI_WORDS; }   // K8 は小1 の 20 字、K9 は小2 の 20 字
   function buildKanji(level, w, rng) {
     var out = [], sims = {};
     if (w.sim) sims[w.sim] = true;
-    shuffle(D.KANJI_WORDS.filter(function (k) { return k.ch !== w.ch; }), rng).forEach(function (k) {
+    shuffle(kanjiTable(level).filter(function (k) { return k.ch !== w.ch; }), rng).forEach(function (k) {
       if (out.length >= LETTER[level].choices - 1 || (k.sim && sims[k.sim])) return;
       if (k.sim) sims[k.sim] = true;
       out.push(k.ch);
@@ -274,7 +279,7 @@
     return { kind: 'letter', level: level, script: 'kanji', wordId: 'kanji_' + w.ch, word: w.ch, pic: w.pic, yomi: w.yomi, speech: w.speech,
       choices: shuffle(out, rng), answer: w.ch };
   }
-  function specialPool(level) { return LETTER[level].form === 'youon' ? D.YOUON_WORDS : D.KANJI_WORDS; }
+  function specialPool(level) { return LETTER[level].form === 'youon' ? D.YOUON_WORDS : kanjiTable(level); }
   function specialKey(level, w) { return LETTER[level].form === 'youon' ? w.id : 'kanji_' + w.ch; }
   function specialAnswer(level, w) { return LETTER[level].form === 'youon' ? w.head : w.ch; }
   function buildSpecial(level, w, rng) { return LETTER[level].form === 'youon' ? buildYouon(level, w, rng) : buildKanji(level, w, rng); }
@@ -444,10 +449,18 @@
     return { kind: 'clock', level: level, form: 'readmin', h: h, m: m, choices: shuffle(out, rng), answer: ans, ticks: L.ticks };
   }
 
-  function generateClock(level, rng, prevKey) {
+  // T8: 午前・午後。ap = 'am' / 'pm' を指定すると、その午前・午後の場面から選ぶ（1 回に両方が出るようにするため）。直前と同じ時刻は避ける
+  function generateAmPm(level, rng, prevKey, ap) {
+    var cands = D.AMPM_CASES.filter(function (c) { return (!ap || c.ap === ap) && clockKey(c.h, c.m) !== prevKey; });
+    var c = cands[randInt(rng, 0, cands.length - 1)];
+    return { kind: 'clock', level: level, form: 'ampm', h: c.h, m: c.m, ap: c.ap, scene: c.scene, choices: ['am', 'pm'], answer: c.ap };
+  }
+
+  function generateClock(level, rng, prevKey, ap) {
     rng = defRng(rng);
     var L = CLOCK[level];
     if (!L) throw new RangeError('clock level: ' + level);
+    if (L.form === 'ampm') return generateAmPm(level, rng, prevKey, ap);
     if (L.form === 'readmin') return generateReadMin(level, rng, prevKey);
     var prev = prevKey ? parseKey(prevKey) : null, hs = [], i;
     if (L.form === 'elapsed') return generateElapsed(level, rng, prevKey);
@@ -578,6 +591,7 @@
       if (p.form === 'elapsed' || q.form === 'elapsed') {
         return p.form === q.form && ((p.h0 === q.h0 && p.m0 === q.m0 && p.dm === q.dm) || (p.h === q.h && p.m === q.m));
       }
+      if (p.form === 'ampm' || q.form === 'ampm') return p.form === q.form && p.h === q.h && p.m === q.m && p.ap === q.ap;
       return p.h === q.h && p.m === q.m;
     }
     if (p.kind === 'english') return p.form === q.form && (p.form === 'number' ? p.n === q.n : p.form === 'color' ? p.colorId === q.colorId : p.wordId === q.wordId);
@@ -596,6 +610,7 @@
     var list = [], tries = 0;
     if (game === 'math' && !MATH[level]) throw new RangeError('math level: ' + level);
     var plan = game === 'math' && MATH[level].kind === 'mix' ? shuffle(MATH[level].kinds, rng) : null;   // M8: 数える問題とたしざんを混ぜた順番
+    if (game === 'clock' && CLOCK[level] && CLOCK[level].form === 'ampm') plan = shuffle(['am', 'am', 'pm', 'pm'], rng);   // T8: 午前 2 問・午後 2 問
     while (list.length < QUESTIONS_PER_SESSION) {
       var prev = list[list.length - 1], p;
       if (game === 'math') {
@@ -603,7 +618,7 @@
         p = kind === 'count' ? generateCounting(level, rng) : kind === 'sub' ? generateSubtraction(level, rng) : kind === 'mul' ? generateMultiplication(level, rng) : generateAddition(level, rng);
         if (sameProblem(prev, p) && ++tries < 1000) continue;
       } else if (game === 'clock') {
-        p = generateClock(level, rng, prev && clockKey(prev.h, prev.m));
+        p = generateClock(level, rng, prev && clockKey(prev.h, prev.m), plan ? plan[list.length] : undefined);
         if (list.some(function (q) { return sameProblem(q, p); }) && ++tries < 1000) continue;
       } else throw new RangeError('game: ' + game);
       list.push(p);
@@ -629,7 +644,7 @@
     LEVELS: LEVELS, MATH: MATH, LETTER: LETTER, CLOCK: CLOCK, ENGLISH: ENGLISH,
     generateEnglish: generateEnglish, buildEnglish: buildEnglish, colorOf: colorOf,
     generateCounting: generateCounting, generateAddition: generateAddition, generateSubtraction: generateSubtraction, generateMultiplication: generateMultiplication,
-    generateLetter: generateLetter, buildLetter: buildLetter, buildYouon: buildYouon, buildKanji: buildKanji, generateClock: generateClock, handAngles: handAngles, readTime: readTime, readMinutes: readMinutes,
+    generateLetter: generateLetter, buildLetter: buildLetter, buildYouon: buildYouon, buildKanji: buildKanji, kanjiTable: kanjiTable, generateClock: generateClock, handAngles: handAngles, readTime: readTime, readMinutes: readMinutes,
     clockKey: clockKey, sameProblem: sameProblem, generateSession: generateSession, nextLevel: nextLevel
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;

@@ -663,6 +663,165 @@
     poly(ctx, [[0.1, -0.3], [0.6, -0.5], [0.3, -0.2]], '#55b155'); poly(ctx, [[-0.1, 0.2], [-0.6, 0.0], [-0.3, 0.3]], '#55b155'); poly(ctx, [[0.1, 0.25], [0.55, 0.15], [0.3, 0.42]], '#55b155');
   };
 
+  // ---- S2 の漢字の教材（K9）の絵。名前・文字は描かない。向きのない絵なので反転しない ----
+  function panel(ctx, fill) { rr(ctx, -0.8, -0.65, 1.6, 1.3, 0.12, fill); }   // 絵の台紙。clip して中を塗り、最後にふちを描き直す
+  function clipPanel(ctx) { ctx.save(); ctx.beginPath(); ctx.rect(-0.8, -0.65, 1.6, 1.3); ctx.clip(); }
+  function rays(ctx, x, y, r0, r1, n, w, col, rot) {
+    for (var i = 0; i < n; i++) { var a = (rot || 0) + i * Math.PI * 2 / n; line(ctx, x + Math.cos(a) * r0, y + Math.sin(a) * r0, x + Math.cos(a) * r1, y + Math.sin(a) * r1, w, col); }
+  }
+  pics.bolt = function (ctx) {   // 電（いなずま）
+    panel(ctx, '#5a6b8f');
+    circ(ctx, -0.4, -0.38, 0.22, '#aab5c1'); circ(ctx, 0.4, -0.4, 0.24, '#aab5c1'); circ(ctx, 0, -0.5, 0.3, '#c3ccd6'); rr(ctx, -0.6, -0.42, 1.2, 0.2, 0.08, '#c3ccd6');
+    poly(ctx, [[0.12, -0.34], [-0.34, 0.12], [-0.04, 0.12], [-0.2, 0.56], [0.36, -0.06], [0.06, -0.06], [0.26, -0.34]], '#ffd23f');
+  };
+  pics.road = function (ctx) {   // 道（まっすぐな道）
+    panel(ctx, '#7bbf6a'); clipPanel(ctx);
+    poly(ctx, [[-0.12, -0.7], [0.12, -0.7], [0.75, 0.7], [-0.75, 0.7]], '#8b8f94');
+    [[-0.5, -0.4], [-0.3, -0.12], [-0.05, 0.22], [0.2, 0.62]].forEach(function (d, i) { var k = 0.012 + i * 0.016; poly(ctx, [[-k, d[0]], [k, d[0]], [k * 1.9, d[1] + 0.1], [-k * 1.9, d[1] + 0.1]], '#fafafa'); });
+    ctx.restore(); panel(ctx, null);
+  };
+  pics.rail = function (ctx) {   // 線（線路）
+    panel(ctx, '#c9b79c'); clipPanel(ctx);
+    [-0.5, -0.28, -0.04, 0.24, 0.58].forEach(function (y, i) { var w = 0.2 + (y + 0.7) * 0.5; line(ctx, -w, y, w, y, 0.07 + i * 0.012, '#8d5a34'); });
+    line(ctx, -0.1, -0.75, -0.62, 0.75, 0.06, '#7d838a'); line(ctx, 0.1, -0.75, 0.62, 0.75, 0.06, '#7d838a');
+    ctx.restore(); panel(ctx, null);
+  };
+  pics.gate = function (ctx) {   // 門（とびらを開けた門）
+    rr(ctx, -0.82, -0.5, 0.24, 1.2, 0.03, '#b7c2cc'); rr(ctx, 0.58, -0.5, 0.24, 1.2, 0.03, '#b7c2cc');
+    rr(ctx, -0.9, -0.62, 0.4, 0.16, 0.04, '#8d5a34'); rr(ctx, 0.5, -0.62, 0.4, 0.16, 0.04, '#8d5a34');
+    poly(ctx, [[-0.58, -0.4], [-0.58, 0.7], [-0.1, 0.6], [-0.1, -0.3]], '#e53935');
+    poly(ctx, [[0.58, -0.4], [0.58, 0.7], [0.1, 0.6], [0.1, -0.3]], '#e53935');
+    [-0.38, -0.22].forEach(function (x) { line(ctx, x, -0.33, x, 0.62, 0.035, '#fafafa'); });
+    [0.38, 0.22].forEach(function (x) { line(ctx, x, -0.33, x, 0.62, 0.035, '#fafafa'); });
+  };
+  pics.sea = function (ctx, t) {   // 海
+    t = t || 0;
+    panel(ctx, '#bfe6fb'); clipPanel(ctx);
+    circ(ctx, 0.45, -0.38, 0.17, '#ffd23f');
+    ctx.fillStyle = '#2f9be0'; ctx.fillRect(-0.8, -0.1, 1.6, 0.8);
+    for (var r = 0; r < 3; r++) wave(ctx, -0.85 + ((t * 0.1 + r * 0.3) % 0.2), 0.85, 0.08 + r * 0.22);
+    ctx.restore(); panel(ctx, null);
+  };
+  pics.pond = function (ctx) {   // 池
+    panel(ctx, '#7bbf6a');
+    ell(ctx, 0, 0.05, 0.68, 0.42, '#5bb8ee');
+    ctx.beginPath(); ctx.ellipse(0, 0.05, 0.5, 0.28, 0, Math.PI * 1.1, Math.PI * 1.7); ctx.lineCap = 'round'; ctx.lineWidth = 0.04; ctx.strokeStyle = '#d6f0ff'; ctx.stroke();
+    circ(ctx, -0.25, 0.12, 0.13, '#55b155'); circ(ctx, 0.22, -0.02, 0.1, '#55b155'); circ(ctx, 0.28, 0.2, 0.08, '#55b155');
+    line(ctx, 0.58, -0.4, 0.62, 0.0, 0.04, '#3f7a2a'); line(ctx, 0.66, -0.36, 0.66, 0.05, 0.04, '#3f7a2a'); circ(ctx, 0.58, -0.42, 0.04, '#8d5a34'); circ(ctx, 0.66, -0.38, 0.04, '#8d5a34');
+  };
+  pics.horse = function (ctx) {   // 馬（横向きの頭と首）
+    poly(ctx, [[-0.5, 0.75], [-0.4, -0.2], [-0.12, -0.62], [0.1, -0.8], [0.22, -0.66], [0.66, 0.02], [0.72, 0.22], [0.5, 0.3], [0.3, 0.12], [0.14, 0.15], [0.14, 0.75]], '#a9672f');
+    poly(ctx, [[-0.12, -0.62], [-0.45, -0.3], [-0.55, 0.3], [-0.48, 0.75], [-0.5, 0.2], [-0.32, -0.2]], '#4a2e1a');         // たてがみ
+    poly(ctx, [[0.04, -0.72], [0.0, -0.98], [0.2, -0.76]], '#a9672f');                                                      // 耳
+    circ(ctx, 0.28, -0.4, 0.05, OUT); circ(ctx, 0.58, 0.16, 0.025, OUT);
+  };
+  pics.bird = function (ctx) {   // 鳥（小鳥）
+    line(ctx, -0.12, 0.42, -0.14, 0.7, 0.04); line(ctx, 0.1, 0.42, 0.12, 0.7, 0.04);
+    poly(ctx, [[-0.5, 0.1], [-0.9, 0.0], [-0.84, 0.3], [-0.46, 0.28]], '#2f6fb5');   // 尾
+    ell(ctx, -0.05, 0.14, 0.5, 0.36, '#3a8fe0');
+    ell(ctx, 0.02, 0.22, 0.3, 0.18, '#cfe9ff');
+    ell(ctx, -0.2, 0.08, 0.22, 0.16, '#2f6fb5');   // 羽
+    circ(ctx, 0.4, -0.18, 0.26, '#3a8fe0');
+    poly(ctx, [[0.62, -0.2], [0.86, -0.12], [0.62, -0.06]], '#ffb733');
+    circ(ctx, 0.44, -0.24, 0.05, OUT);
+  };
+  pics.morning = function (ctx) {   // 朝（日の出）
+    panel(ctx, '#ffe3b0'); clipPanel(ctx);
+    rays(ctx, 0, 0.3, 0.45, 0.72, 9, 0.05, '#ffb733', Math.PI);
+    ctx.beginPath(); ctx.arc(0, 0.3, 0.38, Math.PI, 0); ctx.closePath(); ctx.fillStyle = '#ff9f1c'; ctx.fill(); ctx.lineWidth = LW; ctx.strokeStyle = OUT; ctx.stroke();
+    ctx.fillStyle = '#7bbf6a'; ctx.fillRect(-0.85, 0.3, 1.7, 0.5); line(ctx, -0.85, 0.3, 0.85, 0.3, 0.05);
+    ctx.restore(); panel(ctx, null);
+  };
+  pics.noon = function (ctx) {   // 昼（空の高い太陽）
+    panel(ctx, '#8fd0f5'); clipPanel(ctx);
+    rays(ctx, 0, -0.1, 0.32, 0.5, 10, 0.06, '#ffd23f', 0.15);
+    circ(ctx, 0, -0.1, 0.27, '#ffd23f');
+    circ(ctx, -0.5, 0.35, 0.14, '#fff'); circ(ctx, -0.3, 0.32, 0.17, '#fff'); circ(ctx, -0.12, 0.38, 0.12, '#fff'); rr(ctx, -0.62, 0.38, 0.62, 0.14, 0.07, '#fff');
+    ctx.restore(); panel(ctx, null);
+  };
+  pics.night = function (ctx) {   // 夜（月と星）
+    panel(ctx, '#2b3a67'); clipPanel(ctx);
+    ctx.beginPath(); ctx.arc(-0.1, -0.05, 0.42, 0, Math.PI * 2); ctx.fillStyle = '#ffe680'; ctx.fill();
+    ctx.beginPath(); ctx.arc(0.06, -0.14, 0.36, 0, Math.PI * 2); ctx.fillStyle = '#2b3a67'; ctx.fill();
+    [[0.45, -0.4, 0.07], [0.55, 0.1, 0.05], [-0.55, -0.45, 0.05], [0.25, 0.4, 0.06], [-0.5, 0.35, 0.05]].forEach(function (st) { starShape(ctx, st[0], st[1], st[2], '#fff2a0'); });
+    ctx.restore(); panel(ctx, null);
+  };
+  function starShape(ctx, x, y, r, fill) {
+    ctx.beginPath();
+    for (var i = 0; i < 10; i++) { var a = -Math.PI / 2 + i * Math.PI / 5, rad = i % 2 ? r * 0.45 : r; ctx.lineTo(x + Math.cos(a) * rad, y + Math.sin(a) * rad); }
+    ctx.closePath(); ctx.fillStyle = fill; ctx.fill(); ctx.lineWidth = LW * 0.7; ctx.strokeStyle = OUT; ctx.stroke();
+  }
+  pics.cloud = function (ctx, t) {   // 雲（大きなふわふわの雲）
+    var d = Math.sin((t || 0) * 0.8) * 0.03;
+    panel(ctx, '#6fb8ea');
+    circ(ctx, -0.38 + d, 0.08, 0.28, '#fff'); circ(ctx, 0.4 + d, 0.1, 0.26, '#fff'); circ(ctx, -0.06 + d, -0.16, 0.4, '#fff'); circ(ctx, 0.22 + d, -0.02, 0.3, '#fff');
+    rr(ctx, -0.64 + d, 0.06, 1.3, 0.34, 0.16, '#fff');
+  };
+  pics.snow = function (ctx) {   // 雪（雪の結晶）
+    panel(ctx, '#bfe0f7');
+    for (var i = 0; i < 3; i++) { var a = i * Math.PI / 3, c = Math.cos(a) * 0.6, s2 = Math.sin(a) * 0.6; line(ctx, -c, -s2, c, s2, 0.1, OUT); }
+    for (i = 0; i < 3; i++) { a = i * Math.PI / 3; c = Math.cos(a) * 0.6; s2 = Math.sin(a) * 0.6; line(ctx, -c, -s2, c, s2, 0.055, '#fff'); }
+    for (i = 0; i < 6; i++) {
+      a = i * Math.PI / 3;
+      [0.32, 0.46].forEach(function (rr0) { var bx = Math.cos(a) * rr0, by = Math.sin(a) * rr0, k = 0.12; line(ctx, bx, by, bx + Math.cos(a + 0.9) * k, by + Math.sin(a + 0.9) * k, 0.045, '#fff'); line(ctx, bx, by, bx + Math.cos(a - 0.9) * k, by + Math.sin(a - 0.9) * k, 0.045, '#fff'); });
+    }
+    circ(ctx, 0, 0, 0.07, '#fff');
+  };
+  pics.wind = function (ctx, t) {   // 風（ふく風と、とんでいく葉）
+    var d = Math.sin((t || 0) * 3) * 0.03;
+    panel(ctx, '#e6f6ff');
+    function sw(y, len, col) {
+      ctx.beginPath(); ctx.moveTo(-0.7, y); ctx.lineTo(len, y); ctx.arc(len, y - 0.12, 0.12, Math.PI / 2, -Math.PI * 0.9, true);
+      ctx.lineCap = 'round'; ctx.lineWidth = 0.07; ctx.strokeStyle = col; ctx.stroke();
+    }
+    sw(-0.28 + d, 0.2, '#6bb6e8'); sw(0.0 - d, 0.46, '#6bb6e8'); sw(0.3 + d, 0.1, '#6bb6e8');
+    ctx.save(); ctx.translate(0.55, -0.4 + d); ctx.rotate(0.6);
+    ell(ctx, 0, 0, 0.14, 0.08, '#55b155'); line(ctx, -0.14, 0, 0.14, 0, 0.025, '#2f6f2f');
+    ctx.restore();
+  };
+  pics.star = function (ctx, t) {   // 星
+    panel(ctx, '#2b3a67');
+    starShape(ctx, 0, 0.03, 0.55 + Math.sin((t || 0) * 3) * 0.02, '#ffd23f');
+    starShape(ctx, -0.55, -0.4, 0.09, '#fff2a0'); starShape(ctx, 0.58, -0.32, 0.07, '#fff2a0'); starShape(ctx, 0.5, 0.45, 0.08, '#fff2a0');
+  };
+  pics.spring = function (ctx) {   // 春（桜）
+    panel(ctx, '#e8f6ff');
+    line(ctx, -0.7, 0.6, -0.1, 0.1, 0.1); line(ctx, -0.7, 0.6, -0.1, 0.1, 0.06, '#8d5a34'); line(ctx, -0.1, 0.1, 0.5, -0.1, 0.07); line(ctx, -0.1, 0.1, 0.5, -0.1, 0.04, '#8d5a34');
+    function bl(x, y, r) { for (var i = 0; i < 5; i++) { var a = i * Math.PI * 2 / 5 - Math.PI / 2; circ(ctx, x + Math.cos(a) * r * 0.62, y + Math.sin(a) * r * 0.62, r * 0.45, '#ffc1d6'); } circ(ctx, x, y, r * 0.3, '#ffe680'); }
+    bl(-0.15, -0.2, 0.3); bl(0.36, -0.36, 0.26); bl(0.5, 0.2, 0.24); bl(-0.5, 0.05, 0.2);
+  };
+  pics.summer = function (ctx) {   // 夏（すいか）
+    panel(ctx, '#bfe6fb');
+    ctx.beginPath(); ctx.arc(0, -0.15, 0.62, 0, Math.PI); ctx.closePath(); ctx.fillStyle = '#3f9b3f'; ctx.fill(); ctx.lineWidth = LW; ctx.strokeStyle = OUT; ctx.stroke();
+    ctx.beginPath(); ctx.arc(0, -0.15, 0.52, 0, Math.PI); ctx.closePath(); ctx.fillStyle = '#fafafa'; ctx.fill();
+    ctx.beginPath(); ctx.arc(0, -0.15, 0.46, 0, Math.PI); ctx.closePath(); ctx.fillStyle = '#e5384f'; ctx.fill();
+    [[-0.25, 0.1], [0.0, 0.22], [0.25, 0.1], [-0.12, 0.34], [0.14, 0.36]].forEach(function (sd) { ell(ctx, sd[0], sd[1], 0.04, 0.07, OUT); });
+    line(ctx, -0.62, -0.15, 0.62, -0.15, 0.04);
+    circ(ctx, 0.55, -0.45, 0.13, '#ffd23f');
+  };
+  pics.autumn = function (ctx) {   // 秋（もみじ）
+    panel(ctx, '#fff1d6');
+    ctx.save(); ctx.translate(0, 0.02); ctx.rotate(0.15);
+    ctx.beginPath();
+    for (var i = 0; i < 10; i++) { var a = -Math.PI / 2 + i * Math.PI / 5, rad = i % 2 ? 0.26 : 0.62; ctx.lineTo(Math.cos(a) * rad, Math.sin(a) * rad); }
+    ctx.closePath(); ctx.fillStyle = '#e8501f'; ctx.fill(); ctx.lineWidth = LW; ctx.strokeStyle = OUT; ctx.stroke();
+    for (i = 0; i < 5; i++) { a = -Math.PI / 2 + i * Math.PI * 2 / 5; line(ctx, 0, 0, Math.cos(a) * 0.5, Math.sin(a) * 0.5, 0.03, '#a8350f'); }
+    line(ctx, 0, 0.2, 0.02, 0.82, 0.07);
+    line(ctx, 0, 0.2, 0.02, 0.82, 0.04, '#8d5a34');
+    ctx.restore();
+  };
+  pics.winter = function (ctx) {   // 冬（雪だるま）
+    panel(ctx, '#bfe0f7');
+    ctx.fillStyle = '#fafafa'; ctx.fillRect(-0.8, 0.5, 1.6, 0.15);
+    circ(ctx, 0, 0.3, 0.34, '#fafafa'); circ(ctx, 0, -0.22, 0.25, '#fafafa');
+    rr(ctx, -0.17, -0.72, 0.34, 0.26, 0.05, '#3a7bd5'); rr(ctx, -0.27, -0.5, 0.54, 0.07, 0.03, '#3a7bd5');
+    circ(ctx, -0.09, -0.26, 0.03, OUT); circ(ctx, 0.09, -0.26, 0.03, OUT);
+    poly(ctx, [[0, -0.2], [0.26, -0.15], [0, -0.1]], '#ff9f1c');
+    line(ctx, -0.22, -0.0, 0.22, -0.0, 0.1); line(ctx, -0.22, 0.0, 0.22, 0.0, 0.06, '#e53935');
+    circ(ctx, 0, 0.22, 0.03, OUT); circ(ctx, 0, 0.4, 0.03, OUT);
+    line(ctx, -0.32, 0.2, -0.62, 0.0, 0.04); line(ctx, 0.32, 0.2, 0.62, 0.0, 0.04);
+  };
+
   // E4（いろ）: 色を変えられる車（バスの形）。col = 車体の色。向きは bus と同じ（前が左）
   function colorCar(ctx, col) {
     rr(ctx, -0.82, -0.46, 1.64, 0.84, 0.14, col);

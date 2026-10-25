@@ -133,6 +133,7 @@ test('S1 階段1: STAGES は S0・S1・S2。S1 は かず M8〜M10・もじ K7�
   assert.equal(L.stageOf('M8'), 'S1');
   assert.deepEqual(L.gateOf('S0'), { math: 'M7', letter: 'K6', clock: 'T6' });
   assert.deepEqual(L.gateOf('S1'), { math: 'M10', letter: 'K8', clock: 'T7' });   // えいごは関門に入れない
+  assert.deepEqual(L.gateOf('S2'), { math: 'M13', letter: 'K9', clock: 'T8' });   // S2 は最後のステージ。次が無いので記録だけ付く
 });
 
 test('S1 階段2: 3 つのうち 2 つだけでは開かない。3 つ目で開き promotedTo が返る。もう一度では二重に返らない。current は変わらない', () => {

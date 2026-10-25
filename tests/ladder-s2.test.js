@@ -12,11 +12,13 @@ function prof(over) { return Object.assign(S.defaultProfile('p_a', 'こども1',
 // S1 を解放して選んだ子
 function s1() { return L.selectStage(L.unlockStage(prof(), 'S1', TODAY), 'S1'); }
 
-test('R3 階段1: STAGES は S0・S1・S2。S2 は たいいん（小学2年生くらい）。かず M11〜M13。えいごは追加なし', () => {
+test('R3 階段1: STAGES は S0・S1・S2。S2 は たいいん（小学2年生くらい）。かず M11〜M13・もじ K9・とけい T8。えいごは追加なし', () => {
   assert.deepEqual(D.STAGES.map((s) => s.id), ['S0', 'S1', 'S2']);
   assert.equal(D.STAGES[2].rank, 'たいいん');
   assert.equal(D.STAGES[2].grade, '小学2年生くらい');
   assert.deepEqual(D.STAGES[2].levels.math, ['M11', 'M12', 'M13']);
+  assert.deepEqual(D.STAGES[2].levels.letter, ['K9']);
+  assert.deepEqual(D.STAGES[2].levels.clock, ['T8']);
   assert.deepEqual(D.STAGES[2].levels.english, []);
   assert.deepEqual(D.stageRange('S2', 'english'), ['E4', 'E5'], 'えいごは S1 の範囲で遊ぶ');
   assert.equal(D.LEVELS.math[D.LEVELS.math.length - 1], 'M13');
@@ -24,8 +26,9 @@ test('R3 階段1: STAGES は S0・S1・S2。S2 は たいいん（小学2年生�
   assert.equal(L.stageOf('M10'), 'S1');
 });
 
-test('R3 階段2: S1 の関門は M10・K8・T7（えいごは入らない）。S2 は最後のステージ', () => {
-  assert.deepEqual(L.gateOf('S1'), Object.assign({ math: 'M10', letter: 'K8', clock: 'T7' }));
+test('R3 階段2: S1 の関門は M10・K8・T7（えいごは入らない）。S2 は最後のステージ（関門は M13・K9・T8 で、記録だけ付く）', () => {
+  assert.deepEqual(L.gateOf('S1'), { math: 'M10', letter: 'K8', clock: 'T7' });
+  assert.deepEqual(L.gateOf('S2'), { math: 'M13', letter: 'K9', clock: 'T8' });
   assert.ok(D.gateLevels().includes('M10') && D.gateLevels().includes('K8') && D.gateLevels().includes('T7'));
 });
 
@@ -78,12 +81,20 @@ test('R3 階段5: S2 の子が S1 の札で遊ぶ（復習）と M10 が出て�
   assert.deepEqual(L.playLevel(p, 'math'), { level: 'M12', review: false });
 });
 
-test('R3 階段6: S2 での もじ・とけい・えいごは、追加レベルが入るまで S1 の範囲で遊ぶ（M だけ S2）', () => {
+test('R3 階段6: S2 でも えいごは S1 の範囲（E4・E5）で遊ぶ。もじ K9・とけい T8 は S2 の範囲', () => {
   const p = L.selectStage(L.unlockStage(prof(), 'S2', TODAY), 'S2');
   p.levels.english = 'E4';
   assert.deepEqual(L.playLevel(p, 'english'), { level: 'E4', review: false });
   assert.equal(L.afterSession(p, 'english', 'E5', 4, false, TODAY).profile.levels.english, 'E5');
   assert.equal(L.afterSession(p, 'english', 'E5', 4, false, TODAY).promotedTo, null);
+  p.levels.letter = 'K8'; p.levels.clock = 'T7';
+  assert.deepEqual(L.playLevel(p, 'letter'), { level: 'K9', review: false }, 'K8 は S2 の範囲より下。K9 から');
+  assert.deepEqual(L.playLevel(p, 'clock'), { level: 'T8', review: false });
+  assert.equal(L.afterSession(p, 'letter', 'K9', 0, false, TODAY).profile.levels.letter, 'K9', 'S1 に落ちない');
+  assert.equal(L.afterSession(p, 'clock', 'T8', 4, false, TODAY).profile.levels.clock, 'T8', '上限で止まる');
+  assert.equal(L.afterSession(p, 'clock', 'T8', 4, false, TODAY).profile.cleared.T8, TODAY, 'S2 の関門の記録は付く');
+  assert.equal(L.afterSession(p, 'clock', 'T8', 4, false, TODAY).promotedTo, null, '次のステージが無い');
+  assert.equal(L.afterSession(p, 'clock', 'T8', 3, false, TODAY).profile.cleared.T8, undefined);
 });
 
 test('R3 階段7: 再ロック。S2 を閉じると S1 の関門の記録（M10・K8・T7）と promoted.S2 を消し、current と M11 以降は S1 に丸める。S0 の記録は残る', () => {
