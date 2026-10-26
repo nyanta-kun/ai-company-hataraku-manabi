@@ -206,6 +206,46 @@
       wail(c, o, 'sawtooth', t, 0.9, 0.16, 300, 450, 0.9, 1200);
       fanfareNotes(c, o, t + 0.3, [523, 659, 784, 1047], 0.13, 0.2, 0.08);
       return 0.9;
+    },
+    // ---- 棚の乗り物の音（design-rewards.md 7 章。名前は carN のまま = 重なりの上限が効く）----
+    // 12 でんしゃ: がたん ごとん（低い雑音の短い 2 つ組を 2 回）
+    car12: function (c, o, t) {
+      for (var i = 0; i < 2; i++) {
+        noise(c, o, t + i * 0.4, 0.1, 0.3, 'lowpass', 500, 300, 1);
+        noise(c, o, t + i * 0.4 + 0.16, 0.12, 0.3, 'lowpass', 400, 220, 1);
+        tone(c, o, 'triangle', t + i * 0.4 + 0.16, 0.12, 0.16, [[0, 120], [0.12, 80]]);
+      }
+      return 0.85;
+    },
+    // 13 ごーー: 低域の雑音が上がって下がる
+    car13: function (c, o, t) {
+      noise(c, o, t, 1.0, 0.3, 'lowpass', 300, 1100, 0.8);
+      noise(c, o, t + 0.5, 0.6, 0.25, 'lowpass', 1100, 250, 0.8);
+      tone(c, o, 'sawtooth', t, 1.1, 0.06, [[0, 90], [0.5, 150], [1.1, 80]], { lp: 400, atk: 0.1 });
+      return 1.1;
+    },
+    // 14 ぼーー: 低いのこぎり波の汽笛
+    car14: function (c, o, t) {
+      tone(c, o, 'sawtooth', t, 0.9, 0.12, [[0, 165], [0.9, 160]], { lp: 700, atk: 0.06 });
+      tone(c, o, 'sawtooth', t, 0.9, 0.1, [[0, 220], [0.9, 214]], { lp: 700, atk: 0.06 });
+      return 0.9;
+    },
+    // 15 ぱとかー: う〜う〜（car8 より速い上下。鐘なし）
+    car15: function (c, o, t) {
+      wail(c, o, 'square', t, 1.0, 0.07, 650, 950, 0.5, 1700);
+      return 1.0;
+    },
+    // 16 きかんしゃ: しゅっ しゅっ ぽー
+    car16: function (c, o, t) {
+      for (var i = 0; i < 3; i++) noise(c, o, t + i * 0.16, 0.1, 0.28, 'bandpass', 2200, 1500, 1.5);
+      tone(c, o, 'sawtooth', t + 0.55, 0.5, 0.1, [[0, 330], [0.5, 320]], { lp: 900, atk: 0.04 });
+      return 1.05;
+    },
+    // 17 ばらばら: ラチェットの速い刻み（ローター・プロペラ）
+    car17: function (c, o, t) {
+      ratchet(c, o, t, 18, 0.07, 0.04);
+      tone(c, o, 'triangle', t, 0.8, 0.12, [[0, 70], [0.8, 60]], { lp: 300, atk: 0.1 });
+      return 0.85;
     }
   };
 
@@ -226,8 +266,14 @@
 
   root.Manabi = root.Manabi || {};
   // 乗り物 stage -> 効果音の名前（data.js の CARS.stage）
-  // 救助隊の車（stage が文字列）は data.js の RESCUE_CARS の sound を使う。ここでは同じ対応を持つ（tests/rescue.test.js で一致を確かめる）
-  var RESCUE_SOUND = { rescueWork: 'car4', rescueChem: 'car9', rescueCmd: 'car7', rescueHeli: 'car11' };
-  function carSound(stage) { return typeof stage === 'string' ? (RESCUE_SOUND[stage] || 'car8') : 'car' + stage; }
-  root.Manabi.audio = { carSound: carSound, unlock: unlock, setEnabled: setEnabled, isEnabled: isEnabled, play: play, names: Object.keys(SOUNDS) };
+  // 文字列の stage（pics の id。救助隊の車と棚の乗り物）は data.js の sound を使う。ここでは同じ対応を持つ（tests で一致を確かめる）
+  var PIC_SOUND = {
+    rescueWork: 'car4', rescueChem: 'car9', rescueCmd: 'car7', rescueHeli: 'car11',
+    patrol: 'car15', bus: 'car6', taxi: 'car6', postcar: 'car6', truck: 'car6', motorbike: 'car5', crane: 'car4', roller: 'car5',
+    train: 'car12', shinkansen: 'car13', steam: 'car16', tram: 'car12', monorail: 'car12', freight: 'car12', cablecar: 'car12',
+    airplane: 'car13', heli: 'car17', rocket: 'car13', balloon: 'car13', airship: 'car17', propplane: 'car17',
+    ship: 'car14', fishboat: 'car14', yacht: 'car14', tugboat: 'car14', fireboat: 'car9', cargoship: 'car14'
+  };
+  function carSound(stage) { return typeof stage === 'string' ? (PIC_SOUND[stage] || 'car8') : 'car' + stage; }
+  root.Manabi.audio = { carSound: carSound, PIC_SOUND: PIC_SOUND, unlock: unlock, setEnabled: setEnabled, isEnabled: isEnabled, play: play, names: Object.keys(SOUNDS) };
 })(typeof window !== 'undefined' ? window : globalThis);

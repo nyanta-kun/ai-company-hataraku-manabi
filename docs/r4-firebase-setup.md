@@ -158,11 +158,11 @@ families/{uid}/profiles/{id}      プロフィール 1 人 1 文書。端末内�
 {
   id: 'p_xxxxxxxx_xxxx',          文書 id と同じでなければならない（ルールが確かめる）
   name: 'たろう',                  ひらがな 1〜6 文字、または「こども1〜4」
-  icon: 'shoubousha',             車の種類（15 種。救助隊の 4 種を含む。src/storage.js の CAR_IDS）
+  icon: 'shoubousha',             車の種類（15 種。救助隊の 4 種を含む。data.js の ALL_CARS。棚の乗り物はアイコンにしない）
   created: 'YYYY-MM-DD' | '',
   levels:  { math: 'M3', letter: 'K2', clock: 'T1', english: 'E1' },
   locked:  { math: false, letter: false, clock: false, english: false },
-  cards:   { shoubousha: 2, ... }, 車 → ★ 1〜3
+  cards:   { shoubousha: 2, ... }, 乗り物 → ★ 1〜3。42 種（車・電車・飛行機・船。src/storage.js の CAR_IDS）
   stats:   { sessions: 12, math: { sessions, questions, firstTry }, letter: {...}, clock: {...}, english: {...},
            trace: { sessions, chars, clean } },   「かく」の回数・書いた字の数・やり直しなしの字の数
   trace:   { done: { 'し': 2, ... }, help: { 'ぬ': 2, ... }, solo: { 'し': 1, ... }, set: 'auto', width: 'auto' },   done: 字 → 書き終えた回数 1〜99、help: 字 → たすけが要った回数 1〜99（W5）、solo: 字 → ひとりで（線なしで）書けた回数 1〜99（W6）。help・solo の字は done にある字だけ（ルールが確かめる）。help ≤ done・solo ≤ done の回数の大小は端末の normalizeTrace が守る（ルールは確かめない）。指の線は保存しない
@@ -272,8 +272,8 @@ service cloud.firestore {
     }
     function isCards(c) {
       return c is map
-        && c.size() <= 15
-        && (c.size() == 0 || isKeyList(c.keys(), '(nekoguruma|forklift|gomi|shovel|bulldozer|dump|kyukyu|shoubousha|mizutank|hashigo|chodai|rescuework|rescuechem|rescuecmd|rescueheli)'))
+        && c.size() <= 42
+        && (c.size() == 0 || isKeyList(c.keys(), '(nekoguruma|forklift|gomi|shovel|bulldozer|dump|kyukyu|shoubousha|mizutank|hashigo|chodai|rescuework|rescuechem|rescuecmd|rescueheli|patrol|bus|taxi|postcar|truck|motorbike|crane|roller|train|shinkansen|steam|tram|monorail|freight|cablecar|airplane|heli|rocket|balloon|airship|propplane|ship|fishboat|yacht|tugboat|fireboat|cargoship)'))
         && c.values().hasOnly([1, 2, 3]);
     }
     // 回数 16 個（sessions と、4 つのゲームの sessions・questions・firstTry と、trace の sessions・chars・clean）を、まとめて「0 以上の整数の文字列」で確かめる
@@ -361,9 +361,9 @@ service cloud.firestore {
 - **大きさ**: ルールには文書のバイト数を測る関数が無い。代わりに、**すべての値の形と件数を縛って**、文書が数 KB を超えないようにする（文字列は正規表現で長さを決め、表は件数の上限）。どの値も長い文字列や入れ子の表にできない。日付や回数の表（`cleared`・`promoted`・`deleted`・`done`・`help`・`solo`）は、値を `,` でつないだ文字列の長さも「件数 × 値の最大の長さ」までに縛っている（値に `,` を入れて、1 つの値に何個も詰め込む抜けを防ぐため。レビューの指摘）。回数の表は、1 けたの値に `,` を入れた場合に限り、件数の 1.5 倍までは詰め込める（最大でも 130 字 × 数 KB 以内で、問題にならない）。
 - **時刻**: 親の `updatedAt` はサーバーの時刻（`request.time`）でなければ通さない。
 - **削除**: 本人は自分の親の文書・プロフィールの文書を消せる。
-- **式の数（実測）**: 1 リクエストの上限は 1,000（エミュレーターも同じ。超えると `maximum of 1000 expressions` で拒否され、正しいデータも通らない）。**当初の見込み（1 人あたり約 103、4 人で約 470）は実測の約 10 分の 1 だった**。実測では、当初の形（1 家族 1 文書、型を細かく検査）は **プロフィール 1 人で約 1,000 に達し、2 人以上が通らなかった**。原因は、リストのリテラルは要素 1 つずつが式として数えられること、関数に渡した値の読み出し（`p.stats.math` のような道筋）が使うたびに数え直されること、関数のなかで関数を呼ぶと重なること。これを受けて、(1) 1 人 1 文書に分け（4 章）、(2) 一覧のリテラルを正規表現と `join` に置き換え、(3) `size()` と値の読み出しで項目の過不足を確かめるようにした。結果、1 人分をすべて上限まで埋めた文書（4 人分の試験 13）が通る。最大の 1 人（すべての表を上限まで埋めたもの）は、`,` の抜けを塞いだ後で約 750〜800 式（余裕は約 2 割。`isTrace` をもう 1 回足すと通らない）。親の文書と 4 人を 1 つの batch で書く（5 書き込み）試験 13b もエミュレーターでは通るが、**本番が batch 全体で式を数えるのかは未確認**（5.3 の公開前の手順）。**R3 などで項目を足すときは、必ず 試験 13 を回し直す**。
+- **式の数（実測）**: 1 リクエストの上限は 1,000（エミュレーターも同じ。超えると `maximum of 1000 expressions` で拒否され、正しいデータも通らない）。**当初の見込み（1 人あたり約 103、4 人で約 470）は実測の約 10 分の 1 だった**。実測では、当初の形（1 家族 1 文書、型を細かく検査）は **プロフィール 1 人で約 1,000 に達し、2 人以上が通らなかった**。原因は、リストのリテラルは要素 1 つずつが式として数えられること、関数に渡した値の読み出し（`p.stats.math` のような道筋）が使うたびに数え直されること、関数のなかで関数を呼ぶと重なること。これを受けて、(1) 1 人 1 文書に分け（4 章）、(2) 一覧のリテラルを正規表現と `join` に置き換え、(3) `size()` と値の読み出しで項目の過不足を確かめるようにした。結果、1 人分をすべて上限まで埋めた文書（4 人分の試験 13）が通る。最大の 1 人（すべての表を上限まで埋めたもの）は、`,` の抜けを塞いだ後で約 750〜800 式（余裕は約 2 割。`isTrace` をもう 1 回足すと通らない）。**ごほうびの棚（`cards` が 15 → 42 種）でも変わらない**: 件数の上限と正規表現は 1 つの文字列・1 回の `matches()` のままなので式の数は増えず、42 種すべて ★3 の最大の 1 人でも試験 13・13b が通る。同じ方法（`isTrace(p.trace)` をもう 1 回足す）で測り直して、足すと同じ箇所で上限に当たることを確かめた（余裕は 15 種のときと同じ約 2 割）。親の文書と 4 人を 1 つの batch で書く（5 書き込み）試験 13b もエミュレーターでは通るが、**本番が batch 全体で式を数えるのかは未確認**（5.3 の公開前の手順）。**R3 などで項目を足すときは、必ず 試験 13 を回し直す**。
 - **`join` の抜け**: キーを `,` でつないで 1 つずつの形に合わせる方法は、「`,` を含むキー 1 つ」が 2 つに見える抜けがあった（試験で見つけた）。`;` でつないだものも合わせることで防いだ（`isKeyList`）。
-- **R3 に向けて**: レベルは `M`・`K`・`T`・`E` ＋ 2 けたまでの形で通すので、新しいレベルを足してもルールは直さなくてよい。ステージは S3 まで入れてある。車の種類を増やすときは `firestore.rules` の車の 2 か所（`p.icon` と `cards`）を `src/storage.js` の `CAR_IDS` と合わせる。書ける字を増やすときは `traceCharPattern()`（`src/strokes.js` の `SETS`）。どちらも、ずれたら試験が失敗する（「ルールの一覧が端末側と一致する」）。
+- **R3 に向けて**: レベルは `M`・`K`・`T`・`E` ＋ 2 けたまでの形で通すので、新しいレベルを足してもルールは直さなくてよい。ステージは S3 まで入れてある。乗り物を増やすときは `firestore.rules` の `cards` の正規表現と件数の上限を `src/storage.js` の `CAR_IDS` と、`p.icon` の正規表現を `data.js` の `ALL_CARS`（15 種）と合わせる（`docs/design-rewards.md` 8.3）。書ける字を増やすときは `traceCharPattern()`（`src/strokes.js` の `SETS`）。どちらも、ずれたら試験が失敗する（「ルールの一覧が端末側と一致する」）。
 
 ### 5.3 ルールの確かめ方（公開前）
 

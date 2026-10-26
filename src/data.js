@@ -129,6 +129,54 @@
   // ごほうびに救助隊の車が出始めるステージの番号（0 = S0）
   var RESCUE_FROM = 1;
 
+  // 棚の乗り物 27 種（design-rewards.md 2 章。今の絵 15 種 + 描き足した 12 種）。stage は vehicles.js の pics の id、sound は audio.js の車の音の名前（audio.js の PIC_SOUND と一致。tests/shelves.test.js）。
+  // id は小文字の英字だけ（firestore.rules の cards の正規表現）。名前はひらがなとのばし棒だけ。CAR_YOMI には足さない（読み上げはひらがなのまま）
+  var VEHICLES = [
+    { id: 'patrol',     stage: 'patrol',     name: 'ぱとかー',         sound: 'car15' },
+    { id: 'bus',        stage: 'bus',        name: 'ばす',             sound: 'car6' },
+    { id: 'taxi',       stage: 'taxi',       name: 'たくしー',         sound: 'car6' },
+    { id: 'postcar',    stage: 'postcar',    name: 'ゆうびんしゃ',     sound: 'car6' },
+    { id: 'truck',      stage: 'truck',      name: 'とらっく',         sound: 'car6' },
+    { id: 'motorbike',  stage: 'motorbike',  name: 'おーとばい',       sound: 'car5' },
+    { id: 'crane',      stage: 'crane',      name: 'くれーんしゃ',     sound: 'car4' },
+    { id: 'roller',     stage: 'roller',     name: 'ろーどろーらー',   sound: 'car5' },
+    { id: 'train',      stage: 'train',      name: 'でんしゃ',         sound: 'car12' },
+    { id: 'shinkansen', stage: 'shinkansen', name: 'しんかんせん',     sound: 'car13' },
+    { id: 'steam',      stage: 'steam',      name: 'きかんしゃ',       sound: 'car16' },
+    { id: 'tram',       stage: 'tram',       name: 'ろめんでんしゃ',   sound: 'car12' },
+    { id: 'monorail',   stage: 'monorail',   name: 'ものれーる',       sound: 'car12' },
+    { id: 'freight',    stage: 'freight',    name: 'かもつれっしゃ',   sound: 'car12' },
+    { id: 'cablecar',   stage: 'cablecar',   name: 'けーぶるかー',     sound: 'car12' },
+    { id: 'airplane',   stage: 'airplane',   name: 'ひこうき',         sound: 'car13' },
+    { id: 'heli',       stage: 'heli',       name: 'へりこぷたー',     sound: 'car17' },
+    { id: 'rocket',     stage: 'rocket',     name: 'ろけっと',         sound: 'car13' },
+    { id: 'balloon',    stage: 'balloon',    name: 'ききゅう',         sound: 'car13' },
+    { id: 'airship',    stage: 'airship',    name: 'ひこうせん',       sound: 'car17' },
+    { id: 'propplane',  stage: 'propplane',  name: 'ぷろぺらき',       sound: 'car17' },
+    { id: 'ship',       stage: 'ship',       name: 'ふね',             sound: 'car14' },
+    { id: 'fishboat',   stage: 'fishboat',   name: 'ぎょせん',         sound: 'car14' },
+    { id: 'yacht',      stage: 'yacht',      name: 'よっと',           sound: 'car14' },
+    { id: 'tugboat',    stage: 'tugboat',    name: 'たぐぼーと',       sound: 'car14' },
+    { id: 'fireboat',   stage: 'fireboat',   name: 'しょうぼうてい',   sound: 'car9' },
+    { id: 'cargoship',  stage: 'cargoship',  name: 'こんてなせん',     sound: 'car14' }
+  ];
+  // 42 種（しゃこ・carById・保存の一覧）。CARS・RESCUE_CARS・ALL_CARS は上のまま変えない（今の抽選が使う）
+  var ALL_VEHICLES = ALL_CARS.concat(VEHICLES);
+  // 棚。並び = しゃこの棚の順。ids の先頭が棚の「顔」。from = 出始めるステージ（きゅうじょたい は RESCUE_FROM。S0 の子には棚ごと見せない）
+  function idsOf(list) { return list.map(function (c) { return c.id; }); }
+  var SHELVES = [
+    { id: 'hataraku', name: 'はたらくくるま', face: 'shoubousha', ids: idsOf(CARS) },
+    { id: 'machi',    name: 'まちの くるま',  face: 'patrol',     ids: ['patrol', 'bus', 'taxi', 'postcar', 'truck', 'motorbike', 'crane', 'roller'] },
+    { id: 'densha',   name: 'でんしゃ',       face: 'train',      ids: ['train', 'shinkansen', 'steam', 'tram', 'monorail', 'freight', 'cablecar'] },
+    { id: 'sora',     name: 'そら',           face: 'airplane',   ids: ['airplane', 'heli', 'rocket', 'balloon', 'airship', 'propplane'] },
+    { id: 'umi',      name: 'うみ',           face: 'ship',       ids: ['ship', 'fishboat', 'yacht', 'tugboat', 'fireboat', 'cargoship'] },
+    { id: 'kyujo',    name: 'きゅうじょたい', face: 'rescuework', ids: idsOf(RESCUE_CARS), from: RESCUE_FROM }
+  ];
+  // ゲーム → 自分の棚（かく は 'trace'）。GAMES と 'trace' の全部が入っていること（tests/shelves.test.js）
+  // ごほうび画面の文言（でんしゃ・そら・うみ の棚の乗り物）。漢字を使わないので、TEXT（漢字つきの文言だけの表。tests/furigana.test.js）には入れない
+  var REWARD_NEW_RIDE = 'あたらしい のりもの！';
+  var GAME_SHELF = { math: 'hataraku', letter: 'machi', clock: 'densha', english: 'sora', trace: 'umi' };
+
   // 読み上げ用の表記（漢字・カタカナまじり）。ひらがなだけだと端末の読み上げが語の切れ目やアクセントを決められず平坦になるため。
   // 「はしご車」「ごみ収集車」「郵便車」などは「くるま」と読まれるので、〜しゃ の語はひらがなのまま（無い語は speech / name を読む）。
   // 画面の文字・頭文字の判定には使わない。語の id（WORDS / CARS）→ 表記。無い語は、カタカナ表記があればそれを、無ければ speech / name を読む
@@ -389,7 +437,7 @@
   var NUM_EN = ['', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten'];
 
   var api = {
-    ENGLISH_WORDS: ENGLISH_WORDS, NUM_EN: NUM_EN, TIME_KANA: TIME_KANA, MIN_KANA: MIN_KANA, HAKO_KANA: HAKO_KANA, WORDS: WORDS, KATA_WORDS: KATA_WORDS, ALL_WORDS: ALL_WORDS, EXTRA_KATA: EXTRA_KATA, CONFUSABLE_KATA: CONFUSABLE_KATA, toHira: toHira, CATS: CATS, SEEN_MAX: SEEN_MAX, cleanSeen: cleanSeen, addSeen: addSeen, CONFUSABLE: CONFUSABLE, ROW: ROW, FAMILY: FAMILY, CARS: CARS, RESCUE_CARS: RESCUE_CARS, ALL_CARS: ALL_CARS, RESCUE_FROM: RESCUE_FROM, RESCUE_SCENE_CARS: RESCUE_SCENE_CARS,
+    ENGLISH_WORDS: ENGLISH_WORDS, NUM_EN: NUM_EN, TIME_KANA: TIME_KANA, MIN_KANA: MIN_KANA, HAKO_KANA: HAKO_KANA, WORDS: WORDS, KATA_WORDS: KATA_WORDS, ALL_WORDS: ALL_WORDS, EXTRA_KATA: EXTRA_KATA, CONFUSABLE_KATA: CONFUSABLE_KATA, toHira: toHira, CATS: CATS, SEEN_MAX: SEEN_MAX, cleanSeen: cleanSeen, addSeen: addSeen, CONFUSABLE: CONFUSABLE, ROW: ROW, FAMILY: FAMILY, CARS: CARS, RESCUE_CARS: RESCUE_CARS, ALL_CARS: ALL_CARS, VEHICLES: VEHICLES, ALL_VEHICLES: ALL_VEHICLES, SHELVES: SHELVES, GAME_SHELF: GAME_SHELF, REWARD_NEW_RIDE: REWARD_NEW_RIDE, RESCUE_FROM: RESCUE_FROM, RESCUE_SCENE_CARS: RESCUE_SCENE_CARS,
     SCENES: SCENES, SCENE_CARS: SCENE_CARS, NUM_KANA: NUM_KANA, YOMI: YOMI, CAR_YOMI: CAR_YOMI,
     COLORS: COLORS, COLOR_CLASH: COLOR_CLASH, ALPHA_LETTERS: ALPHA_LETTERS, ALPHA_CLASH: ALPHA_CLASH,
     STAGES: STAGES, GAMES: GAMES, YOUON_WORDS: YOUON_WORDS, YOUON_SMALL: YOUON_SMALL, YOUON_CONS: YOUON_CONS, KANJI_WORDS: KANJI_WORDS, KANJI_WORDS2: KANJI_WORDS2, AMPM_CASES: AMPM_CASES, AMPM_LABEL: AMPM_LABEL, KANJI: KANJI, allowedKanji: allowedKanji, furigana: furigana, TEXT: TEXT,
