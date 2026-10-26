@@ -163,7 +163,7 @@ families/{uid}            uid = Firebase Authentication の利用者 ID（保護
       stage:   { unlocked: 'S1', current: 'S0' },
       cleared: { M7: 'YYYY-MM-DD', ... },   関門レベル → 初めて 4/4 した日
       promoted:{ S1: 'YYYY-MM-DD' },        ステージ → 昇格した日
-      updatedAt: 1793000000000,             名前・絵・固定などを変えた時刻（ミリ秒。端末の時計）
+      updatedAt: 1793000000000,             名前・絵・固定・「かく」の設定などを変えた時刻（ミリ秒。端末の時計）
       ladderAt:  1793000000000              stage を変えた時刻（ミリ秒）
     }
   ],
@@ -172,7 +172,7 @@ families/{uid}            uid = Firebase Authentication の利用者 ID（保護
 }
 ```
 
-- 大きさの見込み: 1 人 0.6〜0.8 KB、4 人で約 3 KB。1 MiB の上限から遠い。「かく」の字が増える（ひらがな・カタカナ 92 字＋漢字 約 40 字）と、`done`・`help` が全部埋まっても 1 人 約 2.5 KB、4 人で約 10 KB（やはり上限から遠い）。
+- 大きさの見込み: 1 人 0.6〜0.8 KB、4 人で約 3 KB。1 MiB の上限から遠い。「かく」の字が増える（ひらがな・カタカナ 92 字＋漢字 約 40 字）と、`done`・`help` が全部埋まっても 1 人 約 3.8 KB、4 人で約 15 KB（やはり上限から遠い）。
 - 端末内（`src/storage.js:111-118` の v2）との違い: `device`（音の設定・最後に選んだ子・移行日）は送らない（`docs/design-elementary.md` 6 章）。`seen`（もじで直近に出した絵）も送らない（7.5 に理由）。`updatedAt`・`ladderAt`・`deleted` は R4 で足す（7.5）。
 - 書き方: 端末の記録とクラウドの記録をマージしてから書くので、**トランザクション**（読む → `mergeProfiles` → 書く）にする。2 台が同時に書いても片方の変更が消えない。1 回の保存で読み取り 1・書き込み 1。
 - 数値は整数で送る（Firebase の JS SDK は安全な範囲の整数を整数型で保存する）。ルールは `is int` で確かめる。

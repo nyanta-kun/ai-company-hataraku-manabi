@@ -652,7 +652,9 @@ test('W5-11. 負担の模擬: 名前「なぬね」・毎回すべて たすけ�
       const fresh = chars.filter(c => !(trace.done[c] > 0));
       if (fresh.length) assert.ok(r.filter(o => o.why === 'new' || (o.why === 'name' && !(trace.done[o.ch] > 0))).length >= 2, `回 ${t}`);
       assert.ok(!r.some(o => prev.includes(o.ch)), `続けて出た 回 ${t}`);
-      assert.ok(r.filter(o => o.why === 'weak').length <= 2);
+      // 苦手（isWeak）で数える。苦手でない字が足りる回は、新しい字がある間は 1 字・そうでなければ 2 字まで
+      const nonWeakAvail = chars.filter(c => !T.isWeak(trace, c) && !prev.includes(c)).length >= 4;
+      if (nonWeakAvail) assert.ok(r.filter(o => T.isWeak(trace, o.ch)).length <= (fresh.length ? 1 : 2), `苦手 回 ${t}`);
       r.forEach(o => { seenAll.add(o.ch); if (o.ch in nameCount) nameCount[o.ch]++; trace = T.recordTraceChar(trace, o.ch, { maxM: 2 }); });
       prev = r.map(o => o.ch);
     }
@@ -688,4 +690,52 @@ test('W5-13. normalizeTrace の help（done・set・width は今のまま）', (
     { done: { し: 2, つ: 1 }, help: { し: 2, つ: 1 }, set: 'kata', width: 'wide' });
   assert.deepEqual(T.normalizeTrace({ done: { し: 2 }, help: 'abc' }).help, {});
   assert.deepEqual(T.normalizeTrace({ done: { し: 2 }, help: { し: '1' } }).help, {});
+});
+
+test('W5-14. 名前の字が苦手なら苦手の枠を使ったものとして数える（新しい字がある間は苦手 1 字まで）', () => {
+  const chars = [...SETS.hira];
+  const weakN = (r, tr) => r.filter(o => o.why !== 'chosen' && T.isWeak(tr, o.ch)).length;
+  // 名前「なぬね」: ぬ・ね が苦手、な は苦手でない → な を選ぶ。苦手な字（復習の枠）は 1 字
+  const tr1 = { done: { し: 1, つ: 1, ぬ: 1, ね: 1, な: 1 }, help: { し: 1, ぬ: 1, ね: 1 } };
+  const r1 = T.planTraceSession(chars, tr1, { n: 4, name: 'なぬね', prev: [] }, rngOf(1));
+  assert.ok(weakN(r1, tr1) <= 1, JSON.stringify(r1));
+  assert.ok(r1.some(o => o.ch === 'な' && o.why === 'name'), JSON.stringify(r1));
+  // 名前の字が全部苦手で、復習の枠も苦手 → 名前の枠を見送る
+  const tr2 = { done: { し: 1, ぬ: 1, ね: 1, な: 1 }, help: { し: 1, ぬ: 1, ね: 1, な: 1 } };
+  const r2 = T.planTraceSession(chars, tr2, { n: 4, name: 'なぬね', prev: [] }, rngOf(1));
+  assert.ok(weakN(r2, tr2) <= 1 && !r2.some(o => o.why === 'name'), JSON.stringify(r2));
+  // 復習の枠に苦手がなければ、苦手な名前の字は 1 字入れてよい
+  const tr3 = { done: { つ: 1, ぬ: 1 }, help: { ぬ: 1 } };
+  const r3 = T.planTraceSession(chars, tr3, { n: 4, name: 'ぬ', prev: ['ぬ'] }, rngOf(1));
+  assert.ok(weakN(r3, tr3) <= 1);
+  const tr3b = { done: { つ: 1, ぬ: 1 }, help: { ぬ: 1 } };
+  assert.ok(weakN(T.planTraceSession(chars, tr3b, { n: 4, name: 'ぬ', prev: [] }, rngOf(1)), tr3b) <= 1);
+  // 全部書いた後は 名前＋苦手 ≤ 2（名前の字が苦手でも）
+  const all = Object.fromEntries(chars.map(c => [c, 2])), hp = Object.fromEntries(chars.filter((c, i) => i % 3 === 0 || 'なぬね'.includes(c)).map(c => [c, 2]));
+  for (let seed = 0; seed < 20; seed++) {
+    const r = T.planTraceSession(chars, { done: all, help: hp }, { n: 4, name: 'なぬね', prev: [] }, rngOf(seed));
+    assert.ok(weakN(r, { done: all, help: hp }) <= 2, JSON.stringify(r));
+    assert.ok(r.filter(o => o.why === 'name' || T.isWeak({ done: all, help: hp }, o.ch)).length <= 4);
+  }
+});
+
+test('W5-15. 出動の始めに新しい字があったなら、足りない分を埋めるときも苦手は 1 字まで', () => {
+  const chars = [...SETS.hira].slice(0, 9);
+  // 新しい字は 1 つだけ（9 字目）。8 字は書いた: 前半 4 字が苦手、後半 4 字は苦手でない
+  const done = {}, help = {};
+  chars.slice(0, 8).forEach((c, i) => { done[c] = 2; if (i < 4) help[c] = 2; });
+  for (let seed = 0; seed < 20; seed++) {
+    const r = T.planTraceSession(chars, { done, help }, { n: 4, prev: [] }, rngOf(seed));
+    assert.equal(r.length, 4);
+    assert.ok(r.filter(o => T.isWeak({ done, help }, o.ch)).length <= 1, JSON.stringify(r));
+    assert.ok(r.some(o => o.why === 'new'));
+  }
+});
+
+test('W5-16. 選んだ字があるとき、新しい字は 1 字に減ってよい（選んだ 1＋復習 1＋名前 1＋新しい 1）', () => {
+  const chars = [...SETS.hira];
+  const trace = { done: { し: 1, つ: 1 } };
+  const r = T.planTraceSession(chars, trace, { n: 4, name: 'ろ', chosen: 'ぬ', prev: [] }, rngOf(1));
+  assert.equal(r.length, 4);
+  assert.deepEqual(r.map(o => o.why).sort(), ['chosen', 'name', 'new', 'review']);
 });

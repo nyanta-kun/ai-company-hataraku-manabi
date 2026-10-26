@@ -354,8 +354,10 @@
 
     var picks = [], taken = Object.create(null);
     function put(ch, why) { if (taken[ch] || picks.length >= n) return false; taken[ch] = true; picks.push({ ch: ch, why: why }); return true; }
-    var weakN = function () { return picks.filter(function (p) { return p.why === 'weak'; }).length; };
-    var nameN = function () { return picks.filter(function (p) { return p.why === 'name'; }).length; };
+    // 苦手の枠を使った数（名前で入った苦手な字も数える。選んだ字は子どもが選んだので数えない）
+    var weakN = function () { return picks.filter(function (p) { return p.why !== 'chosen' && isWeak(trace, p.ch); }).length; };
+    var nameN = function () { return picks.filter(function (p) { return p.why === 'name' && !isWeak(trace, p.ch); }).length; };   // 苦手でない名前の字
+    var freshAtStart = fresh.length > 0;   // 出動の始めに新しい字があった間は、苦手は 1 回 1 字まで
 
     if (chosen) put(chosen, 'chosen');
     // 復習の枠（1 つ）: 苦手 → 少ない字。全部 prev なら空
@@ -365,17 +367,21 @@
       if (weak.length) put(weak[0], 'weak');
       else if (cand.length) put(cand.slice().sort(byCnt)[0], 'review');
     }
-    // 名前の枠（0〜1）
-    if (!opts.kanji && weakN() + 1 <= PLAN.SPECIAL_MAX) {
+    // 名前の枠（0〜1）: 苦手でない名前の字を先に。なければ、苦手の枠が空いているときだけ苦手な名前の字。それもなければ見送る
+    if (!opts.kanji) {
       var names = nameTraceChars(opts.name, list).filter(function (o) { return cnt(o.ch) < PLAN.NAME_GOAL && !avoid(o.ch) && !taken[o.ch]; })
         .map(function (o) { return o.ch; }).sort(byCntOrder);
-      if (names.length) put(names[0], 'name');
+      var okNames = names.filter(function (c) { return !isWeak(trace, c); });
+      var special = weakN() + nameN();
+      var weakRoom = weakN() + 1 <= (freshAtStart ? PLAN.WEAK_MAX_WHILE_NEW : PLAN.SPECIAL_MAX) && special + 1 <= PLAN.SPECIAL_MAX;
+      if (okNames.length) { if (special + 1 <= PLAN.SPECIAL_MAX) put(okNames[0], 'name'); }
+      else if (names.length && weakRoom) put(names[0], 'name');
     }
     // 新しい字: chars の順に
     fresh.forEach(function (c) { if (!taken[c]) put(c, 'new'); });
     // 足りないとき: 苦手（上限まで）→ 苦手でない字 → 最後の手段で prev の字
     if (picks.length < n) {
-      var capWeak = opts.kanji ? PLAN.WEAK_MAX_KANJI : PLAN.SPECIAL_MAX - nameN();
+      var capWeak = opts.kanji ? PLAN.WEAK_MAX_KANJI : freshAtStart ? PLAN.WEAK_MAX_WHILE_NEW : PLAN.SPECIAL_MAX - nameN();
       var rest = old.filter(function (c) { return !taken[c]; });
       var fine = rest.filter(function (c) { return !avoid(c); });
       var weakFine = fine.filter(function (c) { return isWeak(trace, c); }).sort(byCnt);

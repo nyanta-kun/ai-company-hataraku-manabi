@@ -116,8 +116,9 @@ canvas { display: block; }
 #reward-side { text-align: center; }
 #reward-text { font-size: clamp(26px, 6vmin, 44px); font-weight: bold; min-height: 1.3em; }
 #reward-sub { font-size: clamp(18px, 4vmin, 28px); color: #c0560a; min-height: 1.3em; margin-bottom: 10px; }
-#reward-side .row { flex-wrap: nowrap; gap: 14px; width: min(360px, 92vw); margin: 0 auto; }   /* 文言の長さでボタンの幅が変わらないよう、列の幅を固定する */
-#reward-side .big { flex: 1 1 0; min-width: 0; max-width: 220px; min-height: 92px; padding: 8px 6px; white-space: nowrap; }   /* 2つを横に並べる（縦に積むと画面からはみ出す） */
+#reward-side .row { flex-wrap: nowrap; gap: 8px; width: min(560px, 96vw); margin: 0 auto; }   /* 文言の長さでボタンの幅が変わらないよう、列の幅を固定する */
+#reward-side .big { flex: 1 1 0; min-width: 0; max-width: 200px; min-height: 92px; padding: 8px 2px; white-space: nowrap; font-size: clamp(15px, 4.4vw, 24px); }
+#reward-side .big.end { background: #7a6a58; border-bottom-color: #54483b; }   /* 2つを横に並べる（縦に積むと画面からはみ出す） */
 #reward-side .big canvas { width: 44px; height: 44px; }
 
 /* しゃこ / 保護者 共通 */

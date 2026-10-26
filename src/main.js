@@ -34,7 +34,6 @@
     });
   }
 
-  // 書き順の照合用の一覧（ひらがな 46 字を番号・矢印・画ごとの色つきで並べる）。もう一度押すと閉じる
   // 今のプロフィールで次の出動の字と why を確認パネルに出す（くじを固定）
   function showTracePlan() {
     var box = doc.getElementById('debug'), pre = doc.getElementById('traceplan');
@@ -43,6 +42,7 @@
     pre.textContent = 'trace-plan ' + r.name + ' 名前の字[' + r.names.join('') + '] 前[' + r.prev.join('') + ']: ' + r.plan.map(function (o) { return o.ch + '(' + o.why + ')'; }).join(' ');
   }
 
+  // 書き順の照合用の一覧（ひらがな 46 字を番号・矢印・画ごとの色つきで並べる）。もう一度押すと閉じる
   function toggleTraceSheet(setName) {
     var old = doc.getElementById('tracesheet');
     if (old) { old.remove(); return; }

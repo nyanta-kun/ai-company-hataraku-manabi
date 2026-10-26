@@ -59,6 +59,14 @@
       for (var i = 1; i < 4; i++) ln(.22, .5 + i * .1, .78, .5 + i * .1, .03, dark);
       return;
     }
+    if (kind === 'station') {   // 消防署（タイトルの署の絵を小さく）: 赤い屋根・壁・シャッター
+      ctx.fillStyle = '#fff'; ctx.strokeStyle = dark; ctx.lineWidth = w * 0.04;
+      ctx.fillRect(w * .1, h * .38, w * .8, h * .52); ctx.strokeRect(w * .1, h * .38, w * .8, h * .52);
+      ctx.fillStyle = '#e8453c'; ctx.beginPath(); ctx.moveTo(w * .04, h * .4); ctx.lineTo(w * .12, h * .16); ctx.lineTo(w * .88, h * .16); ctx.lineTo(w * .96, h * .4); ctx.closePath(); ctx.fill(); ctx.stroke();
+      ctx.fillStyle = '#9fb4c7'; ctx.fillRect(w * .25, h * .5, w * .5, h * .4); ctx.strokeRect(w * .25, h * .5, w * .5, h * .4);
+      for (var j = 1; j < 4; j++) ln(.25, .5 + j * .1, .75, .5 + j * .1, .03, dark);
+      return;
+    }
     if (kind === 'kazu') {   // ● ● ●
       [[.25, .35], [.5, .35], [.75, .35], [.37, .68], [.63, .68]].forEach(function (p) { ctx.beginPath(); ctx.arc(p[0] * w, p[1] * h, w * .1, 0, 7); ctx.fillStyle = '#fff'; ctx.fill(); });
       return;
@@ -613,7 +621,7 @@
     var r = grantReward(trun.scene, stageIdx());   // S0 は今までと同じ出方。階段（afterSession）は呼ばない
     data.lastPlayed = todayStr();
     save();
-    reward = { r: r, t0: 0, game: 'trace', wrote: trun.wrote.slice() };
+    reward = { r: r, t0: 0, game: 'trace', wrote: trun.wrote.slice(), firstNew: (trun.plan.filter(function (o) { return o.why === 'new'; })[0] || {}).ch || '' };
     rememberTrace();
     trun = null; tboard.stop();
     show('reward');
@@ -831,7 +839,7 @@
     var fs = Math.round(Math.min(rowH, colW) * 0.6);
     var names = TR.nameTraceChars(data.name, STR.SETS[garageOpen.set].split('')), isName = {};
     names.forEach(function (o) { isName[o.ch] = true; });
-    var pending = garageOpen.stamp.slice(), delay = 0;
+    var pending = garageOpen.stamp.slice(), delay = 0, scrolled = false, scrollTo1 = null;
     g.forEach(function (row) {
       row.forEach(function (ch) {
         var c = doc.createElement('button'); c.type = 'button';
@@ -847,15 +855,17 @@
           var pi = pending.indexOf(ch);
           if (pi >= 0 && !reducedMotion()) {
             st.className += ' wait';
-            (function (img, d) { later(400 + d, function () { img.className = 'stamp pop'; sfx('pon', 1); }); })(st, delay);
+            (function (img, d) { later(400 + d, function () { img.className = 'stamp pop'; sfx('pon', 1); if (img.parentNode && img.parentNode.scrollIntoView) img.parentNode.scrollIntoView({ block: 'nearest' }); }); })(st, delay);
             delay += 300; pending.splice(pi, 1);
           }
           c.appendChild(st);
+          if (pi >= 0 && !scrolled) { scrolled = true; scrollTo1 = c; }
         }
         c.addEventListener('click', function () { openMojiSheet(ch); });
         grid.appendChild(c);
       });
     });
+    if (scrollTo1) scrollTo1.scrollIntoView({ block: 'nearest' });   // 押されるマスが画面の外なら、そこまで表を動かす
     garageOpen.stamp = [];
   }
   // 字の札（下から）: 字（手本の形）・例語の絵・声。「かく」で、この字が 1 字目の出動
@@ -1193,10 +1203,12 @@
       sfx('tap');
       if (reward && reward.game === 'trace') {   // かく から来たときは「もじ」を開き、今日の字にスタンプが押される
         var w = reward.wrote || [];
-        garageOpen = { tab: 'moji', set: w.length ? setOfChar(w[0]) : '', stamp: w.slice() };
+        var firstNew = reward.firstNew || '';   // その出動の新しい字の集合を優先（なければ今の集合）
+        garageOpen = { tab: 'moji', set: firstNew ? setOfChar(firstNew) : '', stamp: w.slice() };
       } else garageOpen = { tab: 'cars', set: garageOpen.set, stamp: [] };
       leaveReward('garage');
     });
+    $('btn-r-end').addEventListener('click', function () { sfx('tap'); leaveReward('title'); });   // 昇格があれば先に昇格画面（そのあとタイトル）
     $('btn-r-again').addEventListener('click', function () {
       sfx('tap');
       if (reward && reward.game === 'trace') startTrace(); else leaveReward('pick');   // かく から来たときは かく をもう一度
