@@ -332,11 +332,11 @@
     if (p.kind === 'sub') return NUMK[p.a] + 'ひく' + NUMK[p.b] + 'は、いくつ？';
     if (p.kind === 'mul') return 'ひとはこに、' + NUMK[p.a] + 'こずつ。' + D.HAKO_KANA[p.b] + 'で、ぜんぶでいくつ？';   // 数字で渡さず数の読みで。「かける」は式の絵に任せる
     if (p.kind === 'clock') {
-      if (p.form === 'read') return '時計を見てね。出動の時間は、何時かな？';
-      if (p.form === 'readmin') return '時計を見てね。出動の時間は、何時何分かな？';
+      if (p.form === 'read') return 'とけいを見てね。出動の時間は、なんじかな？';
+      if (p.form === 'readmin') return 'とけいを見てね。出動の時間は、なんじ なんぷんかな？';
       if (p.form === 'ampm') return '出動は、' + P.readTime(p.h, p.m) + '。ごぜんかな、ごごかな？';   // 絵（朝・夕方・夜）と時計を見て選ぶ。午前・午後はひらがなで読む
-      if (p.form === 'elapsed') return '今は、' + P.readTime(p.h0, p.m0) + '。' + P.readMinutes(p.dm) + 'たったら、どの時計かな？';
-      return '出動は、' + P.readTime(p.h, p.m) + '。どの時計かな？';
+      if (p.form === 'elapsed') return 'いまは、' + P.readTime(p.h0, p.m0) + '。' + P.readMinutes(p.dm) + 'たったら、どのとけいかな？';
+      return '出動は、' + P.readTime(p.h, p.m) + '。どのとけいかな？';
     }
     if (p.kind === 'english') return 'どれかな？';   // 英語の意味は日本語で言わない（言うと英語を聞かなくても答えられる）
     if (p.level === 'K7') return p.word + '。最初の音は、どれかな？';   // 拗音（しょ）を選ぶ。ひらがなの語をそのまま読む
@@ -457,7 +457,7 @@
         if (!run || run.busy) return;
         answerButtons().forEach(function (b) { if (b.getAttribute('data-v') === String(q.answer)) b.classList.add('glow'); });
         if (q.kind === 'clock') {
-          say(q.form === 'read' ? 'こっちかな？短い針を見てね。' : q.form === 'readmin' ? 'こっちかな？短い針と、長い針を見てね。' : 'こっちかな？');
+          say(q.form === 'read' ? 'こっちかな？みじかい はりを見てね。' : q.form === 'readmin' ? 'こっちかな？みじかい はりと、ながい はりを見てね。' : 'こっちかな？');
           if (q.form === 'read' || q.form === 'readmin') stage.pulseHour(now()); else run.pulse = { key: q.answer, t0: now() };
         } else if (q.kind === 'english') {
           seq([{ text: q.en + '?', lang: 'en' }, { text: 'こっちかな？', lang: 'ja', gap: 250 }]);
@@ -1427,7 +1427,7 @@
     $('btn-clock').addEventListener('click', function () { startSession('clock'); });
     $('btn-english').addEventListener('click', function () {
       if (enOff()) {   // 英語の声が無い: 出動しない。おしい音と、日本語の声が使えれば説明を読む
-        updatePick(); sfx('oshii'); say('英語の声が、ないよ。'); return;
+        updatePick(); sfx('oshii'); say('えいごの こえが、ないよ。'); return;
       }
       startSession('english');
     });

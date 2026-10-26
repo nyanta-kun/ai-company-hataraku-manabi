@@ -19,22 +19,22 @@ const OLD11 = D.CARS.map(c => c.id);
 const poolIds = rank => D.SHELVES.filter(sh => sh.from === undefined || rank >= sh.from).flatMap(sh => sh.ids);
 const apply = (owned, r) => (r.sticker ? owned : Object.assign({}, owned, { [r.id]: r.stars }));
 
-test('データ: 42 種で id が重ならず、名前はひらがなだけ、新しい 27 種は読み上げ用の表に無い', () => {
-  assert.equal(D.ALL_VEHICLES.length, 42);
-  assert.equal(new Set(D.ALL_VEHICLES.map(c => c.id)).size, 42);
+test('データ: 47 種で id が重ならず、名前はひらがなだけ、新しい 32 種は読み上げ用の表に無い', () => {
+  assert.equal(D.ALL_VEHICLES.length, 47);
+  assert.equal(new Set(D.ALL_VEHICLES.map(c => c.id)).size, 47);
   D.ALL_VEHICLES.forEach(c => { assert.match(c.id, /^[a-z]+$/); assert.match(c.name, /^[ぁ-んー]+$/, c.id); });
   D.VEHICLES.forEach(c => assert.ok(!D.CAR_YOMI[c.id], c.id));
-  assert.equal(D.VEHICLES.length, 27);
+  assert.equal(D.VEHICLES.length, 32);
   assert.equal(D.CARS.length, 11); assert.equal(D.RESCUE_CARS.length, 4); assert.equal(D.ALL_CARS.length, 15);
   assert.equal(D.REWARD_NEW_RIDE, 'あたらしい のりもの！');
   assert.match(D.REWARD_NEW_RIDE, /^[ぁ-んー !！]+$/);
 });
 
-test('棚: 各乗り物がちょうど 1 つの棚に入り、棚の数は 11・8・7・6・6・4。顔はその棚の中', () => {
-  assert.deepEqual(D.SHELVES.map(sh => sh.ids.length), [11, 8, 7, 6, 6, 4]);
+test('棚: 各乗り物がちょうど 1 つの棚に入り、棚の数は 11・8・12・6・6・4。顔はその棚の中', () => {
+  assert.deepEqual(D.SHELVES.map(sh => sh.ids.length), [11, 8, 12, 6, 6, 4]);
   assert.deepEqual(D.SHELVES.map(sh => sh.id), ['hataraku', 'machi', 'densha', 'sora', 'umi', 'kyujo']);
   const all = D.SHELVES.flatMap(sh => sh.ids);
-  assert.equal(all.length, 42);
+  assert.equal(all.length, 47);
   assert.deepEqual(new Set(all), new Set(D.ALL_VEHICLES.map(c => c.id)));
   D.SHELVES.forEach(sh => { assert.ok(sh.ids.includes(sh.face), sh.id); if (sh.id !== 'hataraku') assert.equal(sh.ids[0], sh.face, sh.id); });   // はたらくくるま は CARS の順のまま（顔 しょうぼうしゃ は 1 回目に出る）
   assert.deepEqual(shelf('hataraku').ids, OLD11);
@@ -56,7 +56,7 @@ test('絵と音: 全部の乗り物に絵と音があり、音の名前は data 
   });
 });
 
-test('保存: CAR_IDS と ALL_VEHICLES の id の集合が同じ。42 種 ★3 がそのまま残り、知らない id・★4 以上・負の数は今と同じ扱い', () => {
+test('保存: CAR_IDS と ALL_VEHICLES の id の集合が同じ。47 種 ★3 がそのまま残り、知らない id・★4 以上・負の数は今と同じ扱い', () => {
   assert.deepEqual([...S.CAR_IDS].sort(), D.ALL_VEHICLES.map(c => c.id).sort());
   assert.deepEqual(S.CAR_IDS.slice(0, 15), OLD15);
   assert.deepEqual(S.CAR_IDS, D.ALL_VEHICLES.map(c => c.id));
@@ -132,7 +132,7 @@ test('rank 0 では どのゲームでも救助隊が出ない。rank 1・2 で�
   for (const g of GAMES5) {
     for (let s = 1; s <= 20; s++) {
       const rng = rngOf(s); let o0 = {}, o1 = {};
-      for (let i = 0; i < 126; i++) {
+      for (let i = 0; i < 141; i++) {
         const r0 = R.pickReward(o0, 'kaji', rng, 0, g); if (!r0.sticker) assert.ok(!ky.includes(r0.id)); o0 = apply(o0, r0);
         const r1 = R.pickReward(o1, 'kaji', rng, i % 2 ? 1 : 2, g); o1 = apply(o1, r1);
       }
@@ -170,8 +170,8 @@ test('★: pool の全部を持つまで★は増えない。そろったら自�
     const home = shelf(D.GAME_SHELF[g]).ids.concat(shelf('kyujo').ids);
     for (let s = 1; s <= 20; s++) {
       const rng = rngOf(s); let owned = {};
-      for (let i = 0; i < 42; i++) { const r = R.pickReward(owned, 'kaji', rng, 2, g); assert.ok(r.isNew, `${g} ${i}`); owned = apply(owned, r); }
-      assert.equal(Object.keys(owned).length, 42);
+      for (let i = 0; i < 47; i++) { const r = R.pickReward(owned, 'kaji', rng, 2, g); assert.ok(r.isNew, `${g} ${i}`); owned = apply(owned, r); }
+      assert.equal(Object.keys(owned).length, 47);
       // ★ ここから: 自分の棚が全部 ★3 になるまで、自分の棚だけ★が増え、いつも最小の★から
       for (let i = 0; i < home.length * 2; i++) {
         const min = Math.min(...home.map(h => owned[h]));
@@ -189,7 +189,7 @@ test('★: pool の全部を持つまで★は増えない。そろったら自�
   }
 });
 
-test('ステッカー: rank 0 は 38 種 ★3 で、rank>=1 は 42 種 ★3 でだけ。rank 0 では救助隊のカードがあっても 38 種で出る', () => {
+test('ステッカー: rank 0 は 43 種 ★3 で、rank>=1 は 47 種 ★3 でだけ。rank 0 では救助隊のカードがあっても 43 種で出る', () => {
   const all = ids => { const o = {}; ids.forEach(i => { o[i] = 3; }); return o; };
   for (const g of GAMES5) {
     assert.deepEqual(R.pickReward(all(poolIds(0)), 'kaji', rngOf(1), 0, g), { sticker: true });
@@ -202,8 +202,8 @@ test('ステッカー: rank 0 は 38 種 ★3 で、rank>=1 は 42 種 ★3 で�
   }
 });
 
-test('長さ: ゲームを回しながら {} から重ねると、rank 0 は 38 回すべて新しく 115 回目がステッカー、rank 2 は 42 回・127 回目', () => {
-  for (const [rank, n] of [[0, 38], [2, 42]]) {
+test('長さ: ゲームを回しながら {} から重ねると、rank 0 は 43 回すべて新しく 130 回目がステッカー、rank 2 は 47 回・142 回目', () => {
+  for (const [rank, n] of [[0, 43], [2, 47]]) {
     for (let s = 1; s <= 20; s++) {
       const rng = rngOf(s); let owned = {};
       for (let i = 1; i <= n * 3 + 1; i++) {

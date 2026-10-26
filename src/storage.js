@@ -9,8 +9,9 @@
   var GAME_IDS = D.GAMES;
   var CAR_IDS = ['nekoguruma', 'forklift', 'gomi', 'shovel', 'bulldozer', 'dump', 'kyukyu', 'shoubousha', 'mizutank', 'hashigo', 'chodai',
     'rescuework', 'rescuechem', 'rescuecmd', 'rescueheli',   // 15 種まで: CARS + 救助隊の車（data.js の RESCUE_CARS）
-    'patrol', 'bus', 'taxi', 'postcar', 'truck', 'motorbike', 'crane', 'roller',          // 以降は棚の乗り物 27 種（data.js の VEHICLES。SHELVES の順）
+    'patrol', 'bus', 'taxi', 'postcar', 'truck', 'motorbike', 'crane', 'roller',          // 以降は棚の乗り物 32 種（data.js の VEHICLES。SHELVES の順）
     'train', 'shinkansen', 'steam', 'tram', 'monorail', 'freight', 'cablecar',
+    'hayabusa', 'komachi', 'kagayaki', 'doctoryellow', 'linear',
     'airplane', 'heli', 'rocket', 'balloon', 'airship', 'propplane',
     'ship', 'fishboat', 'yacht', 'tugboat', 'fireboat', 'cargoship'];   // data.js の ALL_VEHICLES と一致（tests/shelves.test.js）。firestore.rules の cards と同じ並び
 
