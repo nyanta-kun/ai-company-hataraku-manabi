@@ -510,17 +510,50 @@
     for (var i = 0; i < all.length; i++) if (all[i].ch === ch) return all[i];
     return null;
   }
-  function tracePrompt(ch) {
+  // info = { why, name }（W5）。名前の字そのもの（exact）のときだけ「たろうの ろ」。濁点・小さい字から来た字はいつもの声（例語）
+  function tracePrompt(ch, info) {
+    if (info && info.why === 'name' && info.exact && info.name) return info.name + 'の ' + ch + '。なぞってね。';
     var kw = kanjiWord(ch);
     if (kw) return kw.speech + '。なぞってね。';
     var ex = exampleOf(ch); return (ex !== ch ? ex + 'の ' : '') + ch + '。なぞってね。';
   }
   function traceDoneWord(ch) { var kw = kanjiWord(ch); return kw ? kw.yomi : ch; }
+  // 前の出動の字（プロフィールの id ごとに 1 回分。保存しない＝アプリを閉じれば消える。W5）
+  var prevTrace = {};
+  // 次の出動の組み方（startTrace と #debug:trace-plan で共通）。→ { plan, chars, names }
+  function planTrace(opts, rng) {
+    opts = opts || {};
+    var chars = opts.chars || TR.charsOfSet(opts.set || TR.traceSet(data.trace, LD.currentStage(data)));
+    var kanji = chars.length > 0 && chars.every(function (c) { return c >= '\u4e00'; });   // 漢字だけの集合では名前の枠を使わない
+    var plan = TR.planTraceSession(chars, data.trace, { n: P.QUESTIONS_PER_SESSION, name: data.name, prev: prevTrace[data.id] || [], chosen: opts.chosen || '', kanji: kanji }, rng || Math.random);
+    return { plan: plan, chars: chars, names: kanji ? [] : TR.nameTraceChars(data.name, chars) };
+  }
+  function traceInfoAt(i) {
+    var pl = trun && trun.plan[i]; if (!pl) return null;
+    var nm = null;
+    trun.names.forEach(function (o) { if (o.ch === pl.ch) nm = o; });
+    return { why: pl.why, name: data.name, exact: !!(nm && nm.exact), at: nm ? nm.at : -1 };
+  }
+  // 現場の帯の隅の名札（車の絵と名前。いまの字に当たる字だけ色を付ける）。名前の枠の字のときだけ出す
+  function showNameTag(info) {
+    var tag = $('trace-nametag'); if (!tag) return;
+    tag.textContent = '';
+    if (!info || info.why !== 'name') { tag.hidden = true; return; }
+    tag.hidden = false;
+    var cv = doc.createElement('canvas'), sp = doc.createElement('span');
+    cv.setAttribute('data-car', data.icon);
+    tag.appendChild(cv); tag.appendChild(sp);
+    data.name.split('').forEach(function (c, i) {
+      var e = doc.createElement('b'); e.textContent = c; if (i === info.at) e.className = 'on'; sp.appendChild(e);
+    });
+    drawCarIcon(cv, data.icon);
+  }
   function startTrace(opts) {
     opts = opts || {};
     clearTimers(); token++; run = null;
-    var chars = TR.pickTraceChars(opts.chars || TR.charsOfSet(opts.set || TR.traceSet(data.trace, LD.currentStage(data))), data.trace.done, P.QUESTIONS_PER_SESSION, Math.random);
-    trun = { chars: chars, idx: 0, scene: opts.scene || pickScene(), token: token, helpSaid: false };
+    var pl = planTrace(opts);
+    var chars = pl.plan.map(function (o) { return o.ch; });
+    trun = { chars: chars, plan: pl.plan, names: pl.names, idx: 0, scene: opts.scene || pickScene(), token: token, helpSaid: false, wrote: [], pid: data.id };
     if (!tboard) tboard = new M.TraceBoard($('trace-board'), {
       onStrokeDone: function (i, auto, last) { if (trun && !last) sfx('pon', i + 1); },
       onBad: function (result, m) {
@@ -548,12 +581,15 @@
     var ch = trun.chars[trun.idx];
     trun.helpSaid = false;
     tboard.setChar(ch, !(data.trace.done[ch] > 0));   // 初めて書く字だけ、全部の画のお手本を流す（T8）
-    say(tracePrompt(ch));
+    var info = traceInfoAt(trun.idx);
+    showNameTag(info);
+    say(tracePrompt(ch, info));
     kick();
   }
   function onTraceCharDone(info) {
     if (!trun) return;
     var ch = info.ch, done = trun.idx + 1, my = trun.token;
+    trun.wrote.push(ch);
     data.trace = TR.recordTraceChar(data.trace, ch, info);   // 途中でやめても、書けた字は数える。maxM >= 2 なら たすけの回数も足す
     data.stats.trace.chars++; if (info.clean) data.stats.trace.clean++;
     save();
@@ -578,10 +614,14 @@
     data.lastPlayed = todayStr();
     save();
     reward = { r: r, t0: 0, game: 'trace' };
+    rememberTrace();
     trun = null; tboard.stop();
     show('reward');
   }
+  // 前の出動の字（書き終えた字）を覚える。1 字も書いていなければ、前の記録のまま
+  function rememberTrace() { if (trun && trun.wrote.length) prevTrace[trun.pid] = trun.wrote.slice(); }
   function quitTrace() {
+    rememberTrace();
     clearTimers(); token++; trun = null; if (tboard) tboard.stop(); SP.cancel();
     show('title');
   }
@@ -974,7 +1014,7 @@
     holdButton($('btn-trace-quit'), 2000, quitTrace);
     $('btn-trace-replay').addEventListener('click', function () {
       if (!trun || !tboard) return;
-      if (tboard.replay()) say(tracePrompt(trun.chars[trun.idx]));   // 手本の書き足し中は効かない
+      if (tboard.replay()) say(tracePrompt(trun.chars[trun.idx], traceInfoAt(trun.idx)));   // 手本の書き足し中は効かない
       kick();
     });
     doc.addEventListener('visibilitychange', function () { if (doc.hidden && tboard && tboard.active) tboard.cancelActive(); });   // 画面が隠れたら書きかけの線を捨てる
@@ -1048,6 +1088,18 @@
   M.ui = {
     init: init, show: show, startSession: startSession, startTrace: startTrace, drawIcon: drawIcon,
     get traceBoard() { return tboard; },
+    // 確認用: 次の出動の字と why を返す（くじを固定）。prev は今のプロフィールの前の出動
+    tracePlan: function () {
+      var seed = 12345, rng = function () { seed = (seed * 1103515245 + 12345) % 2147483648; return seed / 2147483648; };
+      var r = planTrace({}, rng);
+      return { plan: r.plan, prev: (prevTrace[data.id] || []).slice(), names: r.names.map(function (o) { return o.ch; }), name: data.name };
+    },
+    // 確認用: いまの字の たすけ（help）を 1 足す（help ≤ done を保つ）
+    traceAddHelp: function () {
+      var ch = trun && trun.chars[trun.idx]; if (!ch) return '';
+      var t = data.trace, d = Math.max(1, t.done[ch] || 0), h = Math.min(99, d, (t.help[ch] || 0) + 1);
+      t.done[ch] = d; t.help[ch] = h; save(); return ch + ' done ' + d + ' help ' + h;
+    },
     traceAuto: function (on) { if (tboard) { tboard.auto = on !== false; kick(); } },
     get data() { return data; },
     setData: function (d) {   // 今のプロフィールを置き換える
