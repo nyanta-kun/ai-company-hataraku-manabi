@@ -375,3 +375,20 @@ endStroke(poly, state, tol)      → { result: 'done' | 'short' | 'off' }
 - 「筆順指導の手びき」（文部省、1958 年。教育漢字 881 字。示した筆順が唯一ではない旨）と、現行の検定基準の「一般に通用している常識的な」筆順: https://www.weblio.jp/content/%E7%AD%86%E9%A0%86 、https://japanknowledge.com/articles/blognihongo/?mylist=226 、国立国会図書館の書誌 https://ndlsearch.ndl.go.jp/books/R100000002-I000000984674 （原本の照合は T7 で行う）
 - Safari の `getCoalescedEvents` 非対応（開発者の報告）: https://developer.apple.com/forums/thread/689375 、https://developer.apple.com/forums/thread/776468 、MDN https://developer.mozilla.org/docs/Web/API/PointerEvent/getCoalescedEvents
 - AnimCJK・Make Me a Hanzi のライセンス（LGPL・Arphic Public License。案 F を採らない理由）: https://github.com/chanind/hanzi-writer 、https://libraries.io/npm/@k1low%2Fhanzi-writer-data-jp
+
+---
+
+## 9. W2 で設計から外れた点（実装時に決めたこと。2026-10-26）
+
+- **画面の部品**: 現場の帯は、問題画面とは別の `SC.Stage` を `#traceField`（小さな canvas）に作り、`setProblem(null)` で現場だけを描く。ごほうび画面の「今日の 4 字を手本の形で並べる」（4.6 の最後）は W2 では**入れていない**（W3 以降）。
+- **出動えらびの「かく」**: 縦は 2 列ぶんの横長（高さ 96px）、横は 5 列（`max-width` 1100px）。絵は鉛筆。
+- **集合**: W2 は ひらがな だけ。S1・S2 の子も、この段階では `SETS.hira` を書く（漢字は W4）。`trace.set`・`trace.width` の保護者画面の設定は**入れていない**（値は保存・補正だけ。幅は `traceWidth(trace, 現在のステージ)` の自動: S0 ひろめ、S1 以降 ふつう）。保護者画面は「かく：かいた じ ひらがな N/46（M かい）」と「このアプリについて」（KanjiVG の出典）だけ。
+- **ごほうび**: `grantReward(scene, 現在のステージの番号)`。S0 の出方は今までと同じ。S1 以降の子が「かく」をしたときも、いま選んでいるステージの番号で救助隊の車が出る。「もういちど」は かく をもう一度始める（`reward.game === 'trace'`）。
+- **助けの段階**: しょうぼうしゃ（m≥3）は、`V.drawVehicle(…, 8, …)` の消防車を道の上で往復させる（動きを減らす設定のときは始点に止める）。m=1 の声「まるの ところから、もういちど」は字ごとに最初の 1 回、m=3 は「いっしょに。」、m=5 は「いっしょに かけたね。」。
+- **「大きく外れた」あと**: `moveStroke` が `off` を返した時点で指の線を薄くするだけで、数えるのは指を離したとき（`endStroke`）の 1 回（3.6 の約束どおり）。
+- **照合用の一覧**: `#debug:trace-sheet`（パネルの「書き順一覧」）。W2 はひらがな 46 字。白地・画ごとの色・番号・終点の矢印・始点の丸。
+- **確認用の追加**: `#debug:play-trace`（4 字を始める）、`#debug:trace-auto`（手本の点列を指の代わりに流す。パネルの「かく: じどうで かく」も同じ）。
+- **未実機**: Apple Pencil・手のひら・2 本指の拡大の抑止（`gesturestart`）・iOS の長押しメニューは、PC の Chrome（pointerType mouse）では確かめられない。実機で確認する。
+- **8 秒の合図（3.5 からのずれ）**: 実装は「指が触れていない（`active` なし）まま 8 秒たったら、いまの画のお手本を流す」で、流したあとも 8 秒ごとに繰り返す（設計の「指を置いたまま進まないとき」ではない）。お手本が流れている間のタップは「最後まで飛ばす」だけで、その触れた指では書き始めない（もう一度触れる）。実機で感触を見る。
+- **現場の帯の白い箱**: `setProblem(null)` でも `Stage` は答えの板（白い角丸の箱）を描くので、帯の上に空の白い箱が出る（見た目だけの問題。`scenes.js` は触っていない）。
+- **未実機（追加）**: 始点を外す・逆向きに始める（`miss`・`reverse` → `afterFail`）の経路は、PC の Chrome のマウスでは自動確認していない（`off`・`short` の m=1〜5 → 書き足しは確認済み）。

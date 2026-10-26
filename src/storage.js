@@ -2,7 +2,9 @@
 // ブラウザでは window.Manabi.storage、Node では module.exports（純粋関数はテスト対象）。
 (function (root) {
   'use strict';
-  var D = (typeof module !== 'undefined' && module.exports) ? require('./data.js') : root.Manabi.data;
+  var node = typeof module !== 'undefined' && module.exports;
+  var D = node ? require('./data.js') : root.Manabi.data;
+  var TR = node ? require('./trace.js') : root.Manabi.trace;   // なぞりがきの保存の補正（trace.normalizeTrace）
   var KEY = 'hataraku-manabi:v2', KEY_V1 = 'hataraku-manabi:v1', KEY_BROKEN = 'hataraku-manabi:v2:broken';
   var GAME_IDS = D.GAMES;
   var CAR_IDS = ['nekoguruma', 'forklift', 'gomi', 'shovel', 'bulldozer', 'dump', 'kyukyu', 'shoubousha', 'mizutank', 'hashigo', 'chodai',
@@ -23,8 +25,10 @@
         math: { sessions: 0, questions: 0, firstTry: 0 },
         letter: { sessions: 0, questions: 0, firstTry: 0 },
         clock: { sessions: 0, questions: 0, firstTry: 0 },
-        english: { sessions: 0, questions: 0, firstTry: 0 }
+        english: { sessions: 0, questions: 0, firstTry: 0 },
+        trace: { sessions: 0, chars: 0, clean: 0 }   // 5つめのゲーム「かく」（階段・関門には入れない。design-tracing 2.6）
       },
+      trace: { done: {}, set: 'auto', width: 'auto' },   // 字 → 書き終えた回数。指の線は保存しない
       seen: { letter: [] },
       lastPlayed: '',
       stage: { unlocked: 'S0', current: 'S0' },   // 階段（design-elementary 3.2）: 解放済みの一番上のステージと、いま選んでいるステージ
@@ -90,6 +94,9 @@
       var x = st[g] || {};
       d.stats[g] = { sessions: num(x.sessions), questions: num(x.questions), firstTry: num(x.firstTry) };
     });
+    var tx = isObj(st.trace) ? st.trace : {};
+    d.stats.trace = { sessions: num(tx.sessions), chars: num(tx.chars), clean: num(tx.clean) };
+    d.trace = TR.normalizeTrace(raw.trace);
     d.seen.letter = D.cleanSeen(raw.seen && raw.seen.letter);
     d.lastPlayed = typeof raw.lastPlayed === 'string' ? raw.lastPlayed.slice(0, 10) : '';
     var cl = isObj(raw.cleared) ? raw.cleared : {}, pr = isObj(raw.promoted) ? raw.promoted : {};

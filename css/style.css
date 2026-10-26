@@ -22,6 +22,7 @@ canvas { display: block; }
 .big.alt { background: #3a7bd5; border-bottom-color: #25559a; }
 .big.math { background: #2e9d5d; border-bottom-color: #1f6f40; }
 .big.clock { background: #3a7bd5; border-bottom-color: #25559a; }
+.big.trace { background: #16a085; border-bottom-color: #0e6b58; }
 .big.letter { background: #f08a24; border-bottom-color: #b2610f; }
 .big:active { transform: translateY(4px); border-bottom-width: 4px; }
 
@@ -35,7 +36,7 @@ canvas { display: block; }
 .ring { position: absolute; inset: -4px; border-radius: 50%; border: 5px solid transparent; pointer-events: none; }
 .holding .ring { border-color: #ff9f1c; animation: hold 2s linear forwards; }
 /* 長押しボタン: 指が少し動いてもスクロール扱いで取り消されないように touch-action: none。短く離したら案内を出す */
-#btn-gear, #btn-quit { touch-action: none; }
+#btn-gear, #btn-quit, #btn-trace-quit { touch-action: none; }
 .hint::after { content: "2びょう ながおし"; position: absolute; top: calc(100% + 8px); right: 0; white-space: nowrap; padding: 6px 12px; border-radius: 12px; background: #3a2b24; color: #fff; font-size: 16px; font-weight: bold; pointer-events: none; z-index: 6; }
 .corner.tl.hint::after, .mini.hint::after { right: auto; left: 0; }
 @keyframes hold { from { clip-path: inset(0 100% 0 0); } to { clip-path: inset(0 0 0 0); } }
@@ -64,8 +65,11 @@ canvas { display: block; }
 .big.disabled { background: #a9a396; border-bottom-color: #877f70; box-shadow: none; }
 .big.disabled > canvas:not(.xmark), .big.disabled > span { opacity: .55; }
 .big.disabled .xmark { display: block; }
+/* 5つめ「かく」: 縦は 2 列ぶんの横長（絵が左・文字が右）、横は 5 列 */
+.pick-box #btn-trace { grid-column: 1 / -1; min-height: 96px; flex-direction: row; gap: 14px; }
 @media (orientation: landscape) {
-  .pick-box .row { grid-template-columns: repeat(4, minmax(0, 1fr)); max-width: 880px; }
+  .pick-box .row { grid-template-columns: repeat(5, minmax(0, 1fr)); max-width: 1100px; }
+  .pick-box #btn-trace { grid-column: auto; flex-direction: column; min-height: clamp(110px, 24vh, 160px); gap: 4px; }
   .pick-box .big { min-height: clamp(110px, 24vh, 160px); }
 }
 
@@ -280,3 +284,19 @@ ruby rt { font-size: .5em; font-weight: bold; line-height: 1; }
   #stage-tabs.three .stage-tab canvas { width: 26px; height: 31px; }
 }
 .kid-sub.s2 { text-wrap: balance; }
+
+/* かく（なぞりがき）: 縦は 現場の帯 → 板、横は 板 + 右に現場。スクロール・拡大・長押しメニューを抑止 */
+#s-trace { touch-action: none; }
+#trace-top { display: flex; align-items: center; justify-content: space-between; padding: 6px 8px; gap: 6px; flex: none; }
+#trace-lamps { display: flex; gap: clamp(6px, 2vw, 14px); }
+#trace-lamps i { width: clamp(24px, 6vw, 34px); height: clamp(24px, 6vw, 34px); border-radius: 50%; background: #d9d2c3; border: 3px solid #3a2b24; transition: background .4s; }
+#trace-lamps i.on { background: #ff3b30; box-shadow: 0 0 14px 4px rgba(255,160,60,.7); }
+#trace-main { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+#trace-fieldwrap { flex: none; height: clamp(90px, 16vh, 160px); position: relative; }
+#traceField { position: absolute; inset: 0; width: 100%; height: 100%; }
+#trace-boardarea { flex: 1; min-height: 0; min-width: 0; display: flex; align-items: center; justify-content: center; padding: 8px 16px calc(12px + env(safe-area-inset-bottom)); }
+#trace-board { position: relative; width: 300px; height: 300px; border-radius: 18px; overflow: hidden; touch-action: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; box-shadow: 0 4px 14px rgba(0,0,0,.2); }
+@media (orientation: landscape) {
+  #trace-main { flex-direction: row-reverse; }
+  #trace-fieldwrap { height: auto; width: 30%; }
+}

@@ -16,6 +16,7 @@
 | `src/speech.js` | 読み上げ・声なしモード判定 | 目視 |
 | `src/clockface.js` | アナログ時計の Canvas 描画（`drawClock`）。短針は太く短く青、長針は細く長く赤 | 目視 |
 | `src/scenes.js` | 現場・カード・タイトルの Canvas 描画 | 目視 |
+| `src/strokes.js` / `src/trace.js` / `src/traceboard.js` | 「かく」（なぞりがき）。字形データ（KanjiVG 由来、このファイルだけ CC BY-SA 3.0）／判定と字の選び方（純粋関数）／板の canvas と pointer events | `tests/strokes.test.js`・`tests/trace.test.js`・`tests/trace-storage.test.js`。板は目視（詳細は `docs/design-tracing.md`） |
 | `src/ui.js` / `src/main.js` | 画面遷移・出動の流れ・保護者画面・`#debug` | 目視 |
 
 ## 決めたこと
