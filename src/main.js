@@ -90,6 +90,7 @@
     btn('全車★3', function () { D.ALL_CARS.forEach(function (c) { ui.data.cards[c.id] = 3; }); ui.setData(ui.data); });
     btn('全車なし', function () { ui.data.cards = {}; ui.setData(ui.data); });
     btn('しゃこ', function () { ui.show('garage'); });
+    btn('もじの ひょう', function () { ui.previewMoji(); });
     btn('おうちのひと', function () { ui.show('parent'); });
     btn('こども+', function () { ui.addDummyProfile(); });
     btn('だれ', function () { ui.show('who'); });
@@ -129,6 +130,7 @@
       if (g[4]) root.setTimeout(function () { ui.debugProgress(+g[4]); }, 50);
     } else if (g[0] === 'trace' && g[1] === 'sheet') toggleTraceSheet(g[2]);
     else if (g[0] === 'trace' && g[1] === 'plan') showTracePlan();
+    else if (g[0] === 'trace' && g[1] === 'table') ui.previewMoji(g[2]);   // #debug:trace-table（-kata など集合も指定できる）
     else if (g[0] === 'trace') { ui.startTrace({ fast: true }); if (g[1] === 'auto') ui.traceAuto(true); }
     else if (g[0] === 'pics') togglePicGrid();
     else if (g[0] === 'pick') ui.show('pick');

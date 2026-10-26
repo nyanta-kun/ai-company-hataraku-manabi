@@ -55,3 +55,11 @@ test('W5: help の補正（旧データは {}、done より大きければ下げ
   const back = S.normalize(JSON.parse(JSON.stringify(S.defaults('p_aaa_0001', '2026-10-26'))), 'p_aaa_0001', '2026-10-26');
   assert.deepEqual(back.profiles[0].trace.help, {});
 });
+
+test('W5: index.html に しゃこの「もじ」・名札・保護者の表の要素があり、子ども向けの切り替えの文言はひらがなだけ', () => {
+  const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
+  ['gt-cars', 'gt-moji', 'moji-view', 'moji-grid', 'moji-sheet', 'moji-go', 'trace-nametag', 'p-trace-card', 'pt-grid'].forEach(id => assert.ok(html.includes('id="' + id + '"'), id));
+  const ui = fs.readFileSync(path.join(__dirname, '..', 'src', 'ui.js'), 'utf8');
+  const m = /var SET_LABEL = (\{[^}]*\});/.exec(ui);
+  assert.ok(m && !/[一-龥ァ-ヶ]/.test(m[1]), '子ども向けの集合の名前は ひらがな・数字だけ');
+});

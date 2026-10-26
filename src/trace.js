@@ -457,7 +457,7 @@
     DEFAULTS: DEFAULTS, strokePolyline: strokePolyline, polyLength: polyLength, isDot: isDot, densify: densify, tolerance: tolerance,
     helpTolerance: helpTolerance, helpFor: helpFor, beginStroke: beginStroke, moveStroke: moveStroke, endStroke: endStroke,
     progressOf: progressOf, recordAttempt: recordAttempt, traceSet: traceSet, charsOfSet: charsOfSet, pickTraceChars: pickTraceChars, traceWidth: traceWidth, normalizeTrace: normalizeTrace,
-    PLAN: PLAN, kanaBase: kanaBase, toKataChar: toKataChar, isWeak: isWeak, nameTraceChars: nameTraceChars, recordTraceChar: recordTraceChar,
+    PLAN: PLAN, allowedSets: allowedSets, kanaBase: kanaBase, toKataChar: toKataChar, isWeak: isWeak, nameTraceChars: nameTraceChars, recordTraceChar: recordTraceChar,
     planTraceSession: planTraceSession, traceGrid: traceGrid
   };
   if (node) module.exports = api;
