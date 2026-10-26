@@ -423,34 +423,41 @@ test('15. charsOfSet: hira+kata は ひらがな → カタカナの順。ひら
   assert.deepEqual(T.charsOfSet('zzz'), [...SETS.hira, ...SETS.kata]);
 });
 
-test('16. 点: 実データで点になる画（船4・雲6）はちょんと触れば done。0.08〜0.2 の短い画（火1・雨5〜8・犬4 など）は点ではなく、触れるだけでは short（off・miss にはならない）', () => {
-  const dots = [], shorts = [];
+test('16. 点: 漢字は長さ 0.2 未満の画を点として扱う（火1・雨5〜8・犬4・雲5〜8 など 50 画）。かなは 0.08 のまま', () => {
+  const kanjiTol = T.tolerance(600, 'normal', 'kanji'), kanaTol = T.tolerance(600, 'normal', 'kana');
+  assert.equal(kanjiTol.dotLen, 0.2);
+  assert.equal(kanaTol.dotLen, 0.08);
+  assert.equal(T.helpTolerance(kanjiTol, 3).dotLen, 0.2);
+  const dots = [], notDots = [];
   for (const ch of KANJI) STROKES[ch].s.forEach((s, i) => {
-    const p = T.strokePolyline(s), l = T.polyLength(p);
-    if (T.isDot(p)) dots.push(ch + (i + 1)); else if (l < 0.2) shorts.push([ch + (i + 1), p]);
+    const p = T.strokePolyline(s), tag = ch + (i + 1);
+    (T.polyLength(p) < 0.2 ? dots : notDots).push([tag, p]);
   });
-  assert.deepEqual(dots, ['船4', '雲6'], '0.08 未満の画');
-  assert.ok(shorts.length >= 40);
-  for (const script of ['kana', 'kanji']) for (const width of ['normal', 'wide']) {
-    const tol = T.tolerance(600, width, script);
-    for (const [tag, p] of [['船4', T.strokePolyline(STROKES['船'].s[3])], ['雲6', T.strokePolyline(STROKES['雲'].s[5])]]) {
-      // 画のどこを触っても started、動かさずに離せば done（点の向きは見ない）
+  const tags = dots.map(d => d[0]);
+  ['火1', '犬4', '雨5', '雨6', '雨7', '雨8', '雲5', '雲6', '雲7', '雲8', '船4'].forEach(t => assert.ok(tags.includes(t), t));
+  assert.equal(dots.length, 50);
+  // 火2（0.237）は点にならない短いノ
+  assert.ok(notDots.some(d => d[0] === '火2'));
+  for (const width of ['normal', 'wide']) for (let m = 0; m <= 4; m++) {
+    const tol = T.helpTolerance(T.tolerance(600, width, 'kanji'), m);
+    for (const [tag, p] of dots) {
+      // 画のどこを触っても started、動かさず離せば done
       [0, Math.floor(p.length / 2), p.length - 1].forEach(j => {
         const b = T.beginStroke(p, p[j], tol);
         assert.equal(b.result, 'started', tag);
         assert.equal(T.endStroke(p, b.state, tol).result, 'done', tag);
       });
-      assert.equal(T.beginStroke(p, [p[0][0], p[0][1] + tol.off * 1.5], tol).result, 'miss', tag + ' 遠く');
-    }
-    // 点でない短い画: 始点を触って離すだけなら、長さが 0.1 以下ほどの画（森8・雲5・雲8）は done、それより長い画は short（やり直し）。
-    // miss・off にはならず、画をなぞれば done
-    for (const [tag, p] of shorts) {
-      const b = T.beginStroke(p, p[0], tol);
-      assert.equal(b.result, 'started', tag);
-      const e = T.endStroke(p, b.state, tol).result;
-      assert.ok(e === 'short' || (e === 'done' && T.polyLength(p) < 0.1), tag + ' ちょん ' + e);
+      // 触って少し動かしても done（点の中で）。始点から終点へなぞっても done
+      const b2 = T.beginStroke(p, p[0], tol);
+      const mv = T.moveStroke(p, b2.state, [p[Math.floor(p.length / 2)]], tol);
+      assert.equal(T.endStroke(p, mv.state, tol).result, 'done', tag + ' 少し動かす');
       const r = run(p, p, tol);
       assert.equal(r.end, 'done', tag + ' なぞる');
+      if (m <= 3) assert.equal(T.beginStroke(p, [p[0][0] + T.polyLength(p) + tol.off * 1.5, p[0][1] + T.polyLength(p) + tol.off * 1.5], tol).result, 'miss', tag + ' 遠く');   // m=4 は off を見ない
     }
   }
+  // かなは今のまま: シ・ツ の点（0.13）は点でなく、触るだけでは short
+  const shi = T.strokePolyline(STROKES['シ'].s[0]);
+  const b = T.beginStroke(shi, shi[0], kanaTol);
+  assert.equal(T.endStroke(shi, b.state, kanaTol).result, 'short');
 });

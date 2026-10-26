@@ -102,7 +102,7 @@
         if (tset) {
           var tsid = tset === 'k1' ? 'S1' : tset === 'k2' ? 'S2' : 'S0';
           if (D.stageIndex(tsid) > D.stageIndex(ui.data.stage.unlocked)) ui.data.stage.unlocked = tsid;
-          ui.data.stage.current = tsid; ui.data.trace.set = tset;
+          ui.data.stage.current = tsid;
           topts.chars = M.trace.charsOfSet(tset);
           if (g[3] && topts.chars.indexOf(g[3]) >= 0) topts.chars = [g[3]].concat(topts.chars.filter(function (c) { return c !== g[3]; }));
         }
