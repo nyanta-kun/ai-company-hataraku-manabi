@@ -176,7 +176,7 @@
       sp.textContent = p.name; b.appendChild(cv); b.appendChild(sp); box.appendChild(b);
       b.addEventListener('click', function () {
         sfx('tap'); useProfile(p.id); show('title');
-        say(LN.who(p.name).text);
+        say(LN.who(p.name).text, { alt: LN.who(p.name).alt });   // 名前は端末の声。声が無いときだけ、名前を抜いた文を音声ファイルで
       });
       drawCarIcon(cv, p.icon);
     });
@@ -244,7 +244,7 @@
   }
 
   // ---- 音 ----
-  function applySound() { A.setEnabled(dev.sound.sfx); SP.setEnabled(dev.sound.voice); }
+  function applySound() { A.setEnabled(dev.sound.sfx); SP.setEnabled(dev.sound.voice); SP.setSpeaker(dev.sound.speaker); }
   function sfx(name, arg) { A.play(name, arg); }
   function say(text, opts) { return SP.speak(text, opts); }
   function seq(items, opts) { return SP.speakSeq(items, opts); }
@@ -312,6 +312,7 @@
       idx: 0, firstTry: 0, wrong: 0, off: [], busy: true, token: token
     };
     if (!stage) stage = new SC.Stage($('sceneCanvas'));
+    SP.prefetch(LN.sessionTexts(qs));   // 4 問ぶんの音声を先に読んでおく（声が端末の声のときは何もしない）
     show('play');
     stage.setScene(run.scene); stage.setRank(stageIdx());   // 現場の救助隊の車は「いま選んでいるステージ」で決める（ごほうびの抽選は遊んだレベル）
      stage.setProgress(0);
@@ -325,7 +326,7 @@
   function updateLamps(n) {
     [].forEach.call($('lamps').children, function (e, i) { e.classList.toggle('on', i < n); });
   }
-  var promptText = LN.prompt, isSpecialLetter = LN.isSpecialLetter, exampleOf = LN.exampleOf, wordOf = LN.wordOf, carYomi = LN.carYomi;   // 読み上げ文は src/lines.js
+  var promptText = LN.prompt, carYomi = LN.carYomi;   // 読み上げ文は src/lines.js
 
   // 問題の読み上げ。えいごは「英語」→（短い間）→「日本語の補助」。英語の声が無ければ日本語だけ
   function sayPrompt(q) {
@@ -491,7 +492,7 @@
     tboard.layout(B);
     if (tstage) tstage.resize();
   }
-  var kanjiWord = LN.kanjiWord, tracePrompt = LN.tracePrompt, traceDoneWord = LN.traceDoneWord;   // 読み上げ文は src/lines.js
+  var tracePrompt = LN.tracePrompt;   // 読み上げ文は src/lines.js
   // 前の出動の字（プロフィールの id ごとに 1 回分。保存しない＝アプリを閉じれば消える。W5）
   var prevTrace = {};
   // 次の出動の組み方（startTrace と #debug:trace-plan で共通）。→ { plan, chars, names }
@@ -545,6 +546,7 @@
       onInk: updateSoloTools,
       onIdle: nudgeSoloCard
     });
+    SP.prefetch(LN.traceTexts(chars));
     show('trace');
     $('s-trace').classList.toggle('solo', !!solo); $('s-trace').classList.remove('nazori');
     if (!tstage) tstage = new SC.Stage($('traceField'));
@@ -565,7 +567,7 @@
     tboard.setChar(ch, !(data.trace.done[ch] > 0));   // 初めて書く字だけ、全部の画のお手本を流す（T8）
     var info = traceInfoAt(trun.idx);
     showNameTag(info);
-    say(tracePrompt(ch, info));
+    say(tracePrompt(ch, info), { alt: LN.tracePromptAlt(ch, info) });
     kick();
   }
   function onTraceCharDone(info) {
@@ -781,6 +783,7 @@
     reward.t0 = now(); reward.sound = 0;
     var r = reward.r, car = rewardCar();
     $('reward-text').textContent = ''; $('reward-sub').textContent = '';
+    SP.prefetch(car ? [LN.carGet(car)] : [LN.FIXED.sticker]);
     drawReward();
     updateRewardSolo();
     later(500, function () { sfx('card'); });
@@ -1383,7 +1386,7 @@
     $('btn-trace-replay').addEventListener('click', function () {
       if (!trun || !tboard) return;
       if (trun.solo && trun.phase === 'write') { soloShowHint(); return; }   // 線なし: 札の書き順と、1 画目のヒント
-      if (tboard.replay()) say(tracePrompt(trun.chars[trun.idx], traceInfoAt(trun.idx)));   // 手本の書き足し中は効かない
+      if (tboard.replay()) { var ti = traceInfoAt(trun.idx); say(tracePrompt(trun.chars[trun.idx], ti), { alt: LN.tracePromptAlt(trun.chars[trun.idx], ti) }); }   // 手本の書き足し中は効かない
       kick();
     });
     doc.addEventListener('visibilitychange', function () { if (doc.hidden && tboard && tboard.active) tboard.cancelActive(); });   // 画面が隠れたら書きかけの線を捨てる

@@ -17,6 +17,8 @@
     return ctx;
   }
   function unlock() { ensure(); }
+  // 声（voice.js）が同じ AudioContext を使う。作らない（最初のタップの前には作らない決まり）。まだ無ければ null
+  function context() { return ctx; }
   function setEnabled(v) { enabled = !!v; }
   function isEnabled() { return enabled; }
 
@@ -276,5 +278,5 @@
     ship: 'car14', fishboat: 'car14', yacht: 'car14', tugboat: 'car14', fireboat: 'car9', cargoship: 'car14'
   };
   function carSound(stage) { return typeof stage === 'string' ? (PIC_SOUND[stage] || 'car8') : 'car' + stage; }
-  root.Manabi.audio = { carSound: carSound, PIC_SOUND: PIC_SOUND, unlock: unlock, setEnabled: setEnabled, isEnabled: isEnabled, play: play, names: Object.keys(SOUNDS) };
+  root.Manabi.audio = { carSound: carSound, PIC_SOUND: PIC_SOUND, unlock: unlock, context: context, setEnabled: setEnabled, isEnabled: isEnabled, play: play, names: Object.keys(SOUNDS) };
 })(typeof window !== 'undefined' ? window : globalThis);

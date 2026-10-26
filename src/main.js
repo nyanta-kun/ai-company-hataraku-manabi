@@ -71,6 +71,7 @@
     var box = doc.getElementById('debug'); box.hidden = false;
     var err = doc.createElement('pre'); err.id = 'errlog'; err.textContent = '';
     function log(s) { err.textContent += s + '\n'; }
+    M.speech.onMiss(function (t) { log('声のファイルが無い文: ' + t); });   // 声のパックに無い文（作り漏れ）。名前の文は含まない
     root.addEventListener('error', function (e) { log('ERROR: ' + e.message + ' @' + (e.filename || '').split('/').pop() + ':' + e.lineno); });
     root.addEventListener('unhandledrejection', function (e) { log('REJECT: ' + e.reason); });
     function btn(label, fn) { var b = doc.createElement('button'); b.type = 'button'; b.textContent = label; b.addEventListener('click', fn); box.appendChild(b); }
