@@ -129,7 +129,7 @@
   // ごほうびに救助隊の車が出始めるステージの番号（0 = S0）
   var RESCUE_FROM = 1;
 
-  // 棚の乗り物 32 種（design-rewards.md 2 章。今の絵 15 種 + 描き足した 12 種）。stage は vehicles.js の pics の id、sound は audio.js の車の音の名前（audio.js の PIC_SOUND と一致。tests/shelves.test.js）。
+  // 棚の乗り物 32 種（design-rewards.md 2 章。今の絵 15 種 + 描き足した 17 種）。stage は vehicles.js の pics の id、sound は audio.js の車の音の名前（audio.js の PIC_SOUND と一致。tests/shelves.test.js）。
   // id は小文字の英字だけ（firestore.rules の cards の正規表現）。名前はひらがなとのばし棒だけ。CAR_YOMI には足さない（読み上げはひらがなのまま）
   var VEHICLES = [
     { id: 'patrol',     stage: 'patrol',     name: 'ぱとかー',         sound: 'car15' },

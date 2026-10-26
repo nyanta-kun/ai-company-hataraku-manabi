@@ -6,11 +6,11 @@ require('../src/vehicles.js');
 const A = globalThis.Manabi.audio;
 const V = globalThis.Manabi.vehicles;
 
-const NEW12 = ['hayabusa', 'komachi', 'kagayaki', 'doctoryellow', 'linear', 'tram', 'monorail', 'freight', 'cablecar', 'balloon', 'airship', 'propplane', 'fishboat', 'yacht', 'tugboat', 'fireboat', 'cargoship'];
+const NEW17 = ['hayabusa', 'komachi', 'kagayaki', 'doctoryellow', 'linear', 'tram', 'monorail', 'freight', 'cablecar', 'balloon', 'airship', 'propplane', 'fishboat', 'yacht', 'tugboat', 'fireboat', 'cargoship'];
 
 test('絵: 描き足した 17 種が偽の ctx で例外なく描け、ききゅう以外は前=左の横向き', () => {
   const ctx = new Proxy({}, { get: () => () => {}, set: () => true });
-  NEW12.forEach(id => {
+  NEW17.forEach(id => {
     assert.ok(V.hasPic(id), id);
     [0, 0.3, 1.7].forEach(t => V.drawVehicle(ctx, id, 0, 0, 100, 1, t));
     V.drawPic(ctx, id, 0, 0, 100, 0.2);
