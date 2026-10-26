@@ -269,6 +269,152 @@
     return review.concat(picksNew, extra);
   }
 
+  // ---- W5（design 11章）: 名前の字・苦手・組み方・表 ----
+  // 定数。NAME_GOAL: 名前の枠で出すのは done がこれ未満の字。SPECIAL_MAX: 名前＋苦手の上限。
+  var PLAN = { N: 4, NAME_GOAL: 3, SPECIAL_MAX: 2, WEAK_MAX_WHILE_NEW: 1, WEAK_MAX_KANJI: 1, HELP_M: 2 };
+  var AUTO_NAME_RE = /^こども[1-4]$/;   // storage.js の自動の名前と同じ規則（テストで一致を確かめる）
+
+  // 濁点・半濁点・小さい字 → もとの字（対応表。String.prototype.normalize は使わない）
+  var KANA_BASE = (function () {
+    var t = Object.create(null);
+    function put(from, to) { for (var i = 0; i < from.length; i++) t[from.charAt(i)] = to.charAt(i); }
+    put('がぎぐげござじずぜぞだぢづでどばびぶべぼ', 'かきくけこさしすせそたちつてとはひふへほ');
+    put('ぱぴぷぺぽ', 'はひふへほ');
+    put('ゔ', 'う');
+    put('ぁぃぅぇぉっゃゅょゎゕゖ', 'あいうえおつやゆよわかけ');
+    return t;
+  })();
+  function kanaBase(c) { c = String(c == null ? '' : c); return KANA_BASE[c] || c; }
+  // ひらがな → カタカナ（+0x60。data.js の toHira の逆）。ひらがな以外はそのまま
+  function toKataChar(c) {
+    c = String(c == null ? '' : c);
+    var n = c.length === 1 ? c.charCodeAt(0) : 0;
+    return n >= 0x3041 && n <= 0x3096 ? String.fromCharCode(n + 0x60) : c;
+  }
+
+  function countOf(m, c) { var v = m && m[c]; return typeof v === 'number' && v > 0 ? v : 0; }
+  // 苦手: 書いたことがあり、たすけが要った回数が書いた回数の半分より多い
+  function isWeak(trace, c) {
+    var d = countOf(trace && trace.done, c);
+    return d >= 1 && countOf(trace && trace.help, c) * 2 > d;
+  }
+
+  // 名前の字。name の各字を kanaBase でもとの字にし、その字とカタカナにした字のうち chars にあるもの。
+  // 重複は最初の 1 つ。at: 名前の中の位置、exact: 名前にそのままの字がある（濁点・小さい字から来たものは false）。並びは chars の順
+  function nameTraceChars(name, chars) {
+    if (typeof name !== 'string' || !name || AUTO_NAME_RE.test(name) || !Array.isArray(chars)) return [];
+    var idx = Object.create(null);
+    chars.forEach(function (c, i) { if (!(c in idx)) idx[c] = i; });
+    var out = [], seen = Object.create(null);
+    name.split('').forEach(function (c, at) {
+      var base = kanaBase(c);
+      [base, toKataChar(base)].forEach(function (ch) {
+        if (!(ch in idx) || seen[ch]) return;
+        seen[ch] = true;
+        out.push({ ch: ch, at: at, exact: c === base });
+      });
+    });
+    return out.sort(function (a, b) { return idx[a.ch] - idx[b.ch]; });
+  }
+
+  // 1 字を書き終えたときの記録。info = { maxM }。done は必ず +1、maxM >= 2 なら help も +1（どちらも 99 で止める）。入力は書き換えない
+  function recordTraceChar(trace, ch, info) {
+    var src = trace && typeof trace === 'object' ? trace : {};
+    var done = {}, help = {};
+    Object.keys(src.done || {}).forEach(function (k) { done[k] = src.done[k]; });
+    Object.keys(src.help || {}).forEach(function (k) { help[k] = src.help[k]; });
+    done[ch] = Math.min(99, countOf(done, ch) + 1);
+    if (info && info.maxM >= PLAN.HELP_M) help[ch] = Math.min(99, countOf(help, ch) + 1);
+    var out = {};
+    Object.keys(src).forEach(function (k) { out[k] = src[k]; });
+    out.done = done; out.help = help;
+    return out;
+  }
+
+  // 1 回の出動の字の組み方（design 11.4）。→ [{ ch, why }]。why: chosen・review・weak・name・new
+  // opts = { n, name, prev, chosen, kanji }。rng は同じ回数の字のくじだけ（pickTraceChars と同じ引き方）。名前・たすけ・prev が無ければ pickTraceChars と同じ字の並び
+  function planTraceSession(chars, trace, opts, rng) {
+    opts = opts || {};
+    var n = typeof opts.n === 'number' ? Math.floor(opts.n) : PLAN.N;
+    var done = trace && trace.done;
+    var cnt = function (c) { return countOf(done, c); };
+    var list = [], seen = Object.create(null), order = Object.create(null);
+    (chars || []).forEach(function (c) { if (!seen[c]) { seen[c] = 1; order[c] = list.length; list.push(c); } });
+    var chosen = typeof opts.chosen === 'string' && opts.chosen ? opts.chosen : '';
+    if (!(n > 0) || (!list.length && !chosen)) return [];
+    var avoidMap = Object.create(null);
+    (opts.prev || []).forEach(function (c) { avoidMap[c] = true; });
+    var avoid = function (c) { return !!avoidMap[c]; };
+    var fresh = list.filter(function (c) { return cnt(c) === 0; });
+    var old = list.filter(function (c) { return cnt(c) > 0; });
+    var key = Object.create(null);
+    old.forEach(function (c) { key[c] = rng(); });   // くじの鍵は 1 回だけ引く
+    var byCnt = function (a, b) { return cnt(a) - cnt(b) || key[a] - key[b]; };
+    var byCntOrder = function (a, b) { return cnt(a) - cnt(b) || order[a] - order[b]; };
+
+    var picks = [], taken = Object.create(null);
+    function put(ch, why) { if (taken[ch] || picks.length >= n) return false; taken[ch] = true; picks.push({ ch: ch, why: why }); return true; }
+    var weakN = function () { return picks.filter(function (p) { return p.why === 'weak'; }).length; };
+    var nameN = function () { return picks.filter(function (p) { return p.why === 'name'; }).length; };
+
+    if (chosen) put(chosen, 'chosen');
+    // 復習の枠（1 つ）: 苦手 → 少ない字。全部 prev なら空
+    if (old.length) {
+      var cand = old.filter(function (c) { return !taken[c] && !avoid(c); });
+      var weak = cand.filter(function (c) { return isWeak(trace, c); }).sort(byCntOrder);
+      if (weak.length) put(weak[0], 'weak');
+      else if (cand.length) put(cand.slice().sort(byCnt)[0], 'review');
+    }
+    // 名前の枠（0〜1）
+    if (!opts.kanji && weakN() + 1 <= PLAN.SPECIAL_MAX) {
+      var names = nameTraceChars(opts.name, list).filter(function (o) { return cnt(o.ch) < PLAN.NAME_GOAL && !avoid(o.ch) && !taken[o.ch]; })
+        .map(function (o) { return o.ch; }).sort(byCntOrder);
+      if (names.length) put(names[0], 'name');
+    }
+    // 新しい字: chars の順に
+    fresh.forEach(function (c) { if (!taken[c]) put(c, 'new'); });
+    // 足りないとき: 苦手（上限まで）→ 苦手でない字 → 最後の手段で prev の字
+    if (picks.length < n) {
+      var capWeak = opts.kanji ? PLAN.WEAK_MAX_KANJI : PLAN.SPECIAL_MAX - nameN();
+      var rest = old.filter(function (c) { return !taken[c]; });
+      var fine = rest.filter(function (c) { return !avoid(c); });
+      var weakFine = fine.filter(function (c) { return isWeak(trace, c); }).sort(byCnt);
+      var skipped = weakFine.slice(Math.max(0, capWeak - weakN()));
+      weakFine = weakFine.slice(0, Math.max(0, capWeak - weakN()));
+      var plain = fine.filter(function (c) { return !isWeak(trace, c); }).sort(byCnt);
+      weakFine.forEach(function (c) { put(c, 'weak'); });
+      plain.forEach(function (c) { put(c, 'review'); });
+      skipped.forEach(function (c) { put(c, 'review'); });   // 上限で飛ばした苦手は、苦手でない字の後ろに回す
+      rest.filter(avoid).sort(byCnt).forEach(function (c) { put(c, isWeak(trace, c) ? 'weak' : 'review'); });
+    }
+    // 出す順: chosen → なじみ → 新しい → 苦手
+    var rank = function (p) {
+      if (p.why === 'chosen') return 0;
+      if (cnt(p.ch) === 0) return 2;
+      return isWeak(trace, p.ch) ? 3 : 1;
+    };
+    return picks.map(function (p, i) { return { p: p, i: i, r: rank(p) }; })
+      .sort(function (a, b) { return a.r - b.r || (a.r === 2 ? (order[a.p.ch] - order[b.p.ch]) : 0) || a.i - b.i; })
+      .map(function (o) { return o.p; });
+  }
+
+  // 五十音の表の並び（design 11.5）。setId: hira・kata・k1・k2。orient: 'rows'（5 列）／'cols'（横の画面。ひらがな・カタカナは 11 列 × 5 段で右から あ行、漢字は 10 列）。空きは ''
+  var GOJUON = ['あいうえお', 'かきくけこ', 'さしすせそ', 'たちつてと', 'なにぬねの', 'はひふへほ', 'まみむめも', 'や　ゆ　よ', 'らりるれろ', 'わ　　　を', 'ん　　　　'];
+  function traceGrid(setId, orient) {
+    var cols = orient === 'cols';
+    var kata = setId === 'kata';
+    if (setId === 'hira' || kata) {
+      var rows = GOJUON.map(function (r) { return r.split('').map(function (c) { return c === '　' ? '' : (kata ? toKataChar(c) : c); }); });
+      if (!cols) return rows;
+      var out = [];
+      for (var i = 0; i < 5; i++) { var line = []; for (var j = rows.length - 1; j >= 0; j--) line.push(rows[j][i]); out.push(line); }
+      return out;
+    }
+    var cs = S.SETS[setId] ? S.SETS[setId].split('') : [], w = cols ? 10 : 5, res = [];
+    for (var k = 0; k < cs.length; k += w) { var row = cs.slice(k, k + w); while (row.length < w) row.push(''); res.push(row); }
+    return res;
+  }
+
   // 「せんの はば」: auto は S0 がひろめ、S1 以降がふつう
   function traceWidth(trace, stageId) {
     var w = trace && trace.width;
@@ -290,8 +436,18 @@
       if (v < 1) return;
       done[c] = Math.min(99, v);
     });
+    var help = {};
+    var h = src.help && typeof src.help === 'object' ? src.help : {};
+    Object.keys(h).forEach(function (c) {
+      var v = h[c];
+      if (!known[c] || !(c in done) || typeof v !== 'number' || !isFinite(v)) return;   // done に無い字の help は捨てる
+      v = Math.floor(v);
+      if (v < 1) return;
+      help[c] = Math.min(99, v, done[c]);
+    });
     return {
       done: done,
+      help: help,
       set: SET_NAMES.indexOf(src.set) >= 0 ? src.set : 'auto',
       width: WIDTH_NAMES.indexOf(src.width) >= 0 ? src.width : 'auto'
     };
@@ -300,7 +456,9 @@
   var api = {
     DEFAULTS: DEFAULTS, strokePolyline: strokePolyline, polyLength: polyLength, isDot: isDot, densify: densify, tolerance: tolerance,
     helpTolerance: helpTolerance, helpFor: helpFor, beginStroke: beginStroke, moveStroke: moveStroke, endStroke: endStroke,
-    progressOf: progressOf, recordAttempt: recordAttempt, traceSet: traceSet, charsOfSet: charsOfSet, pickTraceChars: pickTraceChars, traceWidth: traceWidth, normalizeTrace: normalizeTrace
+    progressOf: progressOf, recordAttempt: recordAttempt, traceSet: traceSet, charsOfSet: charsOfSet, pickTraceChars: pickTraceChars, traceWidth: traceWidth, normalizeTrace: normalizeTrace,
+    PLAN: PLAN, kanaBase: kanaBase, toKataChar: toKataChar, isWeak: isWeak, nameTraceChars: nameTraceChars, recordTraceChar: recordTraceChar,
+    planTraceSession: planTraceSession, traceGrid: traceGrid
   };
   if (node) module.exports = api;
   else { root.Manabi = root.Manabi || {}; root.Manabi.trace = api; }

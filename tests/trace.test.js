@@ -310,9 +310,9 @@ test('12. traceSet: S0 はひらがなが残っていれば hira、全部書い�
 });
 
 test('13. normalizeTrace: 知らない字・負・文字列・100 以上・知らない set/width を直す。旧データは既定値', () => {
-  assert.deepEqual(T.normalizeTrace(undefined), { done: {}, set: 'auto', width: 'auto' });
-  assert.deepEqual(T.normalizeTrace(null), { done: {}, set: 'auto', width: 'auto' });
-  assert.deepEqual(T.normalizeTrace({}), { done: {}, set: 'auto', width: 'auto' });
+  assert.deepEqual(T.normalizeTrace(undefined), { done: {}, help: {}, set: 'auto', width: 'auto' });
+  assert.deepEqual(T.normalizeTrace(null), { done: {}, help: {}, set: 'auto', width: 'auto' });
+  assert.deepEqual(T.normalizeTrace({}), { done: {}, help: {}, set: 'auto', width: 'auto' });
   const raw = { done: { あ: 3, い: -1, う: '2', え: 100, お: 250, か: 0, き: 2.7, X: 4, ゐ: 1, く: NaN, け: null }, set: 'zzz', width: 'huge' };
   const before = JSON.stringify(raw);
   const n = T.normalizeTrace(raw);
@@ -320,7 +320,7 @@ test('13. normalizeTrace: 知らない字・負・文字列・100 以上・知�
   assert.equal(n.set, 'auto');
   assert.equal(n.width, 'auto');
   assert.equal(JSON.stringify(raw), before);
-  assert.deepEqual(T.normalizeTrace({ done: 'x', set: 'hira', width: 'wide' }), { done: {}, set: 'hira', width: 'wide' });
+  assert.deepEqual(T.normalizeTrace({ done: 'x', set: 'hira', width: 'wide' }), { done: {}, help: {}, set: 'hira', width: 'wide' });
   assert.deepEqual(T.normalizeTrace({ done: [1, 2], set: 'k1', width: 'normal' }).done, {});
   // Object のもとからある名前は字として拾わない
   const proto = T.normalizeTrace({ done: { constructor: 3, toString: 2, __proto__: 5, hasOwnProperty: 1, し: 2 } });
@@ -460,4 +460,232 @@ test('16. 点: 漢字は長さ 0.2 未満の画を点として扱う（火1・�
   const shi = T.strokePolyline(STROKES['シ'].s[0]);
   const b = T.beginStroke(shi, shi[0], kanaTol);
   assert.equal(T.endStroke(shi, b.state, kanaTol).result, 'short');
+});
+
+// ---- W5（design 11.8）----
+const HIRA = [...SETS.hira], KATA = [...SETS.kata];
+const whyOf = (r) => r.map(o => o.ch + ':' + o.why);
+
+test('W5-1. kanaBase: 濁点 20・半濁点 5・ゔ・小さい字 12 をもとの字に。清音・その他はそのまま', () => {
+  const dak = 'がぎぐげござじずぜぞだぢづでどばびぶべぼ', dakBase = 'かきくけこさしすせそたちつてとはひふへほ';
+  [...dak].forEach((c, i) => assert.equal(T.kanaBase(c), dakBase[i]));
+  [...'ぱぴぷぺぽ'].forEach((c, i) => assert.equal(T.kanaBase(c), 'はひふへほ'[i]));
+  assert.equal(T.kanaBase('ゔ'), 'う');
+  [...'ぁぃぅぇぉっゃゅょゎゕゖ'].forEach((c, i) => assert.equal(T.kanaBase(c), 'あいうえおつやゆよわかけ'[i]));
+  [...SETS.hira, 'ー', 'x', ''].forEach(c => assert.equal(T.kanaBase(c), c));
+  assert.equal(T.kanaBase(undefined), '');
+  assert.equal(T.toKataChar('た'), 'タ'); assert.equal(T.toKataChar('ー'), 'ー'); assert.equal(T.toKataChar('タ'), 'タ');
+  assert.equal(HIRA.map(T.toKataChar).sort().join(''), [...SETS.kata].sort().join(''));
+});
+
+test('W5-2. nameTraceChars: たろう・じゅん・こども・ゆーな・ななみ・カタカナ・不正', () => {
+  const brief = (r) => r.map(o => o.ch + o.at + (o.exact ? 'e' : 'x'));
+  assert.deepEqual(brief(T.nameTraceChars('たろう', HIRA)), ['ろ1e', 'う2e', 'た0e']);
+  assert.deepEqual(brief(T.nameTraceChars('じゅん', HIRA)), ['し0x', 'ん2e', 'ゆ1x']);
+  assert.deepEqual(T.nameTraceChars('こども1', HIRA), []);
+  assert.deepEqual(T.nameTraceChars('こども4', HIRA), []);
+  assert.deepEqual(T.nameTraceChars('こども', HIRA).map(o => o.ch).sort(), ['こ', 'と', 'も'].sort());
+  assert.deepEqual(T.nameTraceChars('ゆーな', HIRA).map(o => o.ch).sort(), ['ゆ', 'な'].sort());
+  assert.deepEqual(T.nameTraceChars('ななみ', HIRA).map(o => o.ch).filter(c => c === 'な'), ['な']);
+  const both = T.nameTraceChars('たろう', HIRA.concat(KATA));
+  assert.deepEqual(both.map(o => o.ch).sort(), ['う', 'タ', 'ウ', 'ロ', 'ろ', 'た'].sort());
+  assert.ok(both.every(o => o.exact));
+  assert.deepEqual(T.nameTraceChars('', HIRA), []); assert.deepEqual(T.nameTraceChars(null, HIRA), []); assert.deepEqual(T.nameTraceChars(5, HIRA), []);
+  // 自動の名前の規則は storage.js の AUTO_NAME_RE と同じ（こども1〜4 だけ空。ほかは名前）
+  const St = require('../src/storage.js');
+  for (const nm of ['こども1', 'こども2', 'こども3', 'こども4', 'こども5', 'こども', 'こども12', 'たろう']) {
+    const isAuto = St.isAutoName ? St.isAutoName(nm) : /^こども[1-4]$/.test(nm);
+    assert.equal(T.nameTraceChars(nm, HIRA).length === 0, isAuto, nm);
+  }
+});
+
+test('W5-3. isWeak', () => {
+  assert.equal(T.isWeak({ done: { し: 1 }, help: { し: 1 } }, 'し'), true);
+  assert.equal(T.isWeak({ done: { し: 2 }, help: { し: 1 } }, 'し'), false);
+  assert.equal(T.isWeak({ done: { し: 3 }, help: { し: 2 } }, 'し'), true);
+  assert.equal(T.isWeak({ done: {}, help: { し: 1 } }, 'し'), false);
+  assert.equal(T.isWeak({}, 'し'), false);
+});
+
+test('W5-4. recordTraceChar: maxM 0・1 は help なし、2・5 は増える。99 で止まる。入力を書き換えない', () => {
+  const t0 = { done: { し: 1 }, help: {}, set: 'auto', width: 'wide' };
+  const snap = JSON.stringify(t0);
+  const a = T.recordTraceChar(t0, 'し', { maxM: 1 });
+  assert.deepEqual(a.done, { し: 2 }); assert.deepEqual(a.help, {}); assert.equal(a.width, 'wide');
+  assert.deepEqual(T.recordTraceChar(t0, 'し', { maxM: 0, clean: true }).help, {});
+  assert.deepEqual(T.recordTraceChar(t0, 'つ', { maxM: 2 }), { done: { し: 1, つ: 1 }, help: { つ: 1 }, set: 'auto', width: 'wide' });
+  assert.deepEqual(T.recordTraceChar(t0, 'し', { maxM: 5 }).help, { し: 1 });
+  assert.deepEqual(T.recordTraceChar({ done: { し: 99 }, help: { し: 99 } }, 'し', { maxM: 5 }), { done: { し: 99 }, help: { し: 99 } });
+  assert.deepEqual(T.recordTraceChar({ done: {} }, 'し', {}).help, {});
+  assert.equal(JSON.stringify(t0), snap);
+});
+
+test('W5-5. planTraceSession は名前・たすけ・prev が無いとき pickTraceChars と同じ字の並び（11 の場面すべて × 種 0〜19）', () => {
+  const chars = [...SETS.hira];
+  const all = {}; chars.forEach(c => { all[c] = 2; });
+  all['し'] = 1; all['す'] = 1; all['せ'] = 1; all['そ'] = 1; all['た'] = 3;
+  const nearly = {}; chars.slice(0, 45).forEach(c => { nearly[c] = 1; });
+  const scenes = [{}, { し: 1, つ: 1, く: 1, へ: 1 }, { し: 3, つ: 1, く: 2, へ: 3 }, all, nearly, { し: 1, つ: 2, く: 1, お: 5 },
+    { し: 1 }, { し: 1, つ: 1 }, Object.fromEntries(chars.slice(0, 44).map(c => [c, 1])), Object.fromEntries(chars.map(c => [c, 1]))];
+  const sets = [chars, chars.concat([...SETS.kata]), [...SETS.k1]];
+  sets.forEach(cs => scenes.forEach((done, si) => {
+    for (let seed = 0; seed < 20; seed++) for (const n of [4, 3, 1, 7]) {
+      const want = T.pickTraceChars(cs, done, n, rngOf(seed));
+      const got = T.planTraceSession(cs, { done, help: {} }, { n, name: '', prev: [] }, rngOf(seed)).map(o => o.ch);
+      assert.deepEqual(got, want, `scene ${si} seed ${seed} n ${n}`);
+    }
+  }));
+  assert.deepEqual(T.planTraceSession(chars, { done: {} }, { n: 4 }, rngOf(1)).map(o => o.ch), ['し', 'つ', 'く', 'へ']);
+  // help が空でも名前が「こども1」でも同じ
+  assert.deepEqual(T.planTraceSession(chars, { done: {} }, { n: 4, name: 'こども1' }, rngOf(1)).map(o => o.ch), ['し', 'つ', 'く', 'へ']);
+});
+
+test('W5-6. 名前の枠: 11.4 の例（たろう）の 1〜3 回目と、3 回を超えたら外れる、kanji は名前なし', () => {
+  const chars = [...SETS.hira], opts = { n: 4, name: 'たろう' };
+  const r1 = T.planTraceSession(chars, { done: {} }, Object.assign({ prev: [] }, opts), rngOf(1));
+  assert.deepEqual(whyOf(r1), ['し:new', 'つ:new', 'く:new', 'ろ:name']);
+  const d2 = { し: 1, つ: 1, く: 1, ろ: 1 };
+  const r2 = T.planTraceSession(chars, { done: d2 }, Object.assign({ prev: r1.map(o => o.ch) }, opts), rngOf(1));
+  assert.deepEqual(whyOf(r2), ['へ:new', 'て:new', 'の:new', 'う:name']);
+  const d3 = Object.assign({}, d2, { へ: 1, て: 1, の: 1, う: 1 });
+  const r3 = T.planTraceSession(chars, { done: d3, help: { の: 1 } }, Object.assign({ prev: r2.map(o => o.ch) }, opts), rngOf(1));
+  assert.deepEqual(r3.map(o => o.ch).slice(1), ['ひ', 'そ', 'た']);
+  assert.ok(['し', 'つ', 'く', 'ろ'].includes(r3[0].ch) && r3[0].why === 'review');
+  assert.equal(r3[3].why, 'name');
+  assert.ok(!r3.some(o => o.ch === 'の'));
+  const d4 = Object.assign({}, d3, { ひ: 1, そ: 1, た: 1 });
+  const r4 = T.planTraceSession(chars, { done: d4, help: { の: 1 } }, Object.assign({ prev: r3.map(o => o.ch) }, opts), rngOf(1));
+  assert.deepEqual(r4[r4.length - 1], { ch: 'の', why: 'weak' });
+  // 名前の字がみな 3 回以上 → 名前の枠なし（pickTraceChars と同じ）
+  const d5 = {}; chars.slice(0, 20).forEach(c => { d5[c] = 1; }); ['た', 'ろ', 'う'].forEach(c => { d5[c] = 3; });
+  assert.deepEqual(T.planTraceSession(chars, { done: d5 }, { n: 4, name: 'たろう' }, rngOf(3)).map(o => o.ch), T.pickTraceChars(chars, d5, 4, rngOf(3)));
+  // kanji は名前の枠なし
+  const k = [...SETS.k1];
+  assert.deepEqual(T.planTraceSession(k, { done: {} }, { n: 4, name: 'やま', kanji: true }, rngOf(1)).map(o => o.ch), k.slice(0, 4));
+  // カタカナを書くとき（hira+kata）はタ・ロ・ウも名前の字
+  const hk = chars.concat([...SETS.kata]);
+  const allH = Object.fromEntries(chars.map(c => [c, 3]));
+  const rk = T.planTraceSession(hk, { done: allH }, { n: 4, name: 'たろう' }, rngOf(1));
+  assert.ok(rk.some(o => o.why === 'name' && ['タ', 'ロ', 'ウ'].includes(o.ch)), JSON.stringify(rk));
+});
+
+test('W5-7. 苦手: 復習の枠に入り並びは最後。cnt の少ない字から。prev の苦手は出ない。上限', () => {
+  const chars = [...SETS.hira];
+  const done = { し: 2, つ: 3, く: 4, へ: 5, て: 1 };
+  const help = { し: 2, つ: 3, く: 4, へ: 1 };   // し・つ・く が苦手（help*2 > done）。へ は違う
+  const r = T.planTraceSession(chars, { done, help }, { n: 4, name: '' }, rngOf(1));
+  assert.deepEqual(whyOf(r).slice(-1), ['し:weak']);          // cnt の少ない苦手が先
+  assert.deepEqual(r.slice(0, 3).map(o => o.why), ['new', 'new', 'new']);
+  // prev の苦手は出ない
+  const r2 = T.planTraceSession(chars, { done, help }, { n: 4, prev: ['し'] }, rngOf(1));
+  assert.ok(!r2.some(o => o.ch === 'し')); assert.equal(r2[r2.length - 1].ch, 'つ');
+  // 新しい字がある間の苦手は 1 字
+  const many = Object.fromEntries(chars.slice(0, 10).map(c => [c, 2])), mh = Object.fromEntries(chars.slice(0, 10).map(c => [c, 2]));
+  assert.equal(T.planTraceSession(chars, { done: many, help: mh }, { n: 4 }, rngOf(1)).filter(o => o.why === 'weak').length, 1);
+  // 全部書いた後は 名前＋苦手 ≤ 2、漢字は苦手 1
+  const full = Object.fromEntries(chars.map(c => [c, 4])), fh = Object.fromEntries(chars.map(c => [c, 4]));
+  for (let seed = 0; seed < 10; seed++) {
+    const a = T.planTraceSession(chars, { done: full, help: fh }, { n: 4, name: 'なぬね' }, rngOf(seed));
+    assert.equal(a.length, 4);
+    assert.ok(a.filter(o => o.why === 'weak' || o.why === 'name').length <= 2, JSON.stringify(a));
+    assert.equal(new Set(a.map(o => o.ch)).size, 4);
+  }
+  const k = [...SETS.k1], kd = Object.fromEntries(k.map(c => [c, 4]));
+  assert.equal(T.planTraceSession(k, { done: kd, help: kd }, { n: 4, kanji: true }, rngOf(2)).filter(o => o.why === 'weak').length, 1);
+});
+
+test('W5-8. 選んだ字: 1 字目。prev にあっても出る。chars に無くても出る。重複しない', () => {
+  const chars = [...SETS.hira];
+  assert.deepEqual(whyOf(T.planTraceSession(chars, { done: {} }, { n: 4, chosen: 'ぬ' }, rngOf(1))), ['ぬ:chosen', 'し:new', 'つ:new', 'く:new']);
+  const done = { し: 1, つ: 1, く: 1, ぬ: 1 };
+  const r = T.planTraceSession(chars, { done }, { n: 4, chosen: 'ぬ', prev: ['ぬ'] }, rngOf(1));
+  assert.equal(r[0].ch, 'ぬ'); assert.equal(r.length, 4);
+  const k = T.planTraceSession([...SETS.k1], { done: {} }, { n: 4, chosen: 'あ' }, rngOf(1));
+  assert.deepEqual(k.map(o => o.ch), ['あ', '山', '川', '口']);
+  const dup = T.planTraceSession(chars, { done: {} }, { n: 4, chosen: 'ろ', name: 'ろ' }, rngOf(1)).map(o => o.ch);
+  assert.equal(new Set(dup).size, 4); assert.equal(dup[0], 'ろ');
+  const w = T.planTraceSession(chars, { done: { ぬ: 1 }, help: { ぬ: 1 } }, { n: 4, chosen: 'ぬ' }, rngOf(1)).map(o => o.ch);
+  assert.equal(new Set(w).size, 4); assert.equal(w[0], 'ぬ');
+});
+
+test('W5-9. 階段: new は fresh の先頭から飛ばさない。順を飛ばすのは name・chosen だけ（合わせて 2 字まで）', () => {
+  const chars = [...SETS.hira];
+  for (let seed = 0; seed < 10; seed++) {
+    const done = {}; let prev = [];
+    for (let t = 0; t < 12; t++) {
+      const r = T.planTraceSession(chars, { done, help: {} }, { n: 4, name: 'なぬね', prev, chosen: t === 5 ? 'を' : '' }, rngOf(seed + t));
+      const fresh = chars.filter(c => !(done[c] > 0));
+      const news = r.filter(o => o.why === 'new').map(o => o.ch);
+      const skip = r.filter(o => o.why === 'name' || o.why === 'chosen').length;
+      assert.ok(skip <= 2);
+      const pickedFresh = r.filter(o => !(done[o.ch] > 0)).map(o => o.ch);
+      const front = fresh.filter(c => !pickedFresh.includes(c) || news.includes(c)).slice(0, news.length);
+      assert.deepEqual(news, front);
+      r.forEach(o => { done[o.ch] = (done[o.ch] || 0) + 1; });
+      prev = r.map(o => o.ch);
+    }
+  }
+});
+
+test('W5-10. 決まった結果・重複なし・min(n, 字の数)・入力を書き換えない・n<=0 は []', () => {
+  const chars = [...SETS.hira], trace = { done: { し: 2, つ: 1 }, help: { し: 2 } };
+  const snap = JSON.stringify([chars, trace]), prev = ['つ'];
+  const a = T.planTraceSession(chars, trace, { n: 4, name: 'たろう', prev }, rngOf(7)), b = T.planTraceSession(chars, trace, { n: 4, name: 'たろう', prev }, rngOf(7));
+  assert.deepEqual(a, b);
+  assert.equal(JSON.stringify([chars, trace]), snap); assert.deepEqual(prev, ['つ']);
+  assert.deepEqual(T.planTraceSession(chars, trace, { n: 0 }, rngOf(1)), []);
+  assert.deepEqual(T.planTraceSession(chars, trace, { n: -1 }, rngOf(1)), []);
+  assert.deepEqual(T.planTraceSession([], trace, { n: 4 }, rngOf(1)), []);
+  assert.equal(T.planTraceSession(['し', 'つ', 'く'], { done: {} }, { n: 4 }, rngOf(1)).length, 3);
+  // 字が少なく全部 prev でも n 字まで埋める
+  assert.equal(T.planTraceSession(['し', 'つ', 'く'], { done: { し: 1, つ: 1, く: 1 } }, { n: 3, prev: ['し', 'つ', 'く'] }, rngOf(1)).length, 3);
+});
+
+test('W5-11. 負担の模擬: 名前「なぬね」・毎回すべて たすけ・30 回', () => {
+  const chars = [...SETS.hira];
+  for (let seed = 0; seed < 5; seed++) {
+    let trace = { done: {}, help: {} }, prev = [];
+    const seenAll = new Set(), nameCount = { な: 0, ぬ: 0, ね: 0 };
+    for (let t = 0; t < 30; t++) {
+      const r = T.planTraceSession(chars, trace, { n: 4, name: 'なぬね', prev }, rngOf(seed * 100 + t));
+      assert.equal(r.length, 4);
+      const fresh = chars.filter(c => !(trace.done[c] > 0));
+      if (fresh.length) assert.ok(r.filter(o => o.why === 'new' || (o.why === 'name' && !(trace.done[o.ch] > 0))).length >= 2, `回 ${t}`);
+      assert.ok(!r.some(o => prev.includes(o.ch)), `続けて出た 回 ${t}`);
+      assert.ok(r.filter(o => o.why === 'weak').length <= 2);
+      r.forEach(o => { seenAll.add(o.ch); if (o.ch in nameCount) nameCount[o.ch]++; trace = T.recordTraceChar(trace, o.ch, { maxM: 2 }); });
+      prev = r.map(o => o.ch);
+    }
+    assert.equal(seenAll.size, 46);
+    Object.keys(nameCount).forEach(c => assert.ok(nameCount[c] >= 3, c + nameCount[c]));
+  }
+});
+
+test('W5-12. traceGrid: hira・kata は 46 字の集合と同じ、cols は rows の入れ替えで左右逆', () => {
+  for (const id of ['hira', 'kata', 'k1', 'k2']) {
+    for (const o of ['rows', 'cols']) {
+      const g = T.traceGrid(id, o), flat = g.flat().filter(c => c);
+      assert.deepEqual([...flat].sort(), [...SETS[id]].sort(), id + o);
+      assert.equal(new Set(flat).size, flat.length);
+      assert.ok(g.every(r => r.length === g[0].length));
+    }
+  }
+  const r = T.traceGrid('hira', 'rows'), c = T.traceGrid('hira', 'cols');
+  assert.equal(r.length, 11); assert.equal(r[0].length, 5); assert.equal(c.length, 5); assert.equal(c[0].length, 11);
+  r.forEach((row, i) => row.forEach((ch, j) => assert.equal(c[j][10 - i], ch)));
+  assert.deepEqual(r[0], ['あ', 'い', 'う', 'え', 'お']); assert.deepEqual(r[7], ['や', '', 'ゆ', '', 'よ']);
+  assert.deepEqual(r[10], ['ん', '', '', '', '']);
+  assert.deepEqual(c[0].slice(0, 2), ['ん', 'わ']); assert.equal(c[0][10], 'あ'); assert.equal(c[1][0], '');
+  assert.deepEqual(T.traceGrid('kata', 'rows')[0], ['ア', 'イ', 'ウ', 'エ', 'オ']);
+  assert.equal(T.traceGrid('k1', 'rows').length, 4); assert.equal(T.traceGrid('k1', 'cols').length, 2);
+  assert.deepEqual(T.traceGrid('zzz', 'rows'), []);
+});
+
+test('W5-13. normalizeTrace の help（done・set・width は今のまま）', () => {
+  assert.deepEqual(T.normalizeTrace(undefined), { done: {}, help: {}, set: 'auto', width: 'auto' });
+  assert.deepEqual(T.normalizeTrace({ done: { し: 2 } }).help, {});
+  assert.deepEqual(T.normalizeTrace({ done: { し: 2, つ: 1 }, help: { し: 5, つ: 1, く: 1, x: 1, へ: -2 }, set: 'kata', width: 'wide' }),
+    { done: { し: 2, つ: 1 }, help: { し: 2, つ: 1 }, set: 'kata', width: 'wide' });
+  assert.deepEqual(T.normalizeTrace({ done: { し: 2 }, help: 'abc' }).help, {});
+  assert.deepEqual(T.normalizeTrace({ done: { し: 2 }, help: { し: '1' } }).help, {});
 });

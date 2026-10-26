@@ -554,7 +554,7 @@
   function onTraceCharDone(info) {
     if (!trun) return;
     var ch = info.ch, done = trun.idx + 1, my = trun.token;
-    data.trace.done[ch] = Math.min(99, (data.trace.done[ch] > 0 ? data.trace.done[ch] : 0) + 1);   // 途中でやめても、書けた字は数える
+    data.trace = TR.recordTraceChar(data.trace, ch, info);   // 途中でやめても、書けた字は数える。maxM >= 2 なら たすけの回数も足す
     data.stats.trace.chars++; if (info.clean) data.stats.trace.clean++;
     save();
     updateTraceLamps(done);
