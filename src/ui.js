@@ -244,7 +244,11 @@
   }
 
   // ---- 音 ----
-  function applySound() { A.setEnabled(dev.sound.sfx); SP.setEnabled(dev.sound.voice); SP.setSpeaker(dev.sound.speaker); }
+  var appliedSpeaker = null;   // 声が変わったときだけ SP.setSpeaker（選び直しで鳴っている音を止めない）
+  function applySound() {
+    A.setEnabled(dev.sound.sfx); SP.setEnabled(dev.sound.voice);
+    if (appliedSpeaker !== dev.sound.speaker) { appliedSpeaker = dev.sound.speaker; SP.setSpeaker(dev.sound.speaker); }
+  }
   function sfx(name, arg) { A.play(name, arg); }
   function say(text, opts) { return SP.speak(text, opts); }
   function seq(items, opts) { return SP.speakSeq(items, opts); }
@@ -1250,7 +1254,7 @@
       LD.selectableLevels(data, g).forEach(function (lv) { var o = doc.createElement('option'); o.value = lv; o.textContent = lv; sel.appendChild(o); });   // 解放済みのステージの範囲だけ
       sel.value = data.levels[g]; $('p-lock-' + g).checked = data.locked[g];
     });
-    voiceNote(); enNote(); fillStages();
+    fillSpeakers(); voiceNote(); enNote(); fillStages();
     if (dev.restoredFromV1) { restoredShown = true; delete dev.restoredFromV1; save(); }
     $('p-restored').hidden = !restoredShown;
     $('p-storage-note').hidden = S.isPersistent();
@@ -1297,8 +1301,30 @@
       box.appendChild(row);
     });
   }
+  // 「こえ」: たんまつの こえ ＋ 同梱の声（voice/voices.js）。選ぶとその声でテストを読む
+  function fillSpeakers() {
+    var box = $('p-speakers'); if (!box) return;
+    var list = (M.voiceList || []).map(function (v) { return { id: v.id, label: v.label + '（VOICEVOX）' }; });
+    box.textContent = '';
+    box.hidden = !list.length;
+    if (!list.length) return;
+    list.push({ id: 'device', label: 'たんまつの こえ' });
+    list.forEach(function (v) {
+      var b = doc.createElement('button');
+      b.type = 'button'; b.className = 'pbtn' + (SP.speaker() === v.id ? ' sel' : ''); b.textContent = v.label;
+      b.setAttribute('aria-pressed', SP.speaker() === v.id ? 'true' : 'false');
+      b.addEventListener('click', function () {
+        unlockOnce();
+        dev.sound.speaker = v.id; applySound(); save(); fillSpeakers(); voiceNote();
+        say(LN.FIXED.test, { force: true });
+      });
+      box.appendChild(b);
+    });
+  }
   function voiceNote() {
     var n = $('p-voice-note');
+    var pre = (M.voiceList || []).length && SP.speaker() !== 'device' ? (root.location && root.location.protocol === 'file:' ? 'ファイルで ひらいているので、たんまつの こえに なります。' : SP.clipsState && SP.clipsState() === 'failed' ? 'こえの ファイルが よめないので、たんまつの こえで よみます。' : '') : '';
+    if (pre) { n.textContent = pre; return; }
     if (SP.isVoiceless()) n.textContent = 'この たんまつでは にほんごの よみあげが つかえません。こうかおんと えだけで すすみますが、「もじ」と「とけい」（T3〜T6の「はん」や こまかい ぷん）の がくしゅうこうかは さがります。';
     else n.textContent = '「よみあげテスト」で にほんごが きこえるか たしかめてください。きこえない ときは、たんまつの おんりょうと にほんごの おんせいを かくにんしてください。';
   }

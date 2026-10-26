@@ -149,17 +149,19 @@
     function total(p) { var t = 0; (p || []).forEach(function (x) { t += x.gap + x.ms; }); return t; }
 
     // ---- 読み込みと復号 ----
-    function url(f) { return 'voice/' + cur.id + '/' + f + '.' + (cur.pack.ext || 'aac'); }
-    function fetchRaw(f) {
-      if (!raw[f]) {
-        var u = url(f);
-        raw[f] = Promise.resolve().then(function () { return env.fetch(u); }).then(function (r) {
+    function url(pk, f) { return 'voice/' + pk.id + '/' + f + '.' + (pk.pack.ext || 'aac'); }
+    // キャッシュの鍵は「声id/ファイル名」（声を切り替えても前の声の音が混ざらない）
+    function fetchRaw(pk, f) {
+      var k = pk.id + '/' + f;
+      if (!raw[k]) {
+        var u = url(pk, f);
+        raw[k] = Promise.resolve().then(function () { return env.fetch(u); }).then(function (r) {
           if (!r || r.ok === false) throw new Error('http');
           return r.arrayBuffer();
         });
-        raw[f].catch(function () { delete raw[f]; });
+        raw[k].catch(function () { delete raw[k]; });
       }
-      return raw[f];
+      return raw[k];
     }
     function decode(c, ab) {
       return new Promise(function (res, rej) {
@@ -171,28 +173,38 @@
       while (order.length > DECODED_MAX) delete decoded[order.shift()];
     }
     // 復号済みの音を返す（無ければ読んで復号する）。失敗は数える
+    // 失敗の数え方は呼ぶ側（play の 1 回・prefetch の 1 回）で 1 回ずつ
     function load(f) {
-      if (decoded[f]) { var d = decoded[f]; order = order.filter(function (x) { return x !== f; }); order.push(f); return Promise.resolve(d); }
-      if (pending[f]) return pending[f];
+      var pk = cur;
+      if (!pk) return Promise.reject(new Error('nopack'));
+      var k = pk.id + '/' + f;
+      if (decoded[k]) { var d = decoded[k]; order = order.filter(function (x) { return x !== k; }); order.push(k); return Promise.resolve(d); }
+      if (pending[k]) return pending[k];
       var c = ctx();
       if (!c) return Promise.reject(new Error('noctx'));
-      pending[f] = fetchRaw(f).then(function (ab) { return decode(c, ab); }).then(function (buf) {
+      pending[k] = fetchRaw(pk, f).then(function (ab) { return decode(c, ab); }).then(function (buf) {
         var r = silenceRange(buf.getChannelData(0), buf.sampleRate);
         var d = { buf: buf, start: r.start, dur: Math.max(0.02, r.end - r.start) };
-        remember(f, d); delete pending[f]; ok(); return d;
-      }, function (e) { delete pending[f]; fail(); throw e; });
-      return pending[f];
+        remember(k, d); delete pending[k]; return d;
+      }, function (e) { delete pending[k]; throw e; });
+      return pending[k];
     }
     // 文の音を先に読んで復号しておく（声が使えないときは読むだけ）
     function prefetch(texts) {
       if (!cur) return;
-      var canDecode = ready(), seen = {};
+      var canDecode = ready(), seen = {}, pk = cur, jobs = [];
       (texts || []).forEach(function (t) {
         var p = plan(t);
         (p || []).forEach(function (x) {
           if (seen[x.f]) return; seen[x.f] = 1;
-          (canDecode ? load(x.f) : fetchRaw(x.f)).catch(function () {});
+          jobs.push(canDecode ? load(x.f) : fetchRaw(pk, x.f));
         });
+      });
+      if (!jobs.length) return;
+      // 失敗は 1 回の先読みにつき 1 回と数える（全部の完了を待つ）
+      Promise.all(jobs.map(function (j) { return j.then(function () { return true; }, function () { return false; }); })).then(function (rs) {
+        if (cur !== pk) return;
+        if (rs.every(function (x) { return x; })) ok(); else fail();
       });
     }
     function warm() { prefetch(env.warm ? env.warm() : Object.keys(L.FIXED).map(function (k) { return L.FIXED[k]; })); }   // 決まり文句（出動！・そう！・おしい！もう一回。など）
@@ -217,9 +229,9 @@
       later(function () { if (!started && !done && my === playId) { done = true; if (hooks.onerror) hooks.onerror('late'); } }, CLIP_WAIT_MS);
       Promise.all(p.map(function (x) { return load(x.f); })).then(function (ds) {
         if (done || my !== playId) return;
-        started = true;
+        started = true; ok();
         var c = ctx();
-        if (!c || c.state !== 'running') { done = true; fail(); if (hooks.onerror) hooks.onerror('noctx'); return; }
+        if (!c || c.state !== 'running') { done = true; if (hooks.onerror) hooks.onerror('noctx'); return; }
         var t = c.currentTime + 0.03, out = voiceOut(c), last = null;
         ds.forEach(function (d, i) {
           t += p[i].gap / 1000;
@@ -233,7 +245,9 @@
         later(end, endMs);   // onended が来ない端末に備え、予定の長さ＋1 秒で終わったことにする
         if (hooks.onstart) hooks.onstart();
       }, function () {
-        if (done || my !== playId) return;
+        if (my !== playId) return;
+        fail();   // 読めない・復号できない（late のあとでも数える）
+        if (done) return;
         done = true; if (hooks.onerror) hooks.onerror('decode');
       });
     }

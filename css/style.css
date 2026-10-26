@@ -185,6 +185,9 @@ canvas { display: block; }
 #pt-sets { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 8px; }
 #pt-sets .pbtn { min-height: 44px; padding: 0 12px; margin: 0; font-size: 15px; }
 #pt-sets .pbtn.sel { background: #16a085; }
+.spk { display: flex; flex-wrap: wrap; gap: 8px; margin: 4px 0; }
+.spk .pbtn { margin: 0; min-height: 48px; padding: 0 14px; background: #8a7f6c; }
+.spk .pbtn.sel { background: #16a085; }
 #pt-sum { font-size: 16px; line-height: 1.6; margin-bottom: 8px; }
 #pt-grid { display: grid; gap: 4px; }
 .pcell { position: relative; min-height: 56px; border-radius: 8px; background: #f2ede0; border: 2px solid #e5dcc8; display: flex; flex-direction: column; align-items: center; justify-content: center; line-height: 1.15; color: #cbbfa9; }

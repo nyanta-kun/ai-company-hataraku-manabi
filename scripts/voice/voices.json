@@ -1,0 +1,7 @@
+{
+  "metan": {
+    "label": "めたん", "credit": "VOICEVOX:四国めたん", "speaker": "四国めたん", "uuid": "7ffcb7ce-00ec-4bdc-82cd-45a8889e43ff", "style": "ノーマル",
+    "params": { "speedScale": 0.95, "pitchScale": 0, "intonationScale": 1.2, "volumeScale": 1.0, "pauseLengthScale": 0.6, "prePhonemeLength": 0.05, "postPhonemeLength": 0.05 },
+    "terms": "https://zunko.jp/con_ongen_kiyaku.html"
+  }
+}
