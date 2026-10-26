@@ -19,7 +19,13 @@ const COMMIT = 'd95a97627fd9fe5b2c8d06ca81e38149609c0c1e';
 const BASE = 'https://raw.githubusercontent.com/KanjiVG/kanjivg/' + VERSION + '/kanji/';
 const SETS = {
   // なぞる順番（易しい順。企画どおり）
-  hira: 'しつくへてのひそろるんいこりうとちらえすよわれみめゆぬねけにかさせもやおあまはむをたなきふほ'
+  hira: 'しつくへてのひそろるんいこりうとちらえすよわれみめゆぬねけにかさせもやおあまはむをたなきふほ',
+  // カタカナ（W3）: 1画 → 2画 → 3画 → 4画。形が似た シ・ツ と ソ・ン は、続けて並べて同じ出動に出やすくする（企画 2.4）
+  kata: 'ノフヘレアイカクコスセソンナトニヌハヒマムメヤユラリルワウエオキケサシツタチテミモヨロヲネホ',
+  // 小1の漢字 K8（W4）: 画数の少ない順（企画 2.4）。src/data.js の KANJI_WORDS と同じ 20 字（テストで検査）
+  k1: '山川口火水木犬手石目虫耳糸竹花車足雨空森',
+  // 小2の漢字 K9（W4）: 画数の少ない順。KANJI_WORDS2 の 20 字から、13 画以上の 電(13)・線(15) を外した 18 字（上限 12 画。design-tracing 10章）
+  k2: '冬池門夜海昼風星春秋馬夏船鳥雪道朝雲'
 };
 const SCALE = 10;   // 109 を 10 倍して整数に丸める
 
@@ -95,7 +101,7 @@ function convertChar(ch, svg) {
 }
 
 const HEADER = [
-  '// なぞりがきの字形と書き順のデータ（ひらがな 46 字）。画ごとの中心線を 3 次ベジェで持つ。',
+  '// なぞりがきの字形と書き順のデータ（ひらがな 46 字・カタカナ 46 字・小1の漢字 20 字・小2の漢字 18 字）。画ごとの中心線を 3 次ベジェで持つ。',
   '//',
   '// このファイルだけ、次のライセンスで配布する（アプリのほかのコードは別。読むだけの別ファイルに分けてある）:',
   '//   Creative Commons Attribution-ShareAlike 3.0 (CC BY-SA 3.0)  https://creativecommons.org/licenses/by-sa/3.0/',
@@ -103,7 +109,7 @@ const HEADER = [
   '// 出典: KanjiVG  http://kanjivg.tagaini.net  Copyright (C) 2009-2011 Ulrich Apel.',
   '//   取得元: https://github.com/KanjiVG/kanjivg  版: ' + VERSION + '（tag）= commit ' + COMMIT + '（kanji/<コード>.svg）',
   '// 変更内容: 必要な字だけを選び、座標を 10 倍して整数に丸め、M/m/C/c/S/s/L/l を絶対座標の 3 次ベジェの配列に直した。',
-  '//   番号の位置（<text>）と画の種類（kvg:type）も取り出した（ひらがなの SVG には kvg:type が無いので t は空文字）。画の順番の入れ替えはまだ無い。',
+  '//   番号の位置（<text>）と画の種類（kvg:type）も取り出した（ひらがな・カタカナの SVG には kvg:type がほとんど無く、無い字の t は空文字（マ だけある）。漢字にはある）。画の順番の入れ替えはまだ無い。',
   '// 作り方: node scripts/strokes/convert.js <SVG のフォルダ> --fetch （手で書き換えず、変換し直す。順番の入れ替えを足すときは上の「変更内容」に書く）',
   '//',
   '// 形: STROKES[字] = { s: 画の配列, n: 番号の位置, t: 画の種類 }。',

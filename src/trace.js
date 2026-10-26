@@ -18,7 +18,8 @@
     kanjiG: 0.85,       // 漢字は形が細かいので許容幅を絞る
     wide: 1.3,          // 「ひろめ」
     window: 0.12,       // 進度の前後だけを見る窓の長さ
-    shortLen: 0.08,     // これより短い画は「点」
+    shortLen: 0.08,     // これより短い画は「点」（かな）
+    kanjiShortLen: 0.2, // 漢字は 0.2 未満の画を「点」にする（火・雨・犬 の点など。design 10章）
     densifyDiv: 3       // 直前の点との間を near / 3 ごとに補う
   };
 
@@ -68,7 +69,7 @@
     for (var i = 1; i < poly.length; i++) l += dist(poly[i - 1], poly[i]);
     return l;
   }
-  function isDot(poly) { return polyLength(poly) < DEFAULTS.shortLen; }
+  function isDot(poly, len) { return polyLength(poly) < (typeof len === 'number' ? len : DEFAULTS.shortLen); }
 
   // 点 p から線分 a-b までの距離
   function distSeg(p, a, b) {
@@ -97,7 +98,8 @@
       off: Math.max(DEFAULTS.offBase * g, DEFAULTS.offMinPx / B) * k,
       offRun: DEFAULTS.offRun,
       startR: Math.max(DEFAULTS.startBase, DEFAULTS.startMinPx / B) * k,
-      endP: DEFAULTS.endP
+      endP: DEFAULTS.endP,
+      dotLen: script === 'kanji' ? DEFAULTS.kanjiShortLen : DEFAULTS.shortLen   // これより短い画は「点」
     };
   }
 
@@ -107,7 +109,7 @@
     var f = m >= 3 ? 1.5 : m >= 2 ? 1.25 : 1;
     return {
       near: tol.near * f, off: m >= 4 ? Infinity : tol.off * f, offRun: tol.offRun,
-      startR: tol.startR, endP: tol.endP
+      startR: tol.startR, endP: tol.endP, dotLen: tol.dotLen
     };
   }
   function helpFor(m) {
@@ -155,7 +157,7 @@
   function beginStroke(poly, p, tol) {
     var first = poly[0], lastPt = poly[poly.length - 1];
     var base = { idx: 0, ref: 0, last: p, offLen: 0, off: false, dot: false, travel: 0 };
-    if (isDot(poly)) {
+    if (isDot(poly, tol.dotLen)) {
       // 点: 画のどこから押してもよい（off の中なら）
       if (distToRange(poly, p, 0, poly.length - 1) <= tol.off) {
         base.dot = true; base.inside = true;
@@ -238,6 +240,14 @@
     return 'hira+kata';
   }
 
+  // 集合の名前 → 字の配列。'hira+kata' は ひらがな → カタカナの順につないだもの（書いていない字が先に出るので、新しい字はカタカナ・復習はひらがなとカタカナ）。
+  // 知らない名前・データが無い集合だけのときは ひらがな+カタカナ にする（落ちないための保険）
+  function charsOfSet(name) {
+    var parts = String(name || '').split('+'), out = [];
+    parts.forEach(function (k) { if (S.SETS[k]) out = out.concat(S.SETS[k].split('')); });
+    return out.length ? out : (S.SETS.hira + (S.SETS.kata || '')).split('');
+  }
+
   // 字を n 個選ぶ。まだ書いていない字を chars の順に最大 n-1（その集合を初めて書くときは n）、書いた字から回数の少ない 1 つ（同数は rng）。
   // 足りなければ回数の少ない順で埋める。並びは復習の字が先、新しい字が後。重複なし。入力は書き換えない
   function pickTraceChars(chars, done, n, rng) {
@@ -290,7 +300,7 @@
   var api = {
     DEFAULTS: DEFAULTS, strokePolyline: strokePolyline, polyLength: polyLength, isDot: isDot, densify: densify, tolerance: tolerance,
     helpTolerance: helpTolerance, helpFor: helpFor, beginStroke: beginStroke, moveStroke: moveStroke, endStroke: endStroke,
-    progressOf: progressOf, recordAttempt: recordAttempt, traceSet: traceSet, pickTraceChars: pickTraceChars, traceWidth: traceWidth, normalizeTrace: normalizeTrace
+    progressOf: progressOf, recordAttempt: recordAttempt, traceSet: traceSet, charsOfSet: charsOfSet, pickTraceChars: pickTraceChars, traceWidth: traceWidth, normalizeTrace: normalizeTrace
   };
   if (node) module.exports = api;
   else { root.Manabi = root.Manabi || {}; root.Manabi.trace = api; }
