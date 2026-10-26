@@ -238,6 +238,14 @@
     return 'hira+kata';
   }
 
+  // 集合の名前 → 字の配列。'hira+kata' は ひらがな → カタカナの順につないだもの（書いていない字が先に出るので、新しい字はカタカナ・復習はひらがなとカタカナ）。
+  // その集合のデータが無いとき（W3 まで: 漢字）は ひらがな+カタカナ にする
+  function charsOfSet(name) {
+    var parts = String(name || '').split('+'), out = [];
+    parts.forEach(function (k) { if (S.SETS[k]) out = out.concat(S.SETS[k].split('')); });
+    return out.length ? out : (S.SETS.hira + (S.SETS.kata || '')).split('');
+  }
+
   // 字を n 個選ぶ。まだ書いていない字を chars の順に最大 n-1（その集合を初めて書くときは n）、書いた字から回数の少ない 1 つ（同数は rng）。
   // 足りなければ回数の少ない順で埋める。並びは復習の字が先、新しい字が後。重複なし。入力は書き換えない
   function pickTraceChars(chars, done, n, rng) {
@@ -290,7 +298,7 @@
   var api = {
     DEFAULTS: DEFAULTS, strokePolyline: strokePolyline, polyLength: polyLength, isDot: isDot, densify: densify, tolerance: tolerance,
     helpTolerance: helpTolerance, helpFor: helpFor, beginStroke: beginStroke, moveStroke: moveStroke, endStroke: endStroke,
-    progressOf: progressOf, recordAttempt: recordAttempt, traceSet: traceSet, pickTraceChars: pickTraceChars, traceWidth: traceWidth, normalizeTrace: normalizeTrace
+    progressOf: progressOf, recordAttempt: recordAttempt, traceSet: traceSet, charsOfSet: charsOfSet, pickTraceChars: pickTraceChars, traceWidth: traceWidth, normalizeTrace: normalizeTrace
   };
   if (node) module.exports = api;
   else { root.Manabi = root.Manabi || {}; root.Manabi.trace = api; }

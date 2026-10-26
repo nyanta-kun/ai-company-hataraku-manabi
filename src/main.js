@@ -6,7 +6,9 @@
   function parseHash() {
     var h = (root.location.hash || '').replace(/^#/, '');
     var m = /^debug(?::(.+))?$/.exec(h);
-    return m ? { on: true, goto: m[1] || '' } : { on: false };
+    var go = m && m[1] || '';
+    try { go = decodeURIComponent(go); } catch (e) {}   // #debug:play-trace-k1-雨 のように字を入れると、ブラウザが %E9… に直す
+    return m ? { on: true, goto: go } : { on: false };
   }
 
   // 単語表の全部の絵を名前つきで一覧にする（確認用）。もう一度押すと閉じる
@@ -33,10 +35,11 @@
   }
 
   // 書き順の照合用の一覧（ひらがな 46 字を番号・矢印・画ごとの色つきで並べる）。もう一度押すと閉じる
-  function toggleTraceSheet() {
+  function toggleTraceSheet(setName) {
     var old = doc.getElementById('tracesheet');
     if (old) { old.remove(); return; }
-    var chars = M.strokes.SETS.hira.split(''), cols = 6, cw = 200, ch = 240, rows = Math.ceil(chars.length / cols);
+    var sets = typeof setName === 'string' && M.strokes.SETS[setName] ? [setName] : Object.keys(M.strokes.SETS);   // 省略は全部（#debug:trace-sheet-kata のように 1 つだけも）
+    var chars = sets.map(function (k) { return M.strokes.SETS[k]; }).join('').split(''), cols = 6, cw = 200, ch = 240, rows = Math.ceil(chars.length / cols);
     var wrap = doc.createElement('div'); wrap.id = 'tracesheet';
     wrap.style.cssText = 'position:fixed;inset:0;z-index:50;background:#fff;overflow:auto';
     var cv = doc.createElement('canvas'); cv.width = cols * cw; cv.height = rows * ch;
@@ -86,14 +89,26 @@
     btn('えいちらん', togglePicGrid);
     btn('かく', function () { ui.startTrace({ fast: true }); });
     btn('かく: じどうで かく', function () { ui.startTrace({ fast: true }); ui.traceAuto(true); });
-    btn('書き順一覧', toggleTraceSheet);
+    btn('書き順一覧', function () { toggleTraceSheet(); });
     btn('声なし', function () { M.speech.forceVoiceless(); });
     box.appendChild(err);
 
     // 画面指定でのジャンプ（スクショ用）
     var g = goto.split('-');
     if (g[0] === 'play') {
-      if (g[1] === 'trace') { ui.startTrace({ fast: true }); return log; }
+      if (g[1] === 'trace') {
+        // #debug:play-trace-kata / -k1 / -k2（-の のように 1 字目も指定できる）。k1 は S1、k2 は S2 の札にしてから始める
+        var tset = M.strokes.SETS[g[2]] ? g[2] : '', topts = { fast: true };
+        if (tset) {
+          var tsid = tset === 'k1' ? 'S1' : tset === 'k2' ? 'S2' : 'S0';
+          if (D.stageIndex(tsid) > D.stageIndex(ui.data.stage.unlocked)) ui.data.stage.unlocked = tsid;
+          ui.data.stage.current = tsid; ui.data.trace.set = tset;
+          topts.chars = M.trace.charsOfSet(tset);
+          if (g[3] && topts.chars.indexOf(g[3]) >= 0) topts.chars = [g[3]].concat(topts.chars.filter(function (c) { return c !== g[3]; }));
+        }
+        ui.startTrace(topts); if (g[4] === 'auto') ui.traceAuto(true);
+        return log;
+      }
       var game = g[1] === 'letter' ? 'letter' : g[1] === 'clock' ? 'clock' : g[1] === 'english' ? 'english' : 'math';
       if (g[2]) {
         ui.data.levels[game] = g[2];
@@ -102,7 +117,7 @@
       }
       ui.startSession(game, { fast: true, scene: g[3] || undefined });
       if (g[4]) root.setTimeout(function () { ui.debugProgress(+g[4]); }, 50);
-    } else if (g[0] === 'trace' && g[1] === 'sheet') toggleTraceSheet();
+    } else if (g[0] === 'trace' && g[1] === 'sheet') toggleTraceSheet(g[2]);
     else if (g[0] === 'trace') { ui.startTrace({ fast: true }); if (g[1] === 'auto') ui.traceAuto(true); }
     else if (g[0] === 'pics') togglePicGrid();
     else if (g[0] === 'pick') ui.show('pick');

@@ -494,8 +494,7 @@
     later(minMs, advanceWhenReady);
   }
 
-  // ---- かく（なぞりがき。design-tracing 4.6）。階段・関門には入れない。S1・S2 の子もこの段階ではひらがなを書く ----
-  var TRACE_CHARS = STR.SETS.hira.split('');
+  // ---- かく（なぞりがき。design-tracing 4.6）。階段・関門には入れない。S0 は ひらがな → カタカナ（W3）----
   function updateTraceLamps(n) { [].forEach.call($('trace-lamps').children, function (e, i) { e.classList.toggle('on', i < n); }); }
   function layoutTrace() {
     if (!tboard) return;
@@ -509,7 +508,7 @@
   function startTrace(opts) {
     opts = opts || {};
     clearTimers(); token++; run = null;
-    var chars = TR.pickTraceChars(opts.chars || TRACE_CHARS, data.trace.done, P.QUESTIONS_PER_SESSION, Math.random);
+    var chars = TR.pickTraceChars(opts.chars || TR.charsOfSet(opts.set || TR.traceSet(data.trace, LD.currentStage(data))), data.trace.done, P.QUESTIONS_PER_SESSION, Math.random);
     trun = { chars: chars, idx: 0, scene: opts.scene || pickScene(), token: token, helpSaid: false };
     if (!tboard) tboard = new M.TraceBoard($('trace-board'), {
       onStrokeDone: function (i, auto, last) { if (trun && !last) sfx('pon', i + 1); },
@@ -816,7 +815,11 @@
     fillKids();
   }
 
-  function traceCount() { return TRACE_CHARS.filter(function (c) { return data.trace.done[c] > 0; }).length; }
+  function traceCount(set) { var cs = STR.SETS[set].split(''); return cs.filter(function (c) { return data.trace.done[c] > 0; }).length; }
+  // 保護者画面の「かいた じ」: ひらがな N/46・カタカナ M/46（解放済みのステージの集合だけ）
+  function traceProgressText() {
+    return [['ひらがな', 'hira'], ['カタカナ', 'kata']].map(function (a) { return a[0] + ' ' + traceCount(a[1]) + '/' + STR.SETS[a[1]].length; }).join('・');
+  }
   function fillParent() {
     relockAsk = '';   // 「とじる」の確認は、ほかの操作で描き直したら消える
     var st = data.stats, have = 0, stars = 0;
@@ -829,7 +832,7 @@
       '<div class="prow"><span>もじ：いまのレベル</span><b>' + data.levels.letter + '（1かいめで せいかい ' + pct('letter') + '）</b></div>' +
       '<div class="prow"><span>とけい：いまのレベル</span><b>' + data.levels.clock + '（1かいめで せいかい ' + pct('clock') + '）</b></div>' +
       '<div class="prow"><span>えいご：いまのレベル</span><b>' + data.levels.english + '（1かいめで せいかい ' + pct('english') + '）</b></div>' +
-      '<div class="prow"><span>かく：かいた じ</span><b>ひらがな ' + traceCount() + '/' + TRACE_CHARS.length + '（' + st.trace.sessions + 'かい）</b></div>' +
+      '<div class="prow"><span>かく：かいた じ</span><b>' + traceProgressText() + '（' + st.trace.sessions + 'かい）</b></div>' +
       '<div class="prow"><span>あつめた くるま</span><b>' + have + ' / ' + shelf.length + '（★ ' + stars + '）</b></div>';
     $('p-sfx').checked = dev.sound.sfx; $('p-voice').checked = dev.sound.voice;
     ['math', 'letter', 'clock', 'english'].forEach(function (g) {

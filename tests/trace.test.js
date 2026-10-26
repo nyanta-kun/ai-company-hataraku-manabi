@@ -4,6 +4,7 @@ const { rngOf } = require('./helpers.js');
 const T = require('../src/trace.js');
 const { STROKES, SETS } = require('../src/strokes.js');
 
+const KANA = SETS.hira + SETS.kata;   // ひらがな 104 画 + カタカナ 108 画
 const poly = (ch, i) => T.strokePolyline(STROKES[ch].s[i]);
 const TOL = T.tolerance(600, 'normal', 'kana');   // near .065 / off .15 / startR .10
 const dist = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1]);
@@ -47,8 +48,8 @@ test('strokePolyline: 始点・終点を含み、点の間隔はおよそ h', ()
   assert.ok(T.isDot(dotP) && !T.isDot(straight));
 });
 
-test('1. 手本の点列そのもの → 進度が単調に増え done（ひらがな全画）', () => {
-  for (const ch of SETS.hira) STROKES[ch].s.forEach((s, i) => {
+test('1. 手本の点列そのもの → 進度が単調に増え done（ひらがな・カタカナ全画）', () => {
+  for (const ch of KANA) STROKES[ch].s.forEach((s, i) => {
     const p = poly(ch, i);
     if (T.isDot(p)) return;
     const r = run(p, p, TOL, { every: 2 });
@@ -201,8 +202,8 @@ test('8. 短い画（点）: ちょんと触れば done、遠くで触れば mis
   // 押したあと遠くへ離すと short
   const m = T.moveStroke(dotP, b.state, [[dotP[0][0] + 0.5, dotP[0][1]]], TOL);
   assert.equal(T.endStroke(dotP, m.state, TOL).result, 'short');
-  // ひらがなには 0.08 未満の画は無い（ふ の点も 0.25 ほどある）ので、実物の画は点として扱われない
-  for (const ch of SETS.hira) STROKES[ch].s.forEach(s => assert.ok(!T.isDot(T.strokePolyline(s)), ch));
+  // ひらがな・カタカナには 0.08 未満の画は無い（ふ の点で 0.25、カタカナで最短の シ・ツ の点も 0.13 ほどある）ので、実物の画は点として扱われない
+  for (const ch of KANA) STROKES[ch].s.forEach(s => assert.ok(!T.isDot(T.strokePolyline(s)), ch));
 });
 
 test('9. 助けの段階: m=2 で ×1.25、m=3 で ×1.5、m=4 で off が出ない', () => {
@@ -338,7 +339,7 @@ function expectDone(p, pts, tag, B) {
   }
 }
 const allStrokes = [];
-for (const ch of SETS.hira) STROKES[ch].s.forEach((s, i) => allStrokes.push([ch + i, T.strokePolyline(s)]));
+for (const ch of KANA) STROKES[ch].s.forEach((s, i) => allStrokes.push([ch + i, T.strokePolyline(s)]));
 const smooth = (p, w) => p.map((_, i) => {
   const lo = Math.max(0, i - w), hi = Math.min(p.length - 1, i + w);
   let x = 0, y = 0; for (let k = lo; k <= hi; k++) { x += p[k][0]; y += p[k][1]; }
@@ -366,7 +367,7 @@ test('14a. の・ぬ・め・す を ±0.9·near ずらしてなぞっても don
   });
 });
 
-test('14b. 全104画を内側・外側に 0.03/0.04/0.05 ずらしても done', () => {
+test('14b. ひらがな・カタカナ全 212 画を内側・外側に 0.03/0.04/0.05 ずらしても done', () => {
   for (const [tag, p] of allStrokes) for (const d of [0.03, 0.04, 0.05, -0.03, -0.04, -0.05]) {
     expectDone(p, [p[0]].concat(offsetPath(p, d).slice(1)), tag + ' ' + d);
   }
@@ -396,4 +397,23 @@ test('14f. 外側へ 0.9·near ずれた の を wide・m=3 でなぞっても d
     assert.equal(r.move, 'ok');
     assert.equal(r.end, 'done');
   }
+});
+
+test('15. charsOfSet: hira+kata は ひらがな → カタカナの順。ひらがなを書き終えた子には、新しい字としてカタカナが先頭から出る', () => {
+  assert.deepEqual(T.charsOfSet('hira'), [...SETS.hira]);
+  assert.deepEqual(T.charsOfSet('kata'), [...SETS.kata]);
+  assert.deepEqual(T.charsOfSet('hira+kata'), [...SETS.hira, ...SETS.kata]);
+  const done = {}; [...SETS.hira].forEach(c => { done[c] = 1; });
+  const trace = { done, set: 'auto' };
+  assert.equal(T.traceSet(trace, 'S0'), 'hira+kata');
+  const pick = T.pickTraceChars(T.charsOfSet(T.traceSet(trace, 'S0')), done, 4, rngOf(3));
+  assert.equal(pick.length, 4);
+  // 復習 1（ひらがな）が先、新しい字 3 つ（カタカナ ノ・フ・ヘ）が後
+  assert.ok(SETS.hira.includes(pick[0]));
+  assert.deepEqual(pick.slice(1), ['ノ', 'フ', 'ヘ']);
+  // カタカナを 1 つ書いたあとは続きから
+  done['ノ'] = 1;
+  assert.deepEqual(T.pickTraceChars(T.charsOfSet('hira+kata'), done, 4, rngOf(3)).slice(1), ['フ', 'ヘ', 'レ']);
+  // 知らない集合の名前は ひらがな+カタカナ（落ちない）
+  assert.deepEqual(T.charsOfSet('zzz'), [...SETS.hira, ...SETS.kata]);
 });

@@ -17,6 +17,20 @@ const HIRA_COUNTS = {
   る: 1, れ: 2, ろ: 1, わ: 2, を: 3,
   ん: 1
 };
+// カタカナの画数（小1 国語の筆順表にある字ごとの画数を人が打ったもの）
+const KATA_COUNTS = {
+  ア: 2, イ: 2, ウ: 3, エ: 3, オ: 3,
+  カ: 2, キ: 3, ク: 2, ケ: 3, コ: 2,
+  サ: 3, シ: 3, ス: 2, セ: 2, ソ: 2,
+  タ: 3, チ: 3, ツ: 3, テ: 3, ト: 2,
+  ナ: 2, ニ: 2, ヌ: 2, ネ: 4, ノ: 1,
+  ハ: 2, ヒ: 2, フ: 1, ヘ: 1, ホ: 4,
+  マ: 2, ミ: 3, ム: 2, メ: 2, モ: 3,
+  ヤ: 2, ユ: 2, ヨ: 3, ラ: 2, リ: 2,
+  ル: 2, レ: 1, ロ: 3, ワ: 2, ヲ: 3,
+  ン: 2
+};
+const ALL = SETS.hira + SETS.kata;
 const first = (ch, i) => { const s = STROKES[ch].s[i]; return [s[0], s[1]]; };
 const last = (ch, i) => { const s = STROKES[ch].s[i]; return [s[s.length - 2], s[s.length - 1]]; };
 
@@ -26,7 +40,31 @@ test('SETS.hira は 46 字で重複なし（ゐ・ゑは無い）、すべて ST
   assert.equal(new Set(hira).size, 46);
   assert.ok(!hira.includes('ゐ') && !hira.includes('ゑ'));
   hira.forEach(c => assert.ok(STROKES[c], c));
-  assert.deepEqual(Object.keys(STROKES).sort(), hira.slice().sort());
+  assert.deepEqual(Object.keys(STROKES).sort(), [...ALL].sort());
+});
+
+test('SETS.kata は 46 字で重複なし（ヰ・ヱは無い）、順番は画数の少ない順（シ・ツ、ソ・ン は続く）', () => {
+  const kata = [...SETS.kata];
+  assert.equal(kata.length, 46);
+  assert.equal(new Set(kata).size, 46);
+  assert.ok(!kata.includes('ヰ') && !kata.includes('ヱ'));
+  assert.deepEqual(Object.keys(KATA_COUNTS).sort(), kata.slice().sort());
+  const counts = kata.map(c => KATA_COUNTS[c]);
+  assert.deepEqual(counts, counts.slice().sort((a, b) => a - b), '画数の少ない順');
+  assert.equal(kata.indexOf('ツ'), kata.indexOf('シ') + 1);
+  assert.equal(kata.indexOf('ン'), kata.indexOf('ソ') + 1);
+  // 企画 2.4 の分け方: 1画 ノフヘレ、4画 ネホ
+  assert.equal(kata.slice(0, 4).join(''), 'ノフヘレ');
+  assert.equal(kata.slice(-2).join(''), 'ネホ');
+});
+
+test('カタカナの画数が筆順表の期待値と字ごとに一致する（合計 108）', () => {
+  let total = 0;
+  for (const ch of SETS.kata) {
+    assert.equal(STROKES[ch].s.length, KATA_COUNTS[ch], ch);
+    total += STROKES[ch].s.length;
+  }
+  assert.equal(total, 108);
 });
 
 test('画数が筆順表の期待値と字ごとに一致する（合計 104）', () => {
@@ -40,7 +78,7 @@ test('画数が筆順表の期待値と字ごとに一致する（合計 104）'
 });
 
 test('座標はすべて 0〜1090 の整数、どの画も長さが 0 でなく、形が正しい', () => {
-  for (const ch of SETS.hira) {
+  for (const ch of ALL) {
     const o = STROKES[ch];
     assert.equal(o.n.length, o.s.length, ch + ' 番号の位置');
     assert.equal(o.t.length, o.s.length, ch + ' 種類');
@@ -73,6 +111,24 @@ test('向きの検査: 形が似ていて向きで決まる画は、始点と終
   // り は2画、続けない（1画目の終点と2画目の始点は離れている）
   const d = Math.hypot(last('り', 0)[0] - first('り', 1)[0], last('り', 0)[1] - first('り', 1)[1]);
   assert.ok(d > 200, 'り');
+});
+
+test('向きの検査（カタカナ）: シ・ツ と ソ・ン は、向きで区別する画の始点と終点が書き順どおり', () => {
+  const dx = (c, i) => last(c, i)[0] - first(c, i)[0], dy = (c, i) => last(c, i)[1] - first(c, i)[1];
+  assert.ok(dy('シ', 2) < -200 && dx('シ', 2) > 200, 'シ 3画目は左下から右上');
+  assert.ok(dy('ツ', 2) > 200 && dx('ツ', 2) < -200, 'ツ 3画目は右上から左下');
+  assert.ok(dy('ソ', 1) > 200 && dx('ソ', 1) < -200, 'ソ 2画目は右上から左下');
+  assert.ok(dy('ン', 1) < -200 && dx('ン', 1) > 200, 'ン 2画目は左下から右上');
+  // 点が先（短い画が 1 画目）。ツ の点は左が先
+  assert.ok(first('ツ', 0)[0] < first('ツ', 1)[0], 'ツ 点は左が先');
+  assert.ok(first('シ', 0)[1] < first('シ', 1)[1], 'シ 点は上が先');
+  assert.ok(first('ソ', 0)[0] < first('ソ', 1)[0] && first('ン', 0)[0] < first('ン', 1)[0], 'ソ・ン は点が先');
+  // 横が先: ニ・ヲ・ヨ は上から下へ
+  assert.ok(first('ニ', 0)[1] < first('ニ', 1)[1], 'ニ 上の横が先');
+  assert.ok(first('ヲ', 0)[1] < first('ヲ', 1)[1], 'ヲ 上の横が先');
+  assert.ok(dx('ヲ', 0) > 200 && dx('ヲ', 1) > 200 && dy('ヲ', 2) > 200, 'ヲ 横 横 縦');
+  assert.ok(first('ヨ', 0)[1] < first('ヨ', 1)[1] && first('ヨ', 1)[1] < first('ヨ', 2)[1], 'ヨ 上から下へ');
+  assert.ok(dx('ヒ', 0) > 200, 'ヒ 1画目は横');
 });
 
 test('ファイルの頭にライセンスと出典の表示がある', () => {
