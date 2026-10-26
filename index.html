@@ -46,6 +46,7 @@
         <button id="btn-letter" class="big letter" type="button"><canvas width="96" height="96" data-icon="moji"></canvas><span>もじ</span></button>
         <button id="btn-clock" class="big clock" type="button"><canvas width="96" height="96" data-icon="tokei"></canvas><span>とけい</span></button>
         <button id="btn-english" class="big english" type="button"><canvas width="96" height="96" data-icon="eigo"></canvas><span>えいご</span><canvas class="xmark" width="48" height="48" data-icon="speakerx"></canvas></button>
+        <button id="btn-trace" class="big trace" type="button"><canvas width="96" height="96" data-icon="pencil"></canvas><span>かく</span></button>
       </div>
     </div>
   </section>
@@ -65,6 +66,21 @@
       <div id="play-side">
         <div id="answers"></div>
       </div>
+    </div>
+  </section>
+
+  <!-- かく（なぞりがき。s-play は使わない） -->
+  <section id="s-trace" class="screen">
+    <header id="trace-top">
+      <button id="btn-trace-quit" class="mini" type="button" aria-label="やめる（ながおし）"><canvas width="48" height="48" data-icon="x"></canvas><span class="ring"></span></button>
+      <div id="trace-lamps"><i></i><i></i><i></i><i></i></div>
+      <div class="top-right">
+        <button id="btn-trace-replay" class="replay" type="button" aria-label="おてほん"><canvas width="64" height="64" data-icon="pencil"></canvas></button>
+      </div>
+    </header>
+    <div id="trace-main">
+      <div id="trace-fieldwrap"><canvas id="traceField"></canvas></div>
+      <div id="trace-boardarea"><div id="trace-board"></div></div>
     </div>
   </section>
 
@@ -139,6 +155,9 @@
         <div class="lv"><span>えいご</span><select id="p-lv-english"></select><label class="chk"><input type="checkbox" id="p-lock-english"> このレベルでこてい</label></div>
         <p class="note">こていしないと、4もん ぜんぶ 1かいで せいかいで 1つ上がり、0〜1もんで 1つ下がります。もじ の K4〜K6 はカタカナです（ひらがなだけにしたいときは K3 でこてい）。</p>
       </div>
+      <div class="card"><h3>このアプリについて</h3>
+        <p class="note">「かく」（なぞりがき）の 字の形と書き順は、KanjiVG（<a href="http://kanjivg.tagaini.net" target="_blank" rel="noopener">http://kanjivg.tagaini.net</a> 、© Ulrich Apel、<a href="https://creativecommons.org/licenses/by-sa/3.0/" target="_blank" rel="noopener">CC BY-SA 3.0</a>）をもとに作りました。変換したデータのファイル（src/strokes.js）は、同じ CC BY-SA 3.0 で配ります。</p>
+      </div>
       <div class="card"><h3>データ</h3>
         <p id="p-restored" class="note warn" hidden>ほぞんデータが こわれていたので、まえの きろくから もどしました。</p>
         <p class="note">きろくは この たんまつの ブラウザの なかだけに ほぞんします（そとには おくりません）。</p>
@@ -158,6 +177,8 @@
 </div>
 
 <script src="src/data.js"></script>
+<script src="src/strokes.js"></script>
+<script src="src/trace.js"></script>
 <script src="src/problems.js"></script>
 <script src="src/ladder.js"></script>
 <script src="src/rewards.js"></script>
@@ -168,6 +189,7 @@
 <script src="src/speech.js"></script>
 <script src="src/clockface.js"></script>
 <script src="src/scenes.js"></script>
+<script src="src/traceboard.js"></script>
 <script src="src/ui.js"></script>
 <script src="src/main.js"></script>
 </body>

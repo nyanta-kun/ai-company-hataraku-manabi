@@ -201,7 +201,7 @@
   }
 
   function endStroke(poly, state, tol) {
-    if (state.off) return { result: 'off' };   // 大きく外れたときは moveStroke が数え済み。二重に数えない
+    if (state.off) return { result: 'off' };   // 大きく外れたときも、数えるのはここ（離したとき）の 1 回だけ。moveStroke の off は数えない（design 3.6）
     if (state.dot) return { result: state.inside ? 'done' : 'short' };
     if (state.idx < tol.endP * (poly.length - 1)) return { result: 'short' };
     return { result: 'done' };

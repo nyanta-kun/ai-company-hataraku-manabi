@@ -2,7 +2,7 @@
 (function (root) {
   'use strict';
   var M = root.Manabi, D = M.data, P = M.problems, R = M.rewards, S = M.storage, PR = M.profiles, LD = M.ladder;
-  var A = M.audio, SP = M.speech, V = M.vehicles, SC = M.scenes, CF = M.clockface;
+  var A = M.audio, SP = M.speech, V = M.vehicles, SC = M.scenes, CF = M.clockface, TR = M.trace, STR = M.strokes;
   var doc = root.document;
 
   function $(id) { return doc.getElementById(id); }
@@ -16,6 +16,9 @@
   var screen = 'title';
   var stage = null;          // 問題画面の Stage
   var run = null;            // 出動中の状態
+  var trun = null;           // 「かく」の出動中の状態（run とは別。onAnswer の流れと混ぜない）
+  var tstage = null;         // 「かく」の現場の帯の Stage
+  var tboard = null;         // なぞりの板（traceboard.js）
   var lastScene = null;
   var timers = [];           // 画面をまたぐタイマー（やめたときに全部消す）
   var token = 0;             // 出動のやり直しで古い処理を無効にする
@@ -95,6 +98,15 @@
       for (var k = 0; k < 8; k++) { ctx.save(); ctx.translate(w / 2, h / 2); ctx.rotate(k * Math.PI / 4); ctx.fillRect(-w * .07, -h * .45, w * .14, h * .2); ctx.restore(); }
       ctx.beginPath(); ctx.arc(w / 2, h / 2, w * .32, 0, 7); ctx.fill();
       ctx.beginPath(); ctx.arc(w / 2, h / 2, w * .13, 0, 7); ctx.fillStyle = '#fff'; ctx.fill();
+      return;
+    }
+    if (kind === 'pencil') {   // えんぴつ（かく）
+      ctx.save(); ctx.translate(w * .5, h * .5); ctx.rotate(Math.PI / 4);
+      ctx.fillStyle = '#ffd23f'; ctx.fillRect(-w * .1, -h * .36, w * .2, h * .52);
+      ctx.fillStyle = '#f2a6a6'; ctx.fillRect(-w * .1, -h * .46, w * .2, h * .1);
+      ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.moveTo(-w * .1, h * .16); ctx.lineTo(w * .1, h * .16); ctx.lineTo(0, h * .38); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = dark; ctx.beginPath(); ctx.moveTo(-w * .03, h * .32); ctx.lineTo(w * .03, h * .32); ctx.lineTo(0, h * .38); ctx.closePath(); ctx.fill();
+      ctx.restore();
       return;
     }
     if (kind === 'back') { ln(.62, .2, .3, .5, .12); ln(.3, .5, .62, .8, .12); return; }
@@ -482,6 +494,88 @@
     later(minMs, advanceWhenReady);
   }
 
+  // ---- かく（なぞりがき。design-tracing 4.6）。階段・関門には入れない。S1・S2 の子もこの段階ではひらがなを書く ----
+  var TRACE_CHARS = STR.SETS.hira.split('');
+  function updateTraceLamps(n) { [].forEach.call($('trace-lamps').children, function (e, i) { e.classList.toggle('on', i < n); }); }
+  function layoutTrace() {
+    if (!tboard) return;
+    var a = $('trace-boardarea'), cs = root.getComputedStyle(a);   // 余白は CSS の padding（下は safe-area 込み）を引く
+    var padX = (parseFloat(cs.paddingLeft) || 0) + (parseFloat(cs.paddingRight) || 0), padY = (parseFloat(cs.paddingTop) || 0) + (parseFloat(cs.paddingBottom) || 0);
+    var B = Math.min(a.clientWidth - padX, a.clientHeight - padY, 640);
+    tboard.layout(B);
+    if (tstage) tstage.resize();
+  }
+  function tracePrompt(ch) { var ex = exampleOf(ch); return (ex !== ch ? ex + 'の ' : '') + ch + '。なぞってね。'; }
+  function startTrace(opts) {
+    opts = opts || {};
+    clearTimers(); token++; run = null;
+    var chars = TR.pickTraceChars(opts.chars || TRACE_CHARS, data.trace.done, P.QUESTIONS_PER_SESSION, Math.random);
+    trun = { chars: chars, idx: 0, scene: opts.scene || pickScene(), token: token, helpSaid: false };
+    if (!tboard) tboard = new M.TraceBoard($('trace-board'), {
+      onStrokeDone: function (i, auto, last) { if (trun && !last) sfx('pon', i + 1); },
+      onBad: function (result, m) {
+        if (!trun) return;
+        if (result === 'off' || result === 'short') sfx('oshii');
+        if (m === 1 && !trun.helpSaid) { trun.helpSaid = true; say('まるの ところから、もういちど。'); }
+        else if (m === 3) say('いっしょに。');
+      },
+      onAssist: function () { if (trun) say('いっしょに かけたね。'); },
+      onCharDone: onTraceCharDone
+    });
+    show('trace');
+    if (!tstage) tstage = new SC.Stage($('traceField'));
+    tstage.noBoard = true; tstage.setScene(trun.scene); tstage.setRank(stageIdx()); tstage.setProgress(0); tstage.setProblem(null);
+    updateTraceLamps(0);
+    tboard.setWidth(TR.traceWidth(data.trace, LD.currentStage(data)));
+    tboard.stop(); layoutTrace(); tstage.resize(); tstage.draw(now());
+    sfx(A.carSound(DISPATCH_STAGE[trun.scene]));
+    say('出動！');
+    later(opts.fast ? 0 : 1200, presentTraceChar);
+    kick();
+  }
+  function presentTraceChar() {
+    if (!trun) return;
+    var ch = trun.chars[trun.idx];
+    trun.helpSaid = false;
+    tboard.setChar(ch, !(data.trace.done[ch] > 0));   // 初めて書く字だけ、全部の画のお手本を流す（T8）
+    say(tracePrompt(ch));
+    kick();
+  }
+  function onTraceCharDone(info) {
+    if (!trun) return;
+    var ch = info.ch, done = trun.idx + 1, my = trun.token;
+    data.trace.done[ch] = Math.min(99, (data.trace.done[ch] > 0 ? data.trace.done[ch] : 0) + 1);   // 途中でやめても、書けた字は数える
+    data.stats.trace.chars++; if (info.clean) data.stats.trace.clean++;
+    save();
+    updateTraceLamps(done);
+    sfx('correct'); say('できた！ ' + ch + '！');
+    later(700, function () {
+      sfx(trun && trun.scene === 'kaji' ? 'water' : trun && trun.scene === 'takai' ? 'ladder' : 'dig');
+      sfx('horn');
+    });
+    tstage.advance(done, now(), done === P.QUESTIONS_PER_SESSION ? 2.4 : 1.6);
+    kick();
+    later(done === P.QUESTIONS_PER_SESSION ? 3300 : 2300, function () {
+      if (!trun || trun.token !== my) return;
+      trun.idx++;
+      if (trun.idx >= P.QUESTIONS_PER_SESSION) finishTrace(); else presentTraceChar();
+    });
+  }
+  function finishTrace() {
+    var st = data.stats;
+    st.sessions++; st.trace.sessions++;
+    var r = grantReward(trun.scene, stageIdx());   // S0 は今までと同じ出方。階段（afterSession）は呼ばない
+    data.lastPlayed = todayStr();
+    save();
+    reward = { r: r, t0: 0, game: 'trace' };
+    trun = null; tboard.stop();
+    show('reward');
+  }
+  function quitTrace() {
+    clearTimers(); token++; trun = null; if (tboard) tboard.stop(); SP.cancel();
+    show('title');
+  }
+
   // ごほうびを抽選して data.cards に反映する（通常の流れと確認パネルで共通）
   // rank: 遊んだレベルのステージの番号。S1 以上のときだけ救助隊の車も出る（rewards.js）。省略は S0 と同じ
   function grantReward(scene, rank) {
@@ -722,6 +816,7 @@
     fillKids();
   }
 
+  function traceCount() { return TRACE_CHARS.filter(function (c) { return data.trace.done[c] > 0; }).length; }
   function fillParent() {
     relockAsk = '';   // 「とじる」の確認は、ほかの操作で描き直したら消える
     var st = data.stats, have = 0, stars = 0;
@@ -734,6 +829,7 @@
       '<div class="prow"><span>もじ：いまのレベル</span><b>' + data.levels.letter + '（1かいめで せいかい ' + pct('letter') + '）</b></div>' +
       '<div class="prow"><span>とけい：いまのレベル</span><b>' + data.levels.clock + '（1かいめで せいかい ' + pct('clock') + '）</b></div>' +
       '<div class="prow"><span>えいご：いまのレベル</span><b>' + data.levels.english + '（1かいめで せいかい ' + pct('english') + '）</b></div>' +
+      '<div class="prow"><span>かく：かいた じ</span><b>ひらがな ' + traceCount() + '/' + TRACE_CHARS.length + '（' + st.trace.sessions + 'かい）</b></div>' +
       '<div class="prow"><span>あつめた くるま</span><b>' + have + ' / ' + shelf.length + '（★ ' + stars + '）</b></div>';
     $('p-sfx').checked = dev.sound.sfx; $('p-voice').checked = dev.sound.voice;
     ['math', 'letter', 'clock', 'english'].forEach(function (g) {
@@ -810,6 +906,7 @@
         else { drawAnswerClocks(0); run.pulse = null; }
       }
     }
+    else if (screen === 'trace' && tboard) { tboard.draw(t); if (tstage) tstage.draw(t); keep = true; }
     else if (screen === 'reward' && reward) { drawReward(); keep = true; }
     else if (screen === 'promote' && promo) { drawPromote(); keep = true; }
     else if (screen === 'garage') { keep = drawGarage(); }
@@ -830,6 +927,7 @@
     root.addEventListener('resize', function () {
       if (screen === 'play' && stage) { stage.resize(); stage.draw(now()); drawAnswerClocks(0); drawAnswerPics(); }
       if (screen === 'title') drawTitle();
+      if (screen === 'trace') layoutTrace();
       if (screen === 'reward' && reward) drawReward();
       if (screen === 'promote') drawPromote();
       if (screen === 'garage') drawGarage();
@@ -854,7 +952,18 @@
       }
       startSession('english');
     });
+    $('btn-trace').addEventListener('click', function () { startTrace(); });
     holdButton($('btn-quit'), 2000, quitSession);
+    holdButton($('btn-trace-quit'), 2000, quitTrace);
+    $('btn-trace-replay').addEventListener('click', function () {
+      if (!trun || !tboard) return;
+      if (tboard.replay()) say(tracePrompt(trun.chars[trun.idx]));   // 手本の書き足し中は効かない
+      kick();
+    });
+    doc.addEventListener('visibilitychange', function () { if (doc.hidden && tboard && tboard.active) tboard.cancelActive(); });   // 画面が隠れたら書きかけの線を捨てる
+    // 「かく」の間だけ: iOS の 2 本指の拡大・スクロールを止める（design-tracing 4.4）
+    ['gesturestart', 'gesturechange', 'gestureend'].forEach(function (n) { doc.addEventListener(n, function (e) { if (screen === 'trace') e.preventDefault(); }, { passive: false }); });
+    $('s-trace').addEventListener('touchmove', function (e) { e.preventDefault(); }, { passive: false });
     $('answers').addEventListener('click', function (e) {
       var b = e.target.closest ? e.target.closest('.ans') : null;
       if (b) onAnswer(b);
@@ -878,7 +987,10 @@
       if (n) { stage.bounce(i, now()); sfx('pon', n); say(NUMK[n]); kick(); }
     });
     $('btn-r-garage').addEventListener('click', function () { sfx('tap'); leaveReward('garage'); });
-    $('btn-r-again').addEventListener('click', function () { sfx('tap'); leaveReward('pick'); });
+    $('btn-r-again').addEventListener('click', function () {
+      sfx('tap');
+      if (reward && reward.game === 'trace') startTrace(); else leaveReward('pick');   // かく から来たときは かく をもう一度
+    });
     $('btn-pr-go').addEventListener('click', function () {   // 「すすむ」: 新しいステージを選んでタイトルへ
       sfx('tap'); if (promo) { replaceData(LD.selectStage(data, promo.stage)); save(); }
       promo = null; show('title');
@@ -917,7 +1029,9 @@
 
   // main.js から使う / デバッグ用
   M.ui = {
-    init: init, show: show, startSession: startSession, drawIcon: drawIcon,
+    init: init, show: show, startSession: startSession, startTrace: startTrace, drawIcon: drawIcon,
+    get traceBoard() { return tboard; },
+    traceAuto: function (on) { if (tboard) { tboard.auto = on !== false; kick(); } },
     get data() { return data; },
     setData: function (d) {   // 今のプロフィールを置き換える
       var i = state.profiles.indexOf(data);

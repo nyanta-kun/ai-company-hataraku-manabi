@@ -32,6 +32,27 @@
     });
   }
 
+  // 書き順の照合用の一覧（ひらがな 46 字を番号・矢印・画ごとの色つきで並べる）。もう一度押すと閉じる
+  function toggleTraceSheet() {
+    var old = doc.getElementById('tracesheet');
+    if (old) { old.remove(); return; }
+    var chars = M.strokes.SETS.hira.split(''), cols = 6, cw = 200, ch = 240, rows = Math.ceil(chars.length / cols);
+    var wrap = doc.createElement('div'); wrap.id = 'tracesheet';
+    wrap.style.cssText = 'position:fixed;inset:0;z-index:50;background:#fff;overflow:auto';
+    var cv = doc.createElement('canvas'); cv.width = cols * cw; cv.height = rows * ch;
+    cv.style.cssText = 'display:block;width:' + cols * cw + 'px;height:' + rows * ch + 'px';
+    wrap.appendChild(cv); doc.body.appendChild(wrap);
+    wrap.addEventListener('click', function () { wrap.remove(); });
+    var ctx = cv.getContext('2d');
+    ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, cv.width, cv.height);
+    chars.forEach(function (c, i) {
+      var x = (i % cols) * cw, y = Math.floor(i / cols) * ch;
+      M.TraceBoard.drawSheet(ctx, c, x + 10, y + 10, cw - 20);
+      ctx.fillStyle = '#222'; ctx.font = 'bold 18px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
+      ctx.fillText((i + 1) + ' ' + c + '  ' + M.strokes.STROKES[c].s.length + '画', x + cw / 2, y + ch - 14);
+    });
+  }
+
   function debugPanel(goto) {
     var box = doc.getElementById('debug'); box.hidden = false;
     var err = doc.createElement('pre'); err.id = 'errlog'; err.textContent = '';
@@ -63,12 +84,16 @@
     btn('だれ', function () { ui.show('who'); });
     btn('タイトル', function () { ui.show('title'); });
     btn('えいちらん', togglePicGrid);
+    btn('かく', function () { ui.startTrace({ fast: true }); });
+    btn('かく: じどうで かく', function () { ui.startTrace({ fast: true }); ui.traceAuto(true); });
+    btn('書き順一覧', toggleTraceSheet);
     btn('声なし', function () { M.speech.forceVoiceless(); });
     box.appendChild(err);
 
     // 画面指定でのジャンプ（スクショ用）
     var g = goto.split('-');
     if (g[0] === 'play') {
+      if (g[1] === 'trace') { ui.startTrace({ fast: true }); return log; }
       var game = g[1] === 'letter' ? 'letter' : g[1] === 'clock' ? 'clock' : g[1] === 'english' ? 'english' : 'math';
       if (g[2]) {
         ui.data.levels[game] = g[2];
@@ -77,7 +102,9 @@
       }
       ui.startSession(game, { fast: true, scene: g[3] || undefined });
       if (g[4]) root.setTimeout(function () { ui.debugProgress(+g[4]); }, 50);
-    } else if (g[0] === 'pics') togglePicGrid();
+    } else if (g[0] === 'trace' && g[1] === 'sheet') toggleTraceSheet();
+    else if (g[0] === 'trace') { ui.startTrace({ fast: true }); if (g[1] === 'auto') ui.traceAuto(true); }
+    else if (g[0] === 'pics') togglePicGrid();
     else if (g[0] === 'pick') ui.show('pick');
     else if (g[0] === 'reward') ui.gotoReward(g[1] || 'kaji', +g[2] || 0);
     else if (g[0] === 'garage') ui.previewGarage();
