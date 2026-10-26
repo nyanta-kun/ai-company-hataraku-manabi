@@ -22,6 +22,10 @@ const placed = (r, s) => {
   const x = s === 0 ? 0 : s === 1 ? 1 : r(), y = s === 0 ? 1 : s === 1 ? 0 : r();
   return { size, cx: size / 2 + x * (1 - size), cy: size / 2 + y * (1 - size) };
 };
+function edgeOf(r, s, ch, f, extra) {
+  const m = S.STROKES[ch].s.length, i = Math.floor(r() * m), sign = r() < 0.5 ? 1 : -1, which = r() < 0.5;
+  return Object.assign({ edge: { i, start: which ? 0 : sign * f, end: which ? sign * f : 0 } }, extra);
+}
 const SCENES = {
   a: (r, s) => placed(r, s),
   b: (r, s) => ({ aspect: s === 0 ? 0.7 : s === 1 ? 1.4 : 0.7 + r() * 0.7 }),
@@ -32,6 +36,9 @@ const SCENES = {
   g: () => ({ hook: 0.04 }),
   h: () => ({ tap: true }),
   j: () => ({ stray: true }),
+  // 1 画の端の長さが手本と違う（始まり・終わりを 0.15 切る・伸ばす。0.2〜0.3 は下の F1b で割合を記録）。l: そのまま、m: ふるえ・ずれを重ねる
+  l: (r, s, ch) => edgeOf(r, s, ch, 0.15, {}),
+  m: (r, s, ch) => edgeOf(r, s, ch, 0.15, { tremor: 0.01, shift: 0.02 }),
   k: (r, s) => Object.assign(placed(r, s), {
     aspect: 0.7 + r() * 0.7, rot: (r() * 2 - 1) * 8 * Math.PI / 180, shift: 0.05 * r(), scaleJit: 0.2 * r(), tremor: 0.012 * r(),
     step: r() < 0.5 ? 0.04 : 0.01, hook: r() < 0.5 ? 0.04 : 0, tap: r() < 0.5, stray: r() < 0.3
@@ -52,11 +59,11 @@ function runScenes(seeds, params) {
       else { worst.mean = Math.max(worst.mean, d.D / sm); worst.max = Math.max(worst.max, d.Dmax / sx); }
     });
   };
-  Object.keys(SCENES).forEach((name) => {
+  Object.keys(SCENES).filter((name) => !(params && /^[lm]$/.test(name))).forEach((name) => {   // 余裕の確かめ（0.8 倍）には端の場面を入れない（14章）
     ALL.forEach((ch) => {
       for (let s = 0; s < seeds; s++) {
         const r = rngOf(seedOf(ch, s));
-        judge(name, ch, FW.synthInk(ch, SCENES[name](r, s), r));
+        judge(name, ch, FW.synthInk(ch, SCENES[name](r, s, ch), r));
       }
     });
   });
@@ -86,6 +93,26 @@ test('F1. 正しく書いた子を落とさない（全字 × 種 0〜19 × 場�
   const r = runScenes(20);
   console.log('F1: ' + r.n + ' 件 ' + (Date.now() - t0) + 'ms, しきい値に対する最大の比 ' + JSON.stringify(r.worst, (k, v) => (typeof v === 'number' ? Math.round(v * 1000) / 1000 : v)));
   assert.deepEqual(r.fails.slice(0, 20), []);
+});
+
+test('F1b. 画の端の長さが手本と違う（1 画の始まり・終わりを 0.10〜0.30 切る・伸ばす。ふるえ・ずれ重ねも）: 落ちる割合を記録し、上限を守る', () => {
+  const limits = { 0.1: 0, 0.15: 0.001, 0.2: 0.01, 0.25: 0.02, 0.3: 0.03 };
+  const out = [];
+  Object.keys(limits).forEach((f) => {
+    let n = 0, bad = 0;
+    [{}, { tremor: 0.012, shift: 0.02 }].forEach((extra) => ALL.forEach((ch) => {
+      const m = S.STROKES[ch].s.length;
+      for (let i = 0; i < m; i++) for (const [a, b] of [[0, +f], [+f, 0], [0, -f], [-f, 0]]) {
+        n++;
+        const r = rngOf(i * 13 + ch.codePointAt(0));
+        const ink = FW.synthInk(ch, Object.assign({ size: 0.7, tremor: 0.006, edge: { i, start: a, end: b } }, extra), r);
+        if (FW.judgeSolo(ch, ink).result !== 'ok') bad++;
+      }
+    }));
+    out.push(f + ': ' + bad + '/' + n);
+    assert.ok(bad / n <= limits[f] + 1e-9, '端 ' + f + ' で落ちた ' + bad + '/' + n);
+  });
+  console.log('F1b: ' + out.join('  '));
 });
 
 test('F1. 余裕: しきい値を 0.8 倍にしても全部通る（最大の値がしきい値の 0.8 倍以下 = 余裕 1.25 倍）', () => {
@@ -261,6 +288,10 @@ test('F10. 決まった結果・入力: 同じ入力で同じ結果、入力を�
   assert.equal(FW.judgeSolo('ぬ', dirty).result, 'ok');
   assert.equal(FW.judgeSolo('ぬ', null).result, 'empty');
   assert.equal(FW.judgeSolo('ぬ', [[[0.5, 0.5]]]).result, 'more');   // 点が 1 つだけ（小さすぎる）
+  // 小さな点 1 つで「できた」を 2 回（told 済み）: 枠が作れなくても落ちず、fit も null のまま more（UI は続きを書かせる）
+  [[[[0.5, 0.5]]], [[[0.5, 0.5], [0.5, 0.5]]], [[[0.5, 0.5]], [[0.52, 0.5]]]].forEach((ink) => {
+    [false, true].forEach((told) => { const j = FW.judgeSolo('ぬ', ink, { told }); assert.ok(j && ['more', 'shape'].includes(j.result)); if (!j.fit) assert.equal(j.result, 'more'); });
+  });
   // 重なった点だけの線
   assert.doesNotThrow(() => FW.judgeSolo('あ', [[[0.5, 0.5], [0.5, 0.5], [0.5, 0.5]]]));
   // 何画書いても落ちない
@@ -385,4 +416,20 @@ test('W6-b: index.html に ひとりで かく の札・ボタン・ごほうび
   const say = [...ui.matchAll(/say\('([^']*)'/g)].map((m) => m[1]).filter((t) => /ひとりで|おてほん|つづき/.test(t));
   assert.ok(say.length >= 2);
   say.forEach((t) => assert.ok(!/テスト|しけん|ごうかく|まちがい|ちがう/.test(t), t));
+});
+
+test('手のひらのふれ: 字から離れた小さな点 2〜3 個・0.03 の短いこすれ 1 本があっても ok（小さい画は触れただけの点として無視する）', () => {
+  let n = 0;
+  ALL.forEach((ch) => {
+    for (let s = 0; s < 3; s++) {
+      const r = rngOf(seedOf(ch, s));
+      const ink = FW.synthInk(ch, { size: 0.6, cx: 0.55, cy: 0.5, tremor: 0.005 }, r);
+      const extra = [[[0.04, 0.95]], [[0.07, 0.93]], [[0.05, 0.05], [0.07, 0.07]]].slice(0, 1 + (s % 2));
+      const rub = [[0.95, 0.9], [0.97, 0.92]];   // 長さ 約 0.03
+      n++;
+      assert.equal(FW.judgeSolo(ch, extra.concat([rub], ink)).result, 'ok', ch + ' ' + s);
+      assert.equal(FW.judgeSolo(ch, ink.concat(extra, [rub])).result, 'ok', ch + ' ' + s + ' (後)');
+    }
+  });
+  assert.ok(n > 300);
 });

@@ -196,7 +196,8 @@
   P.up = function (cancelled) {
     var a = this.active; if (!a) return;
     this.active = null;
-    if (a.free) {   // 取り消された線（pointercancel）も残す: 子どものせいではないので、書いた分を消さない
+    if (a.free) {   // 取り消された線（pointercancel）も残す: 子どものせいではないので、書いた分を消さない。ただし短いもの（手のひらのふれ）は残さない
+      if (cancelled && T.polyLength(a.pts) < 4 * FW.DEFAULTS.TINY) { this.redrawInk(); if (this.pendingB) this.layout(this.pendingB); return; }
       this.ink.push({ pts: a.pts, w: a.w }); this.lastAct = now();
       this.redrawInk();
       if (this.cbs.onInk) this.cbs.onInk(this.ink.length);

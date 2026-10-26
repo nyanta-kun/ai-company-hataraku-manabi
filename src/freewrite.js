@@ -9,11 +9,11 @@
 
   // 13.4 の定数。長さは「手本の字の大きさ s」に対する比（TINY・MIN_SIZE だけ板の一辺に対する比）
   var DEFAULTS = {
-    N: 24, BAND: 4, TINY: 0.012, MIN_SIZE: 0.08, FLOOR: 0.35, ASPECT: 1.6,
+    N: 24, BAND: 4, TINY: 0.035, MIN_SIZE: 0.08, FLOOR: 0.35, ASPECT: 1.6,
     DOT_LEN: 0.25, DOT_R: 0.22, DOT_MAXLEN: 0.55,
-    SHAPE_MEAN: 0.15, SHAPE_MAX: 0.35, DIR_MARGIN: 0.04, SPLIT_GAP: 0.25,
-    MAX_JOIN_KANA: 2, MAX_JOIN_KANJI: 3, MAX_SKIP: 1, JOIN_PEN: 0.02, JOIN_END: 0.12,
-    TRIM: 0.01, FRAME_PTS: 80, LOOSE: 2.5,
+    SHAPE_MEAN: 0.15, SHAPE_MAX: 0.38, DIR_MARGIN: 0.04, SPLIT_GAP: 0.25,
+    MAX_JOIN_KANA: 2, MAX_JOIN_KANJI: 3, MAX_SKIP: 3, JOIN_PEN: 0.02, JOIN_END: 0.12,
+    TRIM: 0.01, FRAME_PTS: 80, END_SKIP: 4, END_OPEN: 0, CUTS: [0, 0.1, 0.2, 0.3], CUT_PEN: 0.1, CUT_NEAR: 2.5, LOOSE: 2.5,
     SOLO_READY: 3, SOLO_SETS: ['hira', 'kata', 'k1', 'k2']
   };
   var FAIL = 1000, EXTRA = 1002;   // 合わない画 1 つぶんの重み（距離の合計より十分大きくして、合わない画の数を先に比べる）
@@ -55,24 +55,34 @@
     return [x / n, y / n];
   }
   // DTW（ずれは前後 band 点まで）。→ { mean, max }（対応点の距離の平均・最大。経路は合計が最小のもの）
-  function dtw(a, b, band) {
+  function dtw(a, b, band, skipEnds, open) {
+    skipEnds = skipEnds || 0; open = open || 0;   // 両端を open 点まで開く（始まり・終わりの長さが手本と違っても落とさない）。最大の距離は両端 skipEnds 点を除いて取る
     var n = a.length, m = b.length, INF = 1e18, i, j;
-    var cost = new Float64Array(n * m).fill(INF), cnt = new Int32Array(n * m), mx = new Float64Array(n * m);
+    var cost = new Float64Array(n * m).fill(INF), cnt = new Int32Array(n * m), mx = new Float64Array(n * m), ic = new Float64Array(n * m), inn = new Int32Array(n * m);
+    var wide = Math.max(band, open);
     for (i = 0; i < n; i++) {
-      var lo = Math.max(0, i - band), hi = Math.min(m - 1, i + band);
+      var lo = Math.max(0, i - wide), hi = Math.min(m - 1, i + wide);
       for (j = lo; j <= hi; j++) {
+        var off = Math.abs(i - j);
+        if (off > band && !(open && off <= open && (Math.min(i, j) <= open || n - 1 - Math.max(i, j) <= open))) continue;
         var d = dist(a[i], b[j]), k = i * m + j, bc = INF, bk = -1;
-        if (i === 0 && j === 0) { cost[k] = d; cnt[k] = 1; mx[k] = d; continue; }
+        var inner = i >= skipEnds && j >= skipEnds && i < n - skipEnds && j < m - skipEnds, dm = inner ? d : 0;
+        if ((i === 0 && j === 0) || (open && ((i === 0 && j <= open) || (j === 0 && i <= open)))) { cost[k] = d; cnt[k] = 1; mx[k] = dm; ic[k] = inner ? d : 0; inn[k] = inner ? 1 : 0; continue; }
         if (i > 0 && j > 0 && cost[k - m - 1] < bc) { bc = cost[k - m - 1]; bk = k - m - 1; }
         if (i > 0 && cost[k - m] < bc) { bc = cost[k - m]; bk = k - m; }
         if (j > 0 && cost[k - 1] < bc) { bc = cost[k - 1]; bk = k - 1; }
         if (bk < 0) continue;
-        cost[k] = bc + d; cnt[k] = cnt[bk] + 1; mx[k] = Math.max(mx[bk], d);
+        cost[k] = bc + d; cnt[k] = cnt[bk] + 1; mx[k] = Math.max(mx[bk], dm); ic[k] = ic[bk] + (inner ? d : 0); inn[k] = inn[bk] + (inner ? 1 : 0);
       }
     }
-    var e = n * m - 1;
-    if (cost[e] >= INF) return { mean: Infinity, max: Infinity };
-    return { mean: cost[e] / cnt[e], max: mx[e] };
+    var best = null, ends = [n * m - 1];
+    if (open) for (var t = 1; t <= open; t++) { ends.push((n - 1) * m + (m - 1 - t)); ends.push((n - 1 - t) * m + (m - 1)); }
+    ends.forEach(function (e) {
+      if (cost[e] >= INF) return;
+      var mean = cost[e] / cnt[e];
+      if (!best || mean < best.mean) best = { mean: mean, max: mx[e] };
+    });
+    return best || { mean: Infinity, max: Infinity };
   }
 
   // 字の外枠。polys: 画の点列の配列。上下 trim（既定 1%）を除いた最小・最大（はねの付けすぎで枠が広がりにくいように）
@@ -114,6 +124,14 @@
   // 手本の点 → 板の上の子どもの字の位置（13.3-6）
   function fitPoint(fit, p) { return [fit.cc[0] + (p[0] - fit.cm[0]) / (fit.k * fit.a), fit.cc[1] + (p[1] - fit.cm[1]) * fit.a / fit.k]; }
 
+  // 点列の始まりを a、終わりを b（弧長の割合）だけ切った点列
+  function subStroke(poly, a, b) {
+    var L = polyLen(poly), lo = L * a, hi = L * (1 - b), acc = 0, out = [], prev = null;
+    var N = resample(poly, 100);
+    N.forEach(function (q, i) { var t = L * i / 99; if (t >= lo - 1e-9 && t <= hi + 1e-9) out.push(q); });
+    return out.length > 1 ? out : poly;
+  }
+
   // ---- 1 画の比べ方（13.3-4）。c・m は同じ座標系の点列、o.s は手本の字の大きさ ----
   function compareStroke(c, m, isDot, o) {
     var P = (o && o.P) || DEFAULTS, s = (o && o.s) || 1;
@@ -122,9 +140,20 @@
       return { ok: d0 <= P.DOT_R && cl <= P.DOT_MAXLEN, reverse: false, dot: true, D: d0, Dr: d0, Dmax: d0, len: cl };
     }
     var ca = resample(c, P.N), ma = resample(m, P.N);
-    var f = dtw(ca, ma, P.BAND), r = dtw(ca, ma.slice().reverse(), P.BAND);
+    var f = dtw(ca, ma, P.BAND, P.END_SKIP, P.END_OPEN), r = dtw(ca, ma.slice().reverse(), P.BAND, P.END_SKIP, P.END_OPEN);
     var D = f.mean / s, Dmax = f.max / s, Dr = r.mean / s, Drmax = r.max / s;
     var shapeOk = D <= P.SHAPE_MEAN && Dmax <= P.SHAPE_MAX;
+    if (!shapeOk && D <= P.SHAPE_MEAN * P.CUT_NEAR) {   // 画の端の長さが手本と違うだけか: 手本か子の画の始まり・終わりを少し切って比べ直す（切った分だけ上乗せ）
+      var cuts = P.CUTS, bestC = null, lr = polyLen(c) / (polyLen(m) || 1), diff = Math.abs(1 - lr);   // 長さの違い分だけ切る（子が短ければ手本を、長ければ子の画を）
+      for (var ci = lr > 1 ? 1 : 0, ce = ci + 1; ci < ce; ci++) for (var a1 = 0; a1 < cuts.length; a1++) for (var b1 = 0; b1 < cuts.length; b1++) {
+        if ((!cuts[a1] && !cuts[b1]) || Math.abs(cuts[a1] + cuts[b1] - diff) > 0.1) continue;
+        var sub = ci ? subStroke(c, cuts[a1], cuts[b1]) : null, subM = ci ? null : subStroke(m, cuts[a1], cuts[b1]);
+        var g = dtw(resample(ci ? sub : c, P.N), resample(ci ? m : subM, P.N), P.BAND, P.END_SKIP, 0);
+        var pen = P.CUT_PEN * (cuts[a1] + cuts[b1]), gd = (g.mean + pen * s) / s;
+        if (g.max / s <= P.SHAPE_MAX && gd <= P.SHAPE_MEAN && (!bestC || gd < bestC)) bestC = gd;
+      }
+      if (bestC !== null) { shapeOk = true; D = bestC; }
+    }
     var revShape = Dr <= P.SHAPE_MEAN && Drmax <= P.SHAPE_MAX;
     var rev = revShape && Dr < D - P.DIR_MARGIN;
     var ends = Math.max(dist(ca[0], ma[0]), dist(ca[ca.length - 1], ma[ma.length - 1])) / s;   // 始点・終点のずれ（結合・分割のときだけ見る）
@@ -354,7 +383,7 @@
     var frames = frameCandidates(cs, P);
     if (!(frames[0].s >= P.MIN_SIZE) && !told) return { result: 'more', reason: 'small', focus: -1, fit: null, detail: [] };
     if (!(frames[0].s > 0)) frames = [inkFrame([], P.TRIM, P, cs.map(function (c) { return c.pts[0]; }))];
-    if (!(frames[0].s > 0)) return { result: 'shape', focus: 0, fit: null, detail: [] };
+    if (!(frames[0].s > 0)) return { result: 'more', reason: 'small', focus: -1, fit: null, detail: [] };   // 枠が作れない（点だけ）: 判定せず、続きを書かせる
     var q = model.polys.length;
     var al = alignBest(cs, frames, model, q, P, maxJoin);
     var detail = maxOf(al);
@@ -384,6 +413,23 @@
     return { result: 'shape', focus: firstBad(isFail), fit: al.fit, detail: detail };
   }
 
+  // 1 画の始まり・終わりを、画の長さの割合だけ切る（負なら同じ向きに伸ばす）
+  function edgeCut(pts, s, e) {
+    var L = polyLen(pts), out = pts;
+    function cutEnd(p, f) {
+      if (f > 0) { var lim = polyLen(p) * (1 - f), acc = 0, o = [p[0]]; for (var i = 1; i < p.length; i++) { acc += dist(p[i - 1], p[i]); if (acc > lim) break; o.push(p[i]); } return o.length > 1 ? o : p; }
+      if (f < 0) {
+        var q = p[p.length - 1], r = p[Math.max(0, p.length - 4)], d = dist(q, r) || 1, x = L * -f, o2 = p.slice();
+        for (var k = 1; k <= 5; k++) o2.push([q[0] + (q[0] - r[0]) / d * x * k / 5, q[1] + (q[1] - r[1]) / d * x * k / 5]);
+        return o2;
+      }
+      return p;
+    }
+    out = cutEnd(out, e);
+    out = cutEnd(out.slice().reverse(), s).reverse();
+    return out;
+  }
+
   // ---- 手本から「崩した正しい字」を作る（テストの F1 と #debug の自動の書き手）----
   // prm: size・cx・cy（字の大きさと中心。板の座標）、aspect（横/縦）、rot（ラジアン）、shift（画ごとのずれ。字の大きさ比）、scaleJit（画ごとの大きさ ±）、
   //      tremor（手のふるえ。板の座標）、step（点の間隔）、dup（同じ点を重ねる）、hook（終点の曲がりの長さ）、tap（点の画を触るだけに）、
@@ -396,6 +442,7 @@
     var size = prm.size != null ? prm.size : 0.8, cx = prm.cx != null ? prm.cx : 0.5, cy = prm.cy != null ? prm.cy : 0.5;
     var asp = prm.aspect || 1, rot = prm.rot || 0, sh = prm.shift || 0, sj = prm.scaleJit || 0;
     var tremor = prm.tremor || 0, step = prm.step || 0.01, hook = prm.hook || 0;
+    var edge = prm.edge || null;   // { i: 画の番号, start: 始まりを切る割合（負は伸ばす）, end: 終わりを切る割合（負は伸ばす） }
     var all = [];
     m.polys.forEach(function (p) { p.forEach(function (q) { all.push(q); }); });
     var x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
@@ -423,6 +470,7 @@
     var ink = [];
     list.forEach(function (st, k) {
       var pts = st.pts.map(place);
+      if (edge && edge.i === k) pts = edgeCut(pts, edge.start || 0, edge.end || 0);
       if (st.tap) { var c = centroid(pts); ink.push([c, [c[0], c[1]]]); return; }
       var pieces = [pts];
       if (prm.split === k) {

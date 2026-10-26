@@ -727,6 +727,7 @@
     var j = FW.judgeSolo(ch, ink, { told: trun.told });
     if (soloDebugOn) showSoloJudge(ch, j);
     if (!j || j.result === 'empty') return;
+    if (!j.fit && j.result !== 'more') j = { result: 'more', reason: 'small' };   // 枠が作れないとき（重ねられない）は、続きを書かせる
     if (j.result === 'more') {   // 画が足りない・小さすぎる: 1 字に 1 回だけ、判定せずに続きを書かせる
       trun.told = true; sfx('tap');
       say(j.reason === 'small' ? 'もうすこし おおきく かいて みよう。' : 'つづきも かいてね。');
@@ -832,7 +833,7 @@
     drawReward();
     updateRewardSolo();
     later(500, function () { sfx('card'); });
-    if (reward.license) later(4300, function () {
+    if (reward.license) later(7500, function () {   // 誘いの声（4.3 秒）と重ならないようにずらす
       var nm = SET_LABEL[reward.license] + ' めんきょ';
       $('reward-sub').textContent = nm + ' を もらったよ！'; sfx('fanfare'); say(nm + 'を、もらったよ！');
     });

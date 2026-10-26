@@ -380,7 +380,7 @@ ruby rt { font-size: .5em; font-weight: bold; line-height: 1; }
 
 /* ひとりで かく（線なしで書く）。お題の札は現場の帯の左（横向きは右の列の上）、「もどす」「できた」は縦は板の下・横は右の列の下 */
 #trace-main { position: relative; }
-#trace-fieldwrap { --card: clamp(82px, calc(16vh - 8px), 152px); }
+#trace-main { --card: clamp(82px, calc(16vh - 8px), 152px); }
 #solo-card, #solo-tools { display: none; }
 #s-trace.solo #solo-card { display: block; position: absolute; left: 8px; top: 4px; width: var(--card); height: var(--card); border-radius: 14px; box-shadow: 0 2px 8px rgba(0,0,0,.28); z-index: 2; cursor: pointer; }
 #s-trace.solo:not(.nazori) #solo-tools { display: flex; flex: none; justify-content: center; align-items: center; gap: 22px; padding: 4px 12px calc(8px + env(safe-area-inset-bottom)); min-height: 76px; }
@@ -398,9 +398,9 @@ ruby rt { font-size: .5em; font-weight: bold; line-height: 1; }
 @keyframes soloNudge { 0%, 100% { transform: rotate(0); } 25% { transform: rotate(-5deg); } 75% { transform: rotate(5deg); } }
 @media (prefers-reduced-motion: reduce) { #solo-card.nudge, .solo-done.glow, #btn-r-solo.glow { animation: none; } }
 @media (orientation: landscape) {
-  #trace-fieldwrap { --card: min(calc(30vw - 24px), 34vh); }
+  #trace-main { --card: min(calc(30vw - 24px), 34vh); }
   #s-trace.solo #solo-card { left: calc(50% - var(--card) / 2); top: 8px; }
-  #s-trace.solo:not(.nazori) #solo-tools { position: absolute; right: 0; bottom: 0; width: 30%; min-height: 0; flex-wrap: wrap; gap: 12px; padding: 8px 8px calc(10px + env(safe-area-inset-bottom)); z-index: 3; }
+  #s-trace.solo:not(.nazori) #solo-tools { position: absolute; right: 0; top: calc(var(--card) + 24px); width: 30%; min-height: 0; flex-wrap: wrap; gap: 12px; padding: 8px 8px calc(10px + env(safe-area-inset-bottom)); z-index: 3; }
   #s-trace.solo #trace-boardarea { padding-bottom: calc(12px + env(safe-area-inset-bottom)); }
   .solo-done { min-width: 130px; padding: 0 14px; font-size: 22px; }
 }
