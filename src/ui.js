@@ -672,6 +672,7 @@
     opts = opts || {};
     var plan = opts.chars ? opts.chars.map(function (c) { return { ch: c, why: 'new' }; })
       : FW.pickSoloChars(TR.charsOfSet(TR.traceSet(data.trace, LD.currentStage(data))), data.trace, { n: P.QUESTIONS_PER_SESSION, name: data.name, prev: prevSolo[data.id] || [], chosen: opts.chosen || '' }, Math.random);
+    if (!opts.chars && plan.length < P.QUESTIONS_PER_SESSION) { startTrace(opts); return; }   // 出せる字が足りないときは なぞり（4 字そろわないと 1 回が組めない）
     if (!plan.length) { startTrace(opts); return; }
     launchTrace(plan, [], opts, true);
   }
@@ -736,7 +737,9 @@
     tboard.showFit(j.fit, j.result, j.focus);
     if (j.result === 'ok') {
       trun.wrote.push(ch);
+      var setId = setOfChar(ch), had = FW.soloLicense(data.trace, setId);
       data.trace = FW.recordSolo(data.trace, ch);   // done と solo をどちらも +1
+      if (!had && FW.soloLicense(data.trace, setId)) trun.license = setId;   // 集合を全部ひとりで書けた: めんきょ（ごほうびのあとに知らせる。ステージは変わらない）
       data.stats.trace.chars++; data.stats.trace.clean++;
       save();
       stepAfterChar(ch, 'ひとりで かけたね！ ' + traceDoneWord(ch) + '！');
@@ -780,7 +783,7 @@
     var r = grantReward(trun.scene, stageIdx());   // S0 は今までと同じ出方。階段（afterSession）は呼ばない
     data.lastPlayed = todayStr();
     save();
-    reward = { r: r, t0: 0, game: 'trace', solo: !!trun.solo, wrote: trun.wrote.slice(), firstNew: (trun.plan.filter(function (o) { return o.why === 'new'; })[0] || {}).ch || '' };
+    reward = { r: r, t0: 0, game: 'trace', solo: !!trun.solo, license: trun.license || '', wrote: trun.wrote.slice(), firstNew: (trun.plan.filter(function (o) { return o.why === 'new'; })[0] || {}).ch || '' };
     rememberTrace();
     trun = null; tboard.stop();
     show('reward');
@@ -829,6 +832,10 @@
     drawReward();
     updateRewardSolo();
     later(500, function () { sfx('card'); });
+    if (reward.license) later(4300, function () {
+      var nm = SET_LABEL[reward.license] + ' めんきょ';
+      $('reward-sub').textContent = nm + ' を もらったよ！'; sfx('fanfare'); say(nm + 'を、もらったよ！');
+    });
     later(1100, function () {
       sfx('fanfare');
       if (car) {
@@ -964,7 +971,11 @@
     if (stampCache[key]) return stampCache[key];
     var W = 64, cv = doc.createElement('canvas'); cv.width = cv.height = W;
     var ctx = cv.getContext('2d');
-    if (kind === 'stamp') {
+    if (kind === 'hana') {   // 花丸（ひとりで 書けた字）
+      ctx.translate(W / 2, W / 2);
+      for (var k = 0; k < 8; k++) { ctx.rotate(Math.PI / 4); ctx.beginPath(); ctx.arc(0, -W * 0.27, W * 0.17, 0, 7); ctx.fillStyle = '#ff6f91'; ctx.fill(); ctx.lineWidth = 2; ctx.strokeStyle = '#c2385e'; ctx.stroke(); }
+      ctx.beginPath(); ctx.arc(0, 0, W * 0.19, 0, 7); ctx.fillStyle = '#ffd23f'; ctx.fill(); ctx.stroke();
+    } else if (kind === 'stamp') {
       ctx.beginPath(); ctx.arc(W / 2, W / 2, W / 2 - 4, 0, 7); ctx.fillStyle = '#fff'; ctx.fill();
       ctx.lineWidth = gold ? 7 : 4; ctx.strokeStyle = gold ? '#f2a900' : '#7aa7d9'; ctx.stroke();
       V.drawVehicle(ctx, car.stage, W / 2, W * 0.5, W * 0.62);
@@ -993,7 +1004,20 @@
       box.appendChild(b);
     });
     box.hidden = sets.length <= 1;
+    buildMojiTop();
     layoutMoji();
+  }
+  // 表の上の段: もらった めんきょ と「ひとりで かく」（出せる字が 4 字以上のとき）
+  function buildMojiTop() {
+    var lic = $('moji-license'); lic.textContent = '';
+    ['hira', 'kata', 'k1', 'k2'].forEach(function (k, i) {
+      if (!STR.SETS[k] || !FW.soloLicense(data.trace, k)) return;
+      var sp = el('span'), cv = doc.createElement('canvas'), dpr = root.devicePixelRatio || 1;
+      cv.width = Math.round(48 * dpr); cv.height = Math.round(34 * dpr);
+      var ctx = cv.getContext('2d'); ctx.setTransform(dpr, 0, 0, dpr, 0, 0); SC.drawLicense(ctx, 24, 17, 44, i);
+      sp.appendChild(cv); sp.appendChild(doc.createTextNode(SET_LABEL[k] + ' めんきょ')); lic.appendChild(sp);
+    });
+    $('moji-solo-top').hidden = !soloAvailable();
   }
   function layoutMoji() {
     var grid = $('moji-grid'); if (!grid || $('moji-view').hidden) return;
@@ -1002,7 +1026,7 @@
     grid.textContent = '';
     grid.style.gridTemplateColumns = 'repeat(' + cols + ', minmax(0, 1fr))';
     grid.style.maxWidth = (landscape ? MOJI_MAX * cols + 6 * cols + 24 : 520) + 'px';
-    var availH = $('moji-view').clientHeight - $('moji-sets').offsetHeight - 4 - 14 - 6 * (rows - 1);
+    var availH = $('moji-view').clientHeight - $('moji-sets').offsetHeight - $('moji-top').offsetHeight - 4 - 14 - 6 * (rows - 1);
     var rowH = Math.max(MOJI_MIN, Math.min(MOJI_MAX, Math.floor(availH / rows)));
     grid.style.gridAutoRows = rowH + 'px';
     var colW = Math.max(30, ((grid.clientWidth || root.innerWidth) - 24 - 6 * (cols - 1)) / cols);
@@ -1020,6 +1044,7 @@
         c.setAttribute('aria-label', ch + (n ? ' かいた' : ' まだ'));
         c.appendChild(doc.createTextNode(ch));
         if (isName[ch]) { var nm = doc.createElement('img'); nm.className = 'nmark'; nm.alt = ''; nm.src = stampURL('icon'); c.appendChild(nm); }
+        if (data.trace.solo && data.trace.solo[ch] > 0) { var hn = doc.createElement('img'); hn.className = 'hana'; hn.alt = ''; hn.src = stampURL('hana'); c.appendChild(hn); }
         if (n) {
           var st = doc.createElement('img'); st.className = 'stamp'; st.alt = ''; st.src = stampURL('stamp', n >= 3);
           var pi = pending.indexOf(ch);
@@ -1045,6 +1070,7 @@
     var c = sizeCanvas($('moji-canvas'));
     c.ctx.clearRect(0, 0, c.w, c.h);
     M.TraceBoard.drawSheet(c.ctx, ch, 8, 8, Math.min(c.w, c.h) - 16);
+    $('moji-solo').hidden = !(soloAvailable() && data.trace.done[ch] > 0 && FW.DEFAULTS.SOLO_SETS.indexOf(setOfChar(ch)) >= 0);
     var kw = kanjiWord(ch), ex = kw ? '' : exampleOf(ch);
     say((kw ? kw.speech + '。' : (ex !== ch ? ex + 'の ' : '') + ch + '。') + 'かいて みる？');
   }
@@ -1193,6 +1219,7 @@
         c.appendChild(el('b', '', ch));
         var cnt = el('span', 'cnt', n ? String(n) : '');
         if (h) cnt.appendChild(el('em', '', String(h)));
+        if (data.trace.solo && data.trace.solo[ch] > 0) cnt.appendChild(el('u', '', '✿'));
         c.appendChild(cnt);
         if (isName[ch]) c.appendChild(el('span', 'pn', '★'));
         grid.appendChild(c);
@@ -1248,6 +1275,11 @@
         });
         row.appendChild(g);
         row.appendChild(el('p', 'note', '「' + D.STAGES[i + 1].rank + '」に すすむ じょうけん：かんもんの 3つを、それぞれ 1かい 4もん ぜんぶ 1かいで せいかい（えいごは ふくみません）。'));
+      }
+      if (open) {
+        var ps = [['hira', 'ひらがな'], ['kata', 'カタカナ'], ['k1', '1ねんの かんじ'], ['k2', '2ねんの かんじ']].filter(function (a) { return TR.allowedSets(stg.id).indexOf(a[0]) >= 0 && (i === 0 ? a[0] === 'hira' || a[0] === 'kata' : a[0] === (i === 1 ? 'k1' : 'k2')); });
+        row.appendChild(el('div', 'gate', '（さんこう）かく：ひとりで かけた じ ' + ps.map(function (a) { return a[1] + ' ' + soloCount(a[0]) + '/' + STR.SETS[a[0]].length; }).join('・')));
+        row.appendChild(el('p', 'note', 'かく は かんもんでは ありません。すすめるかどうかを きめる めやすの ひとつに どうぞ。'));
       }
       if (i > 0) {
         var acts = el('div', 'kid-acts');
@@ -1322,6 +1354,8 @@
     $('gt-moji').addEventListener('click', function () { sfx('tap'); garageOpen.tab = 'moji'; showGarageTab(); });
     $('moji-close').addEventListener('click', function () { sfx('tap'); closeMojiSheet(); });
     $('moji-sheet').addEventListener('click', function (e) { if (e.target === this) closeMojiSheet(); });
+    $('moji-solo').addEventListener('click', function () { var ch = mojiSheetCh; if (!ch) return; sfx('tap'); closeMojiSheet(); startSolo({ chosen: ch }); });
+    $('moji-solo-top').addEventListener('click', function () { sfx('tap'); startSolo(); });
     $('moji-go').addEventListener('click', function () { var ch = mojiSheetCh; if (!ch) return; sfx('tap'); closeMojiSheet(); startTrace({ chosen: ch }); });
     $('btn-sound').addEventListener('click', function () {
       var on = !(dev.sound.sfx || dev.sound.voice);

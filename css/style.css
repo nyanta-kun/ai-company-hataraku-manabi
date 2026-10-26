@@ -143,7 +143,17 @@ canvas { display: block; }
 #moji-sets { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; padding: 6px 10px; flex: none; }
 #moji-sets button { min-height: 44px; padding: 0 14px; border-radius: 12px; font-size: 16px; font-weight: bold; background: #f7f1e3; border: 3px solid #8a7f6c; color: #3a2b24; }
 #moji-sets button.sel { background: #16a085; border-color: #0e6b58; color: #fff; }
-#moji-grid { flex: 1; min-height: 0; overflow-y: auto; display: grid; gap: 6px; padding: 4px 12px calc(14px + env(safe-area-inset-bottom)); width: 100%; margin: 0 auto; align-content: start; }
+#moji-top { display: flex; align-items: center; justify-content: center; gap: 10px; flex-wrap: wrap; padding: 4px 10px 0; flex: none; }
+#moji-top:empty { display: none; }
+#moji-license { display: flex; gap: 6px; align-items: center; }
+#moji-license span { display: flex; flex-direction: column; align-items: center; font-size: 11px; font-weight: bold; }
+#moji-license canvas { width: 48px; height: 34px; }
+#moji-solo-top { min-width: 0; min-height: 48px; padding: 0 14px; flex-direction: row; gap: 8px; font-size: 17px; border-radius: 16px; border-bottom-width: 4px; background: #f0a30a; border-bottom-color: #a96f00; }
+#moji-solo-top[hidden], #moji-solo[hidden] { display: none; }
+#moji-solo-top canvas { width: 30px; height: 30px; }
+.moji-btns #moji-solo { background: #f0a30a; border-bottom-color: #a96f00; min-width: 150px; }
+.mcell .hana { position: absolute; left: 1px; bottom: 1px; width: 30%; max-width: 26px; aspect-ratio: 1; }
+#moji-grid {  flex: 1; min-height: 0; overflow-y: auto; display: grid; gap: 6px; padding: 4px 12px calc(14px + env(safe-area-inset-bottom)); width: 100%; margin: 0 auto; align-content: start; }
 .mcell { position: relative; display: flex; align-items: center; justify-content: center; border-radius: 12px; background: #f7f1e3; border: 3px solid #d4c9b0; color: #cbbfa9; font-weight: 800; cursor: pointer; padding: 0; min-width: 0; line-height: 1; }
 .mcell.got { background: #fff; color: #3a2b24; border-color: #8a7f6c; }
 .mcell.blank { visibility: hidden; pointer-events: none; }
@@ -398,3 +408,4 @@ ruby rt { font-size: .5em; font-weight: bold; line-height: 1; }
 #reward-side #btn-r-solo[hidden] { display: none; }
 #reward-side #btn-r-solo canvas { width: 48px; height: 48px; }
 #btn-r-solo.glow { animation: soloGlow 1s ease-in-out infinite; }
+.pcell .cnt u { text-decoration: none; color: #d6336c; font-size: .8em; margin-left: 2px; }

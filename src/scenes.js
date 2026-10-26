@@ -724,6 +724,18 @@
     ctx.restore();
   }
 
+  // 「めんきょ」のワッペン（ひとりで かく。集合を全部ひとりで書けたとき）。免許証のかたちの札に星。中心 (x,y)・幅 w。idx: 0 ひらがな・1 カタカナ・2 1ねん・3 2ねん
+  var LICENSE = ['#e53935', '#3a7bd5', '#2e9d5d', '#8e44ad'];
+  function drawLicense(ctx, x, y, w, idx) {
+    var h = w * 0.7, col = LICENSE[idx % LICENSE.length];
+    ctx.save(); ctx.translate(x, y);
+    fillRR(ctx, -w / 2, -h / 2, w, h, w * 0.1, '#fff8e1', OUT, Math.max(2, w * 0.05));
+    fillRR(ctx, -w / 2, -h / 2, w, h * 0.3, w * 0.1, col, OUT, Math.max(2, w * 0.05));
+    star(ctx, -w * 0.28, h * 0.1, w * 0.14); ctx.fillStyle = '#f2b01e'; ctx.fill(); ctx.lineWidth = Math.max(1.5, w * 0.025); ctx.strokeStyle = OUT; ctx.stroke();
+    ctx.fillStyle = OUT; ctx.fillRect(-w * 0.05, h * 0.0, w * 0.4, h * 0.07); ctx.fillRect(-w * 0.05, h * 0.2, w * 0.3, h * 0.07);
+    ctx.restore();
+  }
+
   // 昇格の絵: 消防署の前で、大きなワッペンがはずんで光る。t = 経過秒
   function drawPromote(ctx, cw, ch, idx, t) {
     var gy = ch * 0.82;
@@ -749,7 +761,7 @@
 
   var api = {
     Stage: Stage, drawCard: drawCard, drawTitle: drawTitle, drawCat: drawCat, drawRock: drawRock,
-    drawItem: drawItem, drawSpeaker: drawSpeaker, grid: grid, boxLayout: boxLayout, tensLayout: tensLayout, groupLayout: groupLayout, tensTokens: tensTokens, drawWappen: drawWappen, drawPromote: drawPromote, drawRuby: drawRuby, W: W
+    drawItem: drawItem, drawSpeaker: drawSpeaker, grid: grid, boxLayout: boxLayout, tensLayout: tensLayout, groupLayout: groupLayout, tensTokens: tensTokens, drawWappen: drawWappen, drawLicense: drawLicense, drawPromote: drawPromote, drawRuby: drawRuby, W: W
   };
   root.Manabi = root.Manabi || {};
   root.Manabi.scenes = api;

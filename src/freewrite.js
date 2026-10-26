@@ -14,7 +14,7 @@
     SHAPE_MEAN: 0.15, SHAPE_MAX: 0.35, DIR_MARGIN: 0.04, SPLIT_GAP: 0.25,
     MAX_JOIN_KANA: 2, MAX_JOIN_KANJI: 3, MAX_SKIP: 1, JOIN_PEN: 0.02, JOIN_END: 0.12,
     TRIM: 0.01, FRAME_PTS: 80, LOOSE: 2.5,
-    SOLO_READY: 3, SOLO_SETS: ['hira']
+    SOLO_READY: 3, SOLO_SETS: ['hira', 'kata', 'k1', 'k2']
   };
   var FAIL = 1000, EXTRA = 1002;   // 合わない画 1 つぶんの重み（距離の合計より十分大きくして、合わない画の数を先に比べる）
 

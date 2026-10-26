@@ -292,6 +292,16 @@ const HIRA = S.SETS.hira.split('');
 const traceOf = (done, solo, help) => ({ done: done || {}, help: help || {}, solo: solo || {} });
 
 test('F11. pickSoloChars / soloReady / soloInvite', () => {
+  assert.deepEqual(D.SOLO_SETS, ['hira', 'kata', 'k1', 'k2']);   // W6-c: カタカナ・漢字も出す
+  const saved = D.SOLO_SETS.slice(); D.SOLO_SETS.length = 0; D.SOLO_SETS.push('hira');   // この中は ひらがな だけで確かめる（W6-b の出し方）
+  try { f11(); } finally { D.SOLO_SETS.length = 0; saved.forEach((k) => D.SOLO_SETS.push(k)); }
+  // 全部の集合: カタカナ・漢字も出せる字になる
+  assert.deepEqual(FW.soloReady(S.SETS.kata.split(''), traceOf({ ノ: 5 })), ['ノ']);
+  assert.deepEqual(FW.soloReady(S.SETS.k1.split(''), traceOf({ 山: 3 })), ['山']);
+  assert.deepEqual(FW.soloReady(S.SETS.k2.split(''), traceOf({ 雲: 2 })), []);
+});
+
+function f11() {
   const done = {}; HIRA.forEach((c) => { done[c] = 3; });
   const t = traceOf(done);
   assert.deepEqual(FW.soloReady(HIRA, t), HIRA);
@@ -332,7 +342,9 @@ test('F11. pickSoloChars / soloReady / soloInvite', () => {
   assert.equal(FW.soloInvite(HIRA, t), true);
   assert.equal(FW.soloInvite(HIRA, traceOf({ あ: 1 })), false);
   assert.equal(FW.soloInvite([], t), false);
-});
+  // 候補が少ないと n 字そろわない（UI は 4 字未満なら なぞりにする）
+  assert.ok(FW.pickSoloChars(HIRA, traceOf({ し: 3 }), {}, rngOf(1)).length < 4);
+}
 
 test('F12. recordSolo / soloLicense', () => {
   const t0 = { done: { し: 2 }, help: { し: 1 }, solo: {}, set: 'auto', width: 'auto' };
