@@ -143,53 +143,68 @@ R4-1 の最初の確認（ログインの試作だけ。承認 #2〜#5 の後）
 
 ルール（5 章）はこの形だけを通す。項目の意味と保護者向けの説明は `docs/r4-data-and-privacy.md`。
 
+**2026-10-26 の変更（エミュレーター試験の結果）**: 当初は「1 家族 1 文書（`families/{uid}` に全員）」だったが、ルールの式の上限（1 リクエスト 1,000）に収まらないことが実測で分かった（5.2）。そこで 4.1 が退避先としていた「1 人 1 文書」に移した。**R4-1 の `cloud.js` は、この形で読み書きを作る**（読み書きの回数が変わる点は 4.2）。
+
 ```
-families/{uid}            uid = Firebase Authentication の利用者 ID（保護者 1 人に 1 つ）
+families/{uid}                    親の文書。uid = Firebase Authentication の利用者 ID（保護者 1 人に 1 つ）
 {
-  v: 1,                   文書の形の版
-  profiles: [             0〜4 人。端末内の v2 のプロフィールから device と seen を除き、updatedAt・ladderAt を足したもの
-    {
-      id: 'p_xxxxxxxx_xxxx',
-      name: 'たろう',               ひらがな 1〜6 文字、または「こども1〜4」
-      icon: 'shoubousha',            11 種の車のどれか
-      created: 'YYYY-MM-DD' | '',
-      levels:  { math: 'M3', letter: 'K2', clock: 'T1', english: 'E1' },
-      locked:  { math: false, letter: false, clock: false, english: false },
-      cards:   { shoubousha: 2, ... }, 車 → ★ 1〜3
-      stats:   { sessions: 12, math: { sessions, questions, firstTry }, letter: {...}, clock: {...}, english: {...},
-               trace: { sessions, chars, clean } },   「かく」の回数・書いた字の数・やり直しなしの字の数
-      trace:   { done: { 'し': 2, ... }, help: { 'ぬ': 2, ... }, solo: { 'し': 1, ... }, set: 'auto', width: 'auto' },   done: 字 → 書き終えた回数 1〜99、help: 字 → たすけが要った回数 1〜99（W5。help ≤ done は端末の normalizeTrace が守る）、solo: 字 → ひとりで（線なしで）書けた回数 1〜99（W6。solo ≤ done も normalizeTrace が守る。合わなかった回数は保存しない）。指の線は保存しない
-      lastPlayed: 'YYYY-MM-DD' | '',
-      stage:   { unlocked: 'S1', current: 'S0' },
-      cleared: { M7: 'YYYY-MM-DD', ... },   関門レベル → 初めて 4/4 した日
-      promoted:{ S1: 'YYYY-MM-DD' },        ステージ → 昇格した日
-      updatedAt: 1793000000000,             名前・絵・固定・「かく」の設定などを変えた時刻（ミリ秒。端末の時計）
-      ladderAt:  1793000000000              stage を変えた時刻（ミリ秒）
-    }
-  ],
+  v: 1,                           文書の形の版
+  ids: ['p_xxxxxxxx_xxxx', ...],  プロフィールの id の一覧。0〜4 件
   deleted: { 'p_xxxxxxxx_xxxx': 'YYYY-MM-DD' },   消したプロフィール。最大 16 件（古いものから捨てる）
   updatedAt: <サーバーの時刻>                      書くたびに serverTimestamp()
 }
+
+families/{uid}/profiles/{id}      プロフィール 1 人 1 文書。端末内の v2 のプロフィールから device と seen を除き、updatedAt・ladderAt を足したもの。文書 id = id
+{
+  id: 'p_xxxxxxxx_xxxx',          文書 id と同じでなければならない（ルールが確かめる）
+  name: 'たろう',                  ひらがな 1〜6 文字、または「こども1〜4」
+  icon: 'shoubousha',             車の種類（15 種。救助隊の 4 種を含む。src/storage.js の CAR_IDS）
+  created: 'YYYY-MM-DD' | '',
+  levels:  { math: 'M3', letter: 'K2', clock: 'T1', english: 'E1' },
+  locked:  { math: false, letter: false, clock: false, english: false },
+  cards:   { shoubousha: 2, ... }, 車 → ★ 1〜3
+  stats:   { sessions: 12, math: { sessions, questions, firstTry }, letter: {...}, clock: {...}, english: {...},
+           trace: { sessions, chars, clean } },   「かく」の回数・書いた字の数・やり直しなしの字の数
+  trace:   { done: { 'し': 2, ... }, help: { 'ぬ': 2, ... }, solo: { 'し': 1, ... }, set: 'auto', width: 'auto' },   done: 字 → 書き終えた回数 1〜99、help: 字 → たすけが要った回数 1〜99（W5）、solo: 字 → ひとりで（線なしで）書けた回数 1〜99（W6）。help・solo の字は done にある字だけ（ルールが確かめる）。help ≤ done・solo ≤ done の回数の大小は端末の normalizeTrace が守る（ルールは確かめない）。指の線は保存しない
+  lastPlayed: 'YYYY-MM-DD' | '',
+  stage:   { unlocked: 'S1', current: 'S0' },
+  cleared: { M7: 'YYYY-MM-DD', ... },   関門レベル → 初めて 4/4 した日
+  promoted:{ S1: 'YYYY-MM-DD' },        ステージ → 昇格した日
+  updatedAt: 1793000000000,             名前・絵・固定・「かく」の設定などを変えた時刻（ミリ秒。端末の時計）
+  ladderAt:  1793000000000              stage を変えた時刻（ミリ秒）
+}
 ```
 
-- 大きさの見込み: 1 人 0.6〜0.8 KB、4 人で約 3 KB。1 MiB の上限から遠い。「かく」の字が増える（ひらがな・カタカナ 92 字＋漢字 約 40 字）と、`done`・`help` が全部埋まっても 1 人 約 3.8 KB、4 人で約 15 KB（やはり上限から遠い）。W6 の `solo` が全部埋まっても 1 人 約 1 KB 増え、4 人で約 19 KB（1 MiB の上限から遠い）。
-- 端末内（`src/storage.js:111-118` の v2）との違い: `device`（音の設定・最後に選んだ子・移行日）は送らない（`docs/design-elementary.md` 6 章）。`seen`（もじで直近に出した絵）も送らない（7.5 に理由）。`updatedAt`・`ladderAt`・`deleted` は R4 で足す（7.5）。
-- 書き方: 端末の記録とクラウドの記録をマージしてから書くので、**トランザクション**（読む → `mergeProfiles` → 書く）にする。2 台が同時に書いても片方の変更が消えない。1 回の保存で読み取り 1・書き込み 1。
-- 数値は整数で送る（Firebase の JS SDK は安全な範囲の整数を整数型で保存する）。ルールは `is int` で確かめる。
-- **送る前にクラウドの形に直す**: `cloud.js` は `normalizeProfile`（`src/storage.js:71-98`）を通した値から 4 章の形を作る。ほとんどの項目は端末内で既にルールの通る形に整えられているが、`lastPlayed` だけは `slice(0, 10)` するだけで日付かを確かめていない（`src/storage.js:93`）。`cloud.js` で、日付の形でなければ `''` にしてから送る。1 項目でもルールに合わないと**家族の文書全体の書き込みが拒否され、同期がずっと失敗する**ので、ルールに拒否された書き込みは `#debug` と保護者画面の「最後に保存」の表示に出す（黙って失敗させない）。
+- 大きさの見込み: 1 人 0.6〜0.8 KB、4 人で約 3 KB。「かく」の字が増える（ひらがな・カタカナ 92 字＋漢字 38 字）と、`done`・`help`・`solo` が全部埋まっても 1 人 約 5 KB（4 人で約 20 KB）。1 文書 1 MiB の上限から遠い。
+- 端末内（`src/storage.js` の v2）との違い: `device`（音の設定・最後に選んだ子・移行日）は送らない（`docs/design-elementary.md` 6 章）。`seen`（もじで直近に出した絵）も送らない（7.5 に理由）。`updatedAt`・`ladderAt`・`deleted`・親の `ids` は R4 で足す（7.5）。
+- 数値は整数で送る（Firebase の JS SDK は安全な範囲の整数を整数型で保存する）。`stats`・`trace` の回数は、ルールでは「0 以上の数字だけの文字列にできるもの」として確かめる（4.3）。
+- **送る前にクラウドの形に直す**: `cloud.js` は `normalizeProfile`（`src/storage.js`）を通した値から 4 章の形を作る。ほとんどの項目は端末内で既にルールの通る形に整えられているが、`lastPlayed` だけは `slice(0, 10)` するだけで日付かを確かめていない。`cloud.js` で、日付の形でなければ `''` にしてから送る（試験でも `'きのう'` を `''` にしたものが通ることを確かめた）。1 項目でもルールに合わないと**そのプロフィールの書き込みが拒否され、同期がずっと失敗する**ので、ルールに拒否された書き込みは `#debug` と保護者画面の「最後に保存」の表示に出す（黙って失敗させない）。
 
 ### 4.1 文書の分け方の比較
 
 | 案 | 内容 | 判断 |
 |---|---|---|
-| **1 家族 1 文書（推奨。上の形）** | `families/{uid}` に全員を入れる | 起動時の読み取りが 1 回。マージ・削除・「4 人まで」をルールで 1 文書の中で確かめられる。アカウント全体の削除は文書 1 つ。ルールが長くなる（5.2 の式の数を参照） |
-| 1 人 1 文書（サブコレクション） | `families/{uid}/profiles/{id}` | ルールは短い。ただし「4 人まで」は文書の数を数えられないので、親の文書を `get()` で読む（書くたびに読み取り 1 回の課金対象）か、守れない。起動時の読み取りが最大 5 回。削除も複数の文書 | 
+| 1 家族 1 文書（当初の案） | `families/{uid}` に全員を入れる | 起動時の読み取りが 1 回、マージもトランザクション 1 つで済む。**ただしルールが式の上限に収まらない**（5.2）。項目を削って通すと、型や形の検査が大きく弱くなる。不採用 |
+| **1 人 1 文書（採用。上の形）** | 親 `families/{uid}` ＋ `families/{uid}/profiles/{id}` | 1 文書のルールは 1 人分だけなので、全項目を検査しても上限に収まる（4 人ぶんをすべて上限まで埋めても通る）。起動時の読み取りは最大 2 回（親 1・プロフィールの一覧 1 回で人数分）。「4 人まで」は親の `ids` が 4 件まで＋子の書き込みは `ids` にある id だけ、で守る（4.2） |
 
-ルールの式が上限（1,000）に近づくようなら、1 人 1 文書に移す。
+### 4.2 1 人 1 文書にしたことで変わる点（R4-1 の設計で決める。この手順書では決めない）
+
+- **読み書きの回数**: 起動時は親 1 回の `get`＋`profiles` の `list`（人数分の読み取り）。保存は、変わったプロフィールごとに 1 書き込み＋親の更新（`ids`・`updatedAt`）。無料枠（8 章）の見込みは数え直す（見込みは 30 件／日ほどから 2〜3 倍になる程度で、5 万の上限からは遠い）。
+- **マージ**: 「読む → `mergeProfiles` → 書く」を、1 文書ずつのトランザクション、または親を含めた 1 つのトランザクション（最大 5 文書）にする。2 台が同時に書いても片方の変更が消えない作りは、R4-1 で確かめる。
+- **「4 人まで」の強制**: ルールは `profiles` の文書の数を数えられないが、プロフィールの作成・更新を「親の `ids` にその id があるときだけ」に絞っている（`getAfter`）。親の `ids` は 4 件までなので、5 人目は書けない。**書き込みごとに読み取り 1 回の課金対象**（家族の利用なら無料枠の中。8 章）。
+- **cloud.js の約束（書く順番）**: ①**親を先に書く**（新しい子の id を `ids` に入れる）。②そのあとでプロフィールを書く。最初の保存（親がまだ無いとき）も同じ順番。親が無い・`ids` に無い id のプロフィールの書き込みは拒否される。同じ batch／トランザクションで親と子を一緒に書くのも通る（`getAfter` は同じ書き込みの後の状態を見る）。子を消すときは、親の `ids` から外す書き込みと子の削除を順番を問わず行える（削除はルールが `ids` を見ない）。
+- **ids から外した子の文書は、cloud.js が必ず消す（強調）**: ルールは、`ids` に入っている id のプロフィールだけを書けるようにしている。ただし `ids` の中身は何度でも入れ替えられるので、入れ替えるたびに古い子の文書が残ると、4 件より多くの文書を作れてしまう（本人の領域の中だけで、他人には見えず、無料枠の中。リスクとして受け入れる。7 章）。そこで **cloud.js は、プロフィールを `ids` から外す（消す・入れ替える）ときは、その子の文書を同じ batch で消す**。起動時の `list` で `ids` にない子の文書を見つけたら、消す。
+- **アカウントの削除**: 親と、`profiles` の下の各文書を、それぞれ消す（クライアントが `ids` と `list` で集めて消す）。（`docs/r4-data-and-privacy.md` の手順 3 と `docs/design-elementary.md` 7 章は、この形に合わせてある。）
+
+### 4.3 回数の型の検査について（試験で分かったこと）
+
+式の上限のため、`stats`・`trace` の回数（`sessions`・`questions`・`firstTry`・`chars`・`clean`、`done`・`help`・`solo` の値）は、「全部をまとめて `join(',')` して、0 以上の数字だけの並びに合うか」で確かめている。**数字だけの文字列（例 `'5'`）は通る**（整数型かどうかまでは確かめない。負の数・小数・数字以外・13 けた以上は拒否）。端末の `normalizeProfile` は整数しか作らないので正しいデータには影響せず、書けるのは本人だけで、大きさは件数と長さの両方で縛ってある（`stats` は 16 個の数の並びがちょうどその個数で、`done`・`help`・`solo` は 5.2 のとおり長さを縛る）。`cards` の値（1〜3）・`locked`・`updatedAt`・`ladderAt` は型まで確かめている。
 
 ---
 
 ## 5. セキュリティルール（全文）
+
+ルールの正本は、リポジトリ直下の `firestore.rules`。下の 5.1 はその写し（**直すときは `firestore.rules` を直し、ここに貼り直す**。試験は `firestore.rules` を使う）。
 
 ### 5.1 全文
 
@@ -197,8 +212,11 @@ families/{uid}            uid = Firebase Authentication の利用者 ID（保護
 rules_version = '2';
 
 // はたらくまなび（hataraku-manabi）の Firestore ルール。
-// families/{uid} は、Google でログインした本人（uid が同じ）だけが読み書きできる。それ以外はすべて拒否。
-// 文書の形は docs/r4-firebase-setup.md 4 章。ルールはループできないので、配列の要素は添字で 1 つずつ確かめる。
+// 家族ごとに「親の文書」と「プロフィールの文書（1 人 1 文書）」を持つ。どちらも Google でログインした本人（uid が同じ）だけが読み書きできる。それ以外はすべて拒否。
+//   families/{uid}                   親: { v, ids（プロフィールの id の一覧。4 人まで）, deleted, updatedAt }
+//   families/{uid}/profiles/{pid}    プロフィール 1 人分（docs/r4-firebase-setup.md 4 章）
+// 式の上限（1 リクエスト 1,000）が厳しいので、リストのリテラルは短いものだけにし、正規表現と join で 1 度に確かめる。
+// 項目の「欠け」は、値を読んだときのエラー（= 拒否）で弾き、「余分」は size() で弾く。
 service cloud.firestore {
   match /databases/{database}/documents {
 
@@ -210,114 +228,90 @@ service cloud.firestore {
     }
 
     // ---- 値の形 ----
-    function isDate(s) {
-      return s is string && s.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$');
-    }
-    function isDateOrEmpty(s) {
-      return s is string && (s == '' || isDate(s));
-    }
-    function isCount(n) {
-      return n is int && n >= 0;
-    }
     function isMs(n) {
       return n is int && n >= 0 && n <= 4102444800000;   // 2100-01-01 まで
     }
-    // 値がすべて日付の小さな表（キーの形と件数も確かめる）
+    // キーの一覧を「,」でつないだ文字列と「;」でつないだ文字列の両方が、1 つずつの形の並びに合うこと。
+    // （「,」を含むキー 1 つが 2 つのキーに見える抜けを、「;」でつないだほうで防ぐ。空のキーは別に弾く）
+    function isKeyList(keys, itemPattern) {
+      return keys.join(',').matches('^' + itemPattern + '(,' + itemPattern + ')*$')
+        && keys.join(';').matches('^' + itemPattern + '(;' + itemPattern + ')*$');
+    }
+    // 値がすべて日付の小さな表（キーの形と件数も確かめる。空の表も通る）
     function isDateMap(m, keyPattern, maxSize) {
       return m is map
         && m.size() <= maxSize
         && (m.size() == 0
-            || (m.keys().join(',').matches('^' + keyPattern + '(,' + keyPattern + ')*$')
-                && m.values().join(',').matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}(,[0-9]{4}-[0-9]{2}-[0-9]{2})*$')));
+            || (isKeyList(m.keys(), keyPattern)
+                && m.values().join(',').matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}(,[0-9]{4}-[0-9]{2}-[0-9]{2})*$')
+                && m.values().join(',').size() <= m.size() * 11 - 1));   // 日付 10 文字 ＋ 区切り 1。「,」入りの値で件数を数え違えさせない
     }
-
-    // ---- 決まった名前の一覧 ----
-    function gameIds() {
-      return ['math', 'letter', 'clock', 'english'];
+    // 書ける字（src/strokes.js の SETS の全部。ひらがな 46・カタカナ 46・漢字 38）の 1 字の正規表現。字を足したら、ここも足す（tests-rules が一致を確かめる）。
+    // 字のリスト（リテラル）にすると 1 つ 1 つが式として数えられ、上限を超えるので、正規表現にしてある
+    function traceCharPattern() {
+      return '[しつくへてのひそろるんいこりうとちらえすよわれみめゆぬねけにかさせもやおあまはむをたなきふほノフヘレアイカクコスセソンナトニヌハヒマムメヤユラリルワウエオキケサシツタチテミモヨロヲネホ山川口火水木犬手石目虫耳糸竹花車足雨空森冬池門夜海昼風星春秋馬夏船鳥雪道朝雲]';
     }
-    function carIds() {
-      return ['nekoguruma', 'forklift', 'gomi', 'shovel', 'bulldozer', 'dump', 'kyukyu',
-              'shoubousha', 'mizutank', 'hashigo', 'chodai'];
-    }
-    function stageIds() {
-      return ['S0', 'S1', 'S2', 'S3'];   // S2・S3 は先に入れておく（R3 でルールを直さずに済むように）
-    }
-    function profileKeys() {
-      return ['id', 'name', 'icon', 'created', 'levels', 'locked', 'cards', 'stats', 'trace',
-              'lastPlayed', 'stage', 'cleared', 'promoted', 'updatedAt', 'ladderAt'];
+    // 字 → 1〜99 の表（キーは書ける字 1 字ずつ、値は 1〜99 の数。件数は 130 まで。空の表も通る）
+    function isCharCountMap(m) {
+      return m is map
+        && m.size() <= 130
+        && (m.size() == 0
+            || (isKeyList(m.keys(), traceCharPattern())
+                && m.values().join(',').matches('^([1-9]|[1-9][0-9])(,([1-9]|[1-9][0-9]))*$')
+                && m.values().join(',').size() <= m.size() * 3 - 1));   // 数は最大 2 けた ＋ 区切り 1。「,」入りの値で件数を数え違えさせない
     }
 
     // ---- プロフィールの中身 ----
     function isLevels(l) {
-      return l is map
-        && l.keys().hasOnly(gameIds()) && l.keys().hasAll(gameIds())
-        && l.math is string && l.math.matches('^M[0-9]{1,2}$')
-        && l.letter is string && l.letter.matches('^K[0-9]{1,2}$')
-        && l.clock is string && l.clock.matches('^T[0-9]{1,2}$')
-        && l.english is string && l.english.matches('^E[0-9]{1,2}$');
+      return l.size() == 4
+        && (l.math + ',' + l.letter + ',' + l.clock + ',' + l.english).matches('^M[0-9]{1,2},K[0-9]{1,2},T[0-9]{1,2},E[0-9]{1,2}$');
     }
     function isFlags(k) {
-      return k is map
-        && k.keys().hasOnly(gameIds()) && k.keys().hasAll(gameIds())
-        && k.values().hasOnly([true, false]);
+      return k.size() == 4
+        && [k.math, k.letter, k.clock, k.english].hasOnly([true, false]);
     }
     function isCards(c) {
       return c is map
-        && c.keys().hasOnly(carIds())
+        && c.size() <= 15
+        && (c.size() == 0 || isKeyList(c.keys(), '(nekoguruma|forklift|gomi|shovel|bulldozer|dump|kyukyu|shoubousha|mizutank|hashigo|chodai|rescuework|rescuechem|rescuecmd|rescueheli)'))
         && c.values().hasOnly([1, 2, 3]);
     }
-    function isGameStats(g) {
-      return g is map
-        && g.keys().hasOnly(['sessions', 'questions', 'firstTry'])
-        && g.keys().hasAll(['sessions', 'questions', 'firstTry'])
-        && isCount(g.sessions) && isCount(g.questions) && isCount(g.firstTry);
-    }
-    function isTraceStats(t) {
-      return t is map
-        && t.keys().hasOnly(['sessions', 'chars', 'clean']) && t.keys().hasAll(['sessions', 'chars', 'clean'])
-        && isCount(t.sessions) && isCount(t.chars) && isCount(t.clean);
-    }
+    // 回数 16 個（sessions と、4 つのゲームの sessions・questions・firstTry と、trace の sessions・chars・clean）を、まとめて「0 以上の整数の文字列」で確かめる
     function isStats(s) {
-      return s is map
-        && s.keys().hasOnly(['sessions', 'math', 'letter', 'clock', 'english', 'trace'])
-        && s.keys().hasAll(['sessions', 'math', 'letter', 'clock', 'english', 'trace'])
-        && isCount(s.sessions)
-        && isGameStats(s.math) && isGameStats(s.letter)
-        && isGameStats(s.clock) && isGameStats(s.english)
-        && isTraceStats(s.trace);
+      return s.size() == 6
+        && s.math.size() == 3 && s.letter.size() == 3 && s.clock.size() == 3 && s.english.size() == 3 && s.trace.size() == 3
+        && s.math.keys().hasOnly(['sessions', 'questions', 'firstTry']) && s.letter.keys().hasOnly(['sessions', 'questions', 'firstTry'])
+        && s.clock.keys().hasOnly(['sessions', 'questions', 'firstTry']) && s.english.keys().hasOnly(['sessions', 'questions', 'firstTry'])
+        && s.trace.keys().hasOnly(['sessions', 'chars', 'clean'])
+        && (string(s.sessions) + ',' + s.math.values().join(',') + ',' + s.letter.values().join(',') + ',' + s.clock.values().join(',')
+            + ',' + s.english.values().join(',') + ',' + s.trace.values().join(',')).matches('^[0-9]{1,12}(,[0-9]{1,12}){15}$');
     }
-    // 「かく」: done のキーは書ける字（traceChars() = src/strokes.js の SETS の字。W2 はひらがな 46 字。W3 以降で増える）、値は 1〜99
+    // 「かく」: done・help・solo は 字 → 回数（1〜99）。set・width は決まった名前
     function isTrace(t) {
-      return t is map
-        && t.keys().hasOnly(['done', 'help', 'solo', 'set', 'width']) && t.keys().hasAll(['done', 'help', 'solo', 'set', 'width'])
-        && t.done is map && t.done.keys().hasOnly(traceChars())
-        && t.done.values().hasOnly(range1to99())
-        && t.help is map && t.help.keys().hasOnly(traceChars())
-        && t.help.values().hasOnly(range1to99())
-        && t.solo is map && t.solo.keys().hasOnly(traceChars())
-        && t.solo.values().hasOnly(range1to99())
-        // help ≤ done・solo ≤ done はルールでは確かめない（字ごとの比べは式が増えるため。端末の normalizeTrace が守る）
-        && t.set in ['auto', 'hira', 'kata', 'k1', 'k2']
-        && t.width in ['auto', 'wide', 'normal'];
+      return t.size() == 5
+        && isCharCountMap(t.done) && isCharCountMap(t.help) && isCharCountMap(t.solo)
+        // help・solo の字は done にある字だけ（help ≤ done の「字の集まり」の部分。回数の大小は字ごとに比べる必要があり式が増えるので、端末の normalizeTrace が守る）
+        && t.help.keys().hasOnly(t.done.keys()) && t.solo.keys().hasOnly(t.done.keys())
+        && (t.set + ',' + t.width).matches('^(auto|hira|kata|k1|k2),(auto|wide|normal)$');
     }
     function isStage(g) {
-      return g is map
-        && g.keys().hasOnly(['unlocked', 'current']) && g.keys().hasAll(['unlocked', 'current'])
-        && g.values().hasOnly(stageIds());
+      return g.size() == 2
+        && (g.unlocked + ',' + g.current).matches('^S[0-3],S[0-3]$');   // S2・S3 は先に入れておく（R3 でルールを直さずに済むように）
     }
-    function isProfile(p) {
+    function isProfile(p, pid) {
       return p is map
-        && p.keys().hasOnly(profileKeys()) && p.keys().hasAll(profileKeys())
-        && p.id is string && p.id.matches('^p_[0-9a-z_]{1,24}$')
-        && p.name is string && p.name.matches('^([ぁ-ゖー]{1,6}|こども[1-4])$')
-        && p.icon in carIds()
-        && isDateOrEmpty(p.created)
+        && p.size() == 15
+        && p.id == pid
+        && p.id.matches('^p_[0-9a-z_]{1,24}$')
+        && p.name.matches('^([ぁ-ゖー]{1,6}|こども[1-4])$')
+        && p.icon.matches('^(nekoguruma|forklift|gomi|shovel|bulldozer|dump|kyukyu|shoubousha|mizutank|hashigo|chodai|rescuework|rescuechem|rescuecmd|rescueheli)$')
+        && p.created.matches('^([0-9]{4}-[0-9]{2}-[0-9]{2})?$')
+        && p.lastPlayed.matches('^([0-9]{4}-[0-9]{2}-[0-9]{2})?$')
         && isLevels(p.levels)
         && isFlags(p.locked)
         && isCards(p.cards)
         && isStats(p.stats)
         && isTrace(p.trace)
-        && isDateOrEmpty(p.lastPlayed)
         && isStage(p.stage)
         && isDateMap(p.cleared, '[MKTE][0-9]{1,2}', 12)
         && isDateMap(p.promoted, 'S[1-9]', 8)
@@ -325,18 +319,14 @@ service cloud.firestore {
         && isMs(p.ladderAt);
     }
 
-    // ---- 家族の文書 ----
+    // ---- 家族の親の文書 ----
     function isFamily(d) {
-      return d.keys().hasOnly(['v', 'profiles', 'deleted', 'updatedAt'])
-        && d.keys().hasAll(['v', 'profiles', 'deleted', 'updatedAt'])
+      return d.size() == 4
         && d.v == 1
         && d.updatedAt == request.time
-        && d.profiles is list
-        && d.profiles.size() <= 4
-        && (d.profiles.size() < 1 || isProfile(d.profiles[0]))
-        && (d.profiles.size() < 2 || isProfile(d.profiles[1]))
-        && (d.profiles.size() < 3 || isProfile(d.profiles[2]))
-        && (d.profiles.size() < 4 || isProfile(d.profiles[3]))
+        && d.ids is list
+        && d.ids.size() <= 4
+        && (d.ids.size() == 0 || isKeyList(d.ids, 'p_[0-9a-z_]{1,24}'))
         && isDateMap(d.deleted, 'p_[0-9a-z_]{1,24}', 16);
     }
 
@@ -344,7 +334,16 @@ service cloud.firestore {
       allow get: if isOwner(uid);
       allow create, update: if isOwner(uid) && isFamily(request.resource.data);
       allow delete: if isOwner(uid);
-      // list（一覧の問い合わせ）は許さない。自分の文書は get で読む
+      // families 全体の一覧（list）は許さない。自分の文書は get で読む
+
+      match /profiles/{pid} {
+        allow get, list: if isOwner(uid);   // list は自分の families/{uid}/profiles の中だけ
+        // 親の ids に pid があるときだけ書ける（親を先に書く。同じ batch・トランザクションで親と一緒に書くのも通る）。親が無ければ拒否。
+        // 親の ids は 4 件までなので、5 人目は書けない。読み取り 1 回分（getAfter）の課金対象
+        allow create, update: if isOwner(uid) && isProfile(request.resource.data, pid)
+          && pid in getAfter(/databases/$(database)/documents/families/$(uid)).data.ids;
+        allow delete: if isOwner(uid);
+      }
     }
 
     // ほかの場所はすべて拒否（書かなくても拒否だが、意図をはっきりさせる）
@@ -357,36 +356,52 @@ service cloud.firestore {
 
 ### 5.2 ルールの考え方
 
-- **本人だけ**: `families/{uid}` の `uid` とログインした利用者の `uid` が同じで、しかも Google でログインした場合だけ。コンソールで別のログイン方法を誤って有効にしても、ルールが通さない。
-- **項目を決め打ち**: `hasOnly` と `hasAll` で、文書・プロフィール・各表の項目を決まった名前だけにする。メールアドレスや本名などの項目を、誤って足しても書き込めない。
-- **大きさ**: ルールには文書のバイト数を測る関数が無い。代わりに、**すべての値の形と件数を縛って**、文書が数 KB を超えないようにする（プロフィール 4 人、文字列は正規表現で長さを決め、数は整数、表は件数の上限）。どの値も長い文字列や入れ子の表にできない。
-- **時刻**: 文書の `updatedAt` はサーバーの時刻（`request.time`）でなければ通さない。
-- **削除**: 本人は自分の文書を消せる（アカウント全体の削除。`docs/r4-data-and-privacy.md` (d)）。
-- **式の数**: 1 リクエストの上限は 1,000。見込みは、プロフィール 1 人あたり約 103（W5 の `trace.help` で 3 つ、W6 の `trace.solo` でさらに 3 つ増えた）、4 人と家族の部分で約 470。上限の半分ほど。R3 で項目を足すときは数え直す。
-- **R3 に向けて**: レベルは `M`・`K`・`T`・`E` ＋ 2 けたまでの形で通すので、新しいレベルを足してもルールは直さなくてよい。ステージは S3 まで入れてある。車の種類を増やすときは `carIds()` を直す（`src/storage.js:8` と合わせる）。
+- **本人だけ**: `families/{uid}` とその下の `profiles/{pid}` は、`uid` とログインした利用者の `uid` が同じで、しかも Google でログインした場合だけ読み書きできる。コンソールで別のログイン方法を誤って有効にしても（匿名など）、ルールが通さない。`families` 全体の一覧は許さない（自分の `profiles` の一覧だけ許す）。
+- **項目を決め打ち**: 余分な項目は `size()` で、足りない項目は「値を読むときのエラー（= 拒否）」で弾く。メールアドレスや本名などの項目を、誤って足しても書き込めない。
+- **大きさ**: ルールには文書のバイト数を測る関数が無い。代わりに、**すべての値の形と件数を縛って**、文書が数 KB を超えないようにする（文字列は正規表現で長さを決め、表は件数の上限）。どの値も長い文字列や入れ子の表にできない。日付や回数の表（`cleared`・`promoted`・`deleted`・`done`・`help`・`solo`）は、値を `,` でつないだ文字列の長さも「件数 × 値の最大の長さ」までに縛っている（値に `,` を入れて、1 つの値に何個も詰め込む抜けを防ぐため。レビューの指摘）。回数の表は、1 けたの値に `,` を入れた場合に限り、件数の 1.5 倍までは詰め込める（最大でも 130 字 × 数 KB 以内で、問題にならない）。
+- **時刻**: 親の `updatedAt` はサーバーの時刻（`request.time`）でなければ通さない。
+- **削除**: 本人は自分の親の文書・プロフィールの文書を消せる。
+- **式の数（実測）**: 1 リクエストの上限は 1,000（エミュレーターも同じ。超えると `maximum of 1000 expressions` で拒否され、正しいデータも通らない）。**当初の見込み（1 人あたり約 103、4 人で約 470）は実測の約 10 分の 1 だった**。実測では、当初の形（1 家族 1 文書、型を細かく検査）は **プロフィール 1 人で約 1,000 に達し、2 人以上が通らなかった**。原因は、リストのリテラルは要素 1 つずつが式として数えられること、関数に渡した値の読み出し（`p.stats.math` のような道筋）が使うたびに数え直されること、関数のなかで関数を呼ぶと重なること。これを受けて、(1) 1 人 1 文書に分け（4 章）、(2) 一覧のリテラルを正規表現と `join` に置き換え、(3) `size()` と値の読み出しで項目の過不足を確かめるようにした。結果、1 人分をすべて上限まで埋めた文書（4 人分の試験 13）が通る。最大の 1 人（すべての表を上限まで埋めたもの）は、`,` の抜けを塞いだ後で約 750〜800 式（余裕は約 2 割。`isTrace` をもう 1 回足すと通らない）。親の文書と 4 人を 1 つの batch で書く（5 書き込み）試験 13b もエミュレーターでは通るが、**本番が batch 全体で式を数えるのかは未確認**（5.3 の公開前の手順）。**R3 などで項目を足すときは、必ず 試験 13 を回し直す**。
+- **`join` の抜け**: キーを `,` でつないで 1 つずつの形に合わせる方法は、「`,` を含むキー 1 つ」が 2 つに見える抜けがあった（試験で見つけた）。`;` でつないだものも合わせることで防いだ（`isKeyList`）。
+- **R3 に向けて**: レベルは `M`・`K`・`T`・`E` ＋ 2 けたまでの形で通すので、新しいレベルを足してもルールは直さなくてよい。ステージは S3 まで入れてある。車の種類を増やすときは `firestore.rules` の車の 2 か所（`p.icon` と `cards`）を `src/storage.js` の `CAR_IDS` と合わせる。書ける字を増やすときは `traceCharPattern()`（`src/strokes.js` の `SETS`）。どちらも、ずれたら試験が失敗する（「ルールの一覧が端末側と一致する」）。
 
 ### 5.3 ルールの確かめ方（公開前）
 
-公開の前に、次を確かめる。R4-1 の実装では、同じ内容を Firebase のエミュレーター（`npx firebase-tools emulators:start` と `@firebase/rules-unit-testing`。開発用の道具でアプリには含めない。無料。Java が要る）で自動テストにする。エミュレーターを入れるのは開発の依存が増えるので、R4-1 の着手のときに改めて確かめる。
+**実行**（リポジトリ直下から。Java が要る。Firebase にログインしない・実在のプロジェクトを使わない。`demo-` で始まるプロジェクト名はエミュレーター専用）:
 
-| # | 操作 | 期待 |
-|---|---|---|
-| 1 | ログインなしで `families/A` を読む | 拒否 |
-| 2 | uid A で `families/B` を読む・書く | 拒否 |
-| 3 | uid A で `families/A` に 4 章の形を書く（2 人） | 許可 |
-| 4 | 3 に `email` の項目を足す | 拒否 |
-| 5 | プロフィールを 5 人にする | 拒否 |
-| 6 | `name` を 7 文字・漢字・英字にする | 拒否（「こども1」は許可） |
-| 7 | `cards.shoubousha` を 4 や `'3'` にする | 拒否 |
-| 8 | `stats.math.questions` を -1 や 1.5 にする | 拒否 |
-| 8b | `trace.done`・`trace.help`・`trace.solo` に知らない字・0・100 を入れる／`trace.help`・`trace.solo` を欠く／`stats.trace` の項目を欠く | 拒否 |
-| 9 | `updatedAt` を端末の時刻にする | 拒否 |
-| 10 | `deleted` を 17 件にする | 拒否 |
-| 11 | uid A で `families/A` を消す | 許可 |
-| 12 | 一覧の問い合わせ（`families` 全体） | 拒否 |
-| 13 | 4 人分で、すべての表を上限まで埋めた文書を書く | 許可（式の上限に当たらない） |
+```
+cd tests-rules && npm install && cd ..        # 初回だけ（@firebase/rules-unit-testing と firebase が入る。アプリには含まれない）
+firebase emulators:exec --only firestore --project demo-hataraku "npm --prefix tests-rules test"
+```
 
-注意: `rules.Map` の `values()`・`rules.List` の `join()` は、公式の参照ページを今回の調査では本文まで読めなかった（ページの中身が取れず、仕様の写しで確かめた）。上の 7・10・13 で動くことを必ず確かめる。動かない場合は、`isDateMap` を「キーを決め打ちで 1 つずつ確かめる」形に書き換える。
+- `firebase.json` はエミュレーターの Firestore だけを設定している（デプロイ先の設定は入れていない）。初回はエミュレーターの jar がダウンロードされる（無料）。
+- 試験は `tests-rules/rules.test.js`（46 件。2026-10-26 に全部通った）。既存の `bash scripts/test.sh` と CI には含まれない（別の `package.json`）。ルールを直したときと、`src/storage.js` の形・`src/strokes.js` の字を変えたときに回す。
+- 端末の実際のプロフィール（`src/storage.js` の `normalize` が作る S0・S1・S2、「かく」の記録あり、v1 からの移行、壊れた入力を直した後）をクラウドの形に直したものが**拒否されない**ことも、同じ試験で確かめている（正しいデータの拒否が最も困るため）。
+
+| # | 操作 | 期待 | 試験 |
+|---|---|---|---|
+| 1 | ログインなしで `families/A` を読む・書く（Google 以外のログインも） | 拒否 | 1・1b |
+| 2 | uid A で `families/B`（とその `profiles`）を読む・書く・消す・一覧する | 拒否 | 2・最後の相互の試験 |
+| 3 | uid A で `families/A` と `profiles` に 4 章の形（2 人）を書く・読む・一覧する | 許可 | 3・3b |
+| 4 | 文書・プロフィール・各表に `email` などの項目を足す／項目を欠く | 拒否 | 4・4b |
+| 5 | `ids` を 5 件にする（プロフィール 5 人）。4 人・0 人は許可。`ids` に無い id・親が無いときのプロフィールの書き込みも拒否（親→子の順なら許可） | 5 は拒否 | 5・5b・12c・14・14b |
+| 6 | `name` を 7 文字・漢字・英字・空にする | 拒否（「こども1」「らーめん」は許可） | 6・6b |
+| 7 | `cards.shoubousha` を 4 や `'3'` にする | 拒否 | 7・7b |
+| 8 | `stats.math.questions` を -1 や 1.5 にする | 拒否 | 8 |
+| 8b | `trace.done`・`trace.help`・`trace.solo` に知らない字・0・100・「,」を含むキーを入れる／`trace.help`・`trace.solo` を欠く／`stats.trace` の項目を欠く／help・solo に done にない字 | 拒否 | 8b-1〜8b-4 |
+| 9 | 親の `updatedAt` を端末の時刻にする | 拒否 | 9・9b・9c |
+| 10 | `deleted` を 17 件にする（日付でない値・形の違うキーも）。値に `,` を入れて詰め込む（`cleared`・`promoted`・`deleted`・`done`・`help`・`solo`） | 拒否 | 10・10c |
+| 11 | uid A で `families/A` を消す | 許可（ほかの人・未ログインは拒否） | 11・11b |
+| 12 | 一覧の問い合わせ（`families` 全体・`collectionGroup('profiles')`） | 拒否（自分の `profiles` の一覧は許可、プロフィールの id がパスと違うものは拒否） | 12・12b・12d |
+| 13 | 4 人分で、すべての表を上限まで埋めた文書を書く（親＋4 人を 1 つの batch でも） | 許可（式の上限に当たらない） | 13・13b |
+
+**公開前の手順（本番で batch を試す）**: 本番が batch 全体で式の数を数えるかは未確認。公開の前に、テスト用の Google アカウント（実在の家族のものではない）で、親の文書と上限まで埋めた 4 人（試験 13b と同じ）を 1 つの batch で書き、通ることを確かめて、すぐ消す。拒否されたら、cloud.js は親→子を別々の書き込みにする（4.2 の順番で、`getAfter` は前の書き込みを見るので通る）。
+
+**公開前の手順（本番の式の上限の確認）**: 本番の式の上限（1,000）が、エミュレーターと同じかは未確認。公開前に、Firebase コンソールの「ルール プレイグラウンド」で、**最大の文書**（試験 13 と同じ、4 人分を上限まで埋めたもの。プロフィールは `tests-rules/rules.test.js` の `fullRaw`）を一度試し、許可されることを確かめる（ルールの公開前に試せる。データは書かれない）。拒否されたら公開しない。
+
+**`values()`・`join()` などの確認結果（2026-10-26。以前は「公式の参照ページの本文が取れず未確認」だった）**: エミュレーターで次が**動く**ことを確かめた。`Map.keys()`・`Map.values()`・`Map.size()`・`List.join(',')`（文字列のリストも、整数・真偽値のリストも。整数は `'0,0,0'` のように文字列にされ、正規表現に合う）・`List.hasOnly()`・`List.hasAll()`・`String.matches()`・`string(整数)`・関数の中の `let`（ただし式の数は減らない）。**動かない・注意するもの**: リストどうしの `+`（`list + list`）は使えない（`Unsupported operation error. Received: list + list`）。長いリストのリテラル（字の一覧など）は動くが式の数が膨らみ、上限を超える（正規表現に置き換えた）。`join` は `,` を含む値を見分けられない（`isKeyList` で防いだ）。
+
+**ルールが強くない点（意図して残したもの）**: (1) `help ≤ done`・`solo ≤ done` の回数の大小は確かめない（字ごとの比べは式が足りない。試験 8b-5 が「通る」ことを記録している。将来確かめるようにしたら、この試験を拒否に変える）。(2) 回数は数字だけの文字列も通る（4.3）。(3) 親の `ids` にない id のプロフィールは書けないが、`ids` から外した後に残った子の文書は自動では消えない（cloud.js が消す。4.2）。
 
 ---
 
@@ -426,6 +441,7 @@ service cloud.firestore {
 | reCAPTCHA Enterprise で入れる | 公式は新しく入れるならこちらを勧める。月 1 万回の判定まで無料 | Google Cloud 側で reCAPTCHA Enterprise を有効にする作業が増える。**Spark のままで使えるかは今回確かめられなかった**。毎回の起動で Google の reCAPTCHA のスクリプトを読み、端末の情報を Google に送る。子ども向けのアプリで、ログインしない家庭にまで通信が起きるのは方針（第 1 段階は通信ゼロ）に合わない |
 | reCAPTCHA v3 で入れる | reCAPTCHA の管理画面でサイトキーと秘密鍵を取る | 公式は v3 から Enterprise へ移るよう勧めている。上と同じく通信と登録が増える |
 
+- 入れないことの弱み（ルールで防げない小さなリスク）: `ids` を入れ替えて、4 件より多くの子の文書を作れる（cloud.js が `ids` から外すときに文書を消す約束で抑える。4.2）。自分の領域の中だけで、他人には見えない。
 - 入れないことの弱み: 公開されたキーを使って、Google でログインした誰かが自分の文書に大量に書き込むと、1 日の書き込みの枠（2 万）を使い切りうる。その場合も**他の家族のデータは壊れない**（本人の文書しか書けない）し、端末内保存が正なので遊びは止まらない。
 - 見直す条件: Firebase コンソールの使用量で、家族の利用では説明できない読み書き（例: 1 日 1,000 回を超える）が続いたら、App Check を入れる（承認を取る）。
 
@@ -435,14 +451,14 @@ service cloud.firestore {
 
 | 項目 | 無料枠（Spark） | このアプリの見込み（1 家族・1 日） | 超えたとき |
 |---|---|---|---|
-| Firestore 読み取り | 5 万／日 | 起動 5 回 × 1 ＋ 保存 20 回 × 1（トランザクションの読み取り）＋ 保護者画面 2 回 ≒ 30 | その日（または月）の残りは読み書きが失敗する。アプリは端末内の記録で動き続け、次に送れたときに同期する |
-| Firestore 書き込み | 2 万／日 | 出動 20 回 × 1 ＋ 保護者の操作数回 ≒ 25 | 同上 |
+| Firestore 読み取り | 5 万／日 | （1 人 1 文書に分けたあと）起動 5 回 × 最大 5（親 1 ＋ プロフィール 4 人）＋ 保存 20 回 ×（トランザクションの読み取り 1〜2 ＋ ルールが親を見る読み取り 1）＋ 保護者画面 2 回 ≒ 80〜110（R4-1 の作りで変わる） | その日（または月）の残りは読み書きが失敗する。アプリは端末内の記録で動き続け、次に送れたときに同期する |
+| Firestore 書き込み | 2 万／日 | 出動 20 回 × 2（プロフィール 1 ＋ 親 1）＋ 保護者の操作数回 ≒ 45 | 同上 |
 | Firestore 削除 | 2 万／日 | ほぼ 0 | 同上 |
 | Firestore 保存 | 1 GiB | 約 3 KB | 書き込みが止まる |
 | Firestore 転送 | 10 GiB／月 | 約 1 MB／月 | 同上 |
 | Authentication（Google） | 家族の利用では上限に届かない（1 章） | 保護者 1〜2 人 | ログインできなくなる。ログイン済みの端末も、トークンの更新ができないと保存が止まる |
 
-- 家族で使う範囲では、どの枠も 1% に届かない。1 家族 25 回／日の書き込みなら、800 家族まで書き込みの枠に収まる計算。
+- 家族で使う範囲では、どの枠も 1% に届かない。1 家族 45 回／日の書き込みなら、400 家族ほどまで書き込みの枠に収まる計算（1 人 1 文書に分けた後の見込み）。
 - 超えたときの止まり方: 料金プランのページは「その製品は、その月の残りは止まる」と書き、Firestore の料金のページは「日ごとの枠は太平洋時間の真夜中ごろに戻る」と書く。どちらが当てはまるかは今回確かめられなかったので、**最悪はその月の残りが止まる**と見込んで説明する。どちらでも**課金はされない**。
 - 承認者が確かめること（R4 完了条件 6）: 月に 1 回、Firebase コンソールの「使用量と請求額」で、Spark のままであること・使用量が枠から遠いことを見る。
 

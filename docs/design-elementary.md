@@ -677,9 +677,9 @@ B を選ぶべき場合: 「運営側に子どものデータを一切置かな�
 
 ### 7.4 保存の形（Firestore）
 
-- 文書: `families/{uid}`（uid は Firebase Authentication の利用者 ID）。中身は `{ v: 1, profiles: [...], deleted: { <id>: 'YYYY-MM-DD' }, updatedAt }`。プロフィールの形は R1 の v2 から `seen` を除き、`updatedAt`・`ladderAt`（7.5）を足したもの（`device` は送らない）。`deleted` は最大 16 件。文書の `updatedAt` はサーバーの時刻（`serverTimestamp()`）。**項目の正は `docs/r4-firebase-setup.md` 4 章**（R4-0 で確定）。
-- セキュリティルール: `families/{uid}` は Google でログインした本人（`request.auth.uid == uid`）だけ読み書き可。項目の名前・型・件数・文字列の形を検査する。他はすべて拒否。**全文は `docs/r4-firebase-setup.md` 5 章**。
-- 送る時: 出動が終わって保存したとき（数秒まとめてから 1 回）、保護者画面でプロフィールを変えたとき。**トランザクション（読む → `mergeProfiles` → 書く）**で送り、2 台が同時に書いても片方の変更を消さない（R4-0 で追記）。失敗しても遊びは止めない（企画 4.2）。次の保存のときにもう一度送る。
+- 文書: 親 `families/{uid}`（uid は Firebase Authentication の利用者 ID）は `{ v: 1, ids: [プロフィールの id（4 件まで）], deleted: { <id>: 'YYYY-MM-DD' }, updatedAt }`。プロフィールは 1 人 1 文書 `families/{uid}/profiles/{id}`（式の上限のため、1 家族 1 文書から分けた。`docs/r4-firebase-setup.md` 4.1）。プロフィールの形は R1 の v2 から `seen` を除き、`updatedAt`・`ladderAt`（7.5）を足したもの（`device` は送らない）。`deleted` は最大 16 件。親の `updatedAt` はサーバーの時刻（`serverTimestamp()`）。**項目の正は `docs/r4-firebase-setup.md` 4 章**（R4-0 で確定）。
+- セキュリティルール: `families/{uid}` とその下の `profiles/{id}` は Google でログインした本人（`request.auth.uid == uid`）だけ読み書き可。プロフィールの書き込みは、親の `ids` にその id があるときだけ（親を先に書く。4 人まで）。項目の名前・型・件数・文字列の形を検査する。他はすべて拒否。**全文は `docs/r4-firebase-setup.md` 5 章**。
+- 送る時: 出動が終わって保存したとき（数秒まとめてから 1 回）、保護者画面でプロフィールを変えたとき。**トランザクション（親とプロフィールを読む → `mergeProfiles` → 親と変わったプロフィールを書く。親が先）**で送り、2 台が同時に書いても片方の変更を消さない（R4-0 で追記）。失敗しても遊びは止めない（企画 4.2）。次の保存のときにもう一度送る。
 - 受け取る時: 起動時（ログイン済みなら）と、保護者画面を開いたとき。
 
 ### 7.5 端末内の記録の引き継ぎとマージの規則（企画 4.3。U13 で確認）
@@ -718,7 +718,7 @@ R4 で足す項目: プロフィールごとに `updatedAt`（名前・絵・固
 |---|---|---|
 | ログインの情報 | 保護者の Google アカウントの利用者 ID、メールアドレス、表示名（Google から受け取るもの） | Firebase Authentication（案 A）。案 B ではアプリは保存しない |
 | 子どもの呼び名 | ひらがな 6 文字まで（本名は入れないよう案内） | Firestore（A）／保護者のドライブ（B） |
-| 車の絵（アイコン） | 11 種のどれか | 同上 |
+| 車の絵（アイコン） | 15 種のどれか | 同上 |
 | 進み具合 | ゲームごとのレベル・固定、ステージ、関門を通った日、昇格した日 | 同上 |
 | ごほうび | 集めた車と★ | 同上 |
 | 回数 | 出動の回数、問題数、1 回目で正解した数 | 同上 |
@@ -743,7 +743,7 @@ R4 で足す項目: プロフィールごとに `updatedAt`（名前・絵・固
 ### 7.8 削除
 
 - プロフィール単位: 端末内から消し、`deleted` に記録して Firestore を更新。
-- アカウント全体: Firestore の `families/{uid}` を消し、Firebase Authentication の利用者も消す（再ログインを求められることがある）。端末内の記録を消すかは保護者が選ぶ。
+- アカウント全体: Firestore の `families/{uid}/profiles` の下の各文書と親の `families/{uid}` を消し、Firebase Authentication の利用者も消す（再ログインを求められることがある）。端末内の記録を消すかは保護者が選ぶ。
 - バックアップからの完全な消去にかかる時間: （R4-0 で確認）Google Cloud は削除の依頼から**最長で約 6 か月（180 日）**で消す。Firebase Authentication の IP アドレスの記録は数週間で消える。説明文に書いた。
 - 順番は「Firestore の文書 → Authentication の利用者」。利用者を先に消すと文書を消す権限が無くなる。流れの正は `docs/r4-data-and-privacy.md` (d)。
 
