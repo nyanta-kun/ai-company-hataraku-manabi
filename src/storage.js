@@ -28,7 +28,7 @@
         english: { sessions: 0, questions: 0, firstTry: 0 },
         trace: { sessions: 0, chars: 0, clean: 0 }   // 5つめのゲーム「かく」（階段・関門には入れない。design-tracing 2.6）
       },
-      trace: { done: {}, help: {}, set: 'auto', width: 'auto' },   // 字 → 書き終えた回数・たすけが要った回数（help ≤ done）。指の線は保存しない
+      trace: { done: {}, help: {}, solo: {}, set: 'auto', width: 'auto' },   // 字 → 書き終えた回数・たすけが要った回数（help ≤ done）・ひとりで書けた回数（solo ≤ done）。指の線は保存しない
       seen: { letter: [] },
       lastPlayed: '',
       stage: { unlocked: 'S0', current: 'S0' },   // 階段（design-elementary 3.2）: 解放済みの一番上のステージと、いま選んでいるステージ

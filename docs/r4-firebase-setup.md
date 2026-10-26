@@ -158,7 +158,7 @@ families/{uid}            uid = Firebase Authentication の利用者 ID（保護
       cards:   { shoubousha: 2, ... }, 車 → ★ 1〜3
       stats:   { sessions: 12, math: { sessions, questions, firstTry }, letter: {...}, clock: {...}, english: {...},
                trace: { sessions, chars, clean } },   「かく」の回数・書いた字の数・やり直しなしの字の数
-      trace:   { done: { 'し': 2, ... }, help: { 'ぬ': 2, ... }, set: 'auto', width: 'auto' },   done: 字 → 書き終えた回数 1〜99、help: 字 → たすけが要った回数 1〜99（W5。help ≤ done は端末の normalizeTrace が守る）。指の線は保存しない
+      trace:   { done: { 'し': 2, ... }, help: { 'ぬ': 2, ... }, solo: { 'し': 1, ... }, set: 'auto', width: 'auto' },   done: 字 → 書き終えた回数 1〜99、help: 字 → たすけが要った回数 1〜99（W5。help ≤ done は端末の normalizeTrace が守る）、solo: 字 → ひとりで（線なしで）書けた回数 1〜99（W6。solo ≤ done も normalizeTrace が守る。合わなかった回数は保存しない）。指の線は保存しない
       lastPlayed: 'YYYY-MM-DD' | '',
       stage:   { unlocked: 'S1', current: 'S0' },
       cleared: { M7: 'YYYY-MM-DD', ... },   関門レベル → 初めて 4/4 した日
@@ -172,7 +172,7 @@ families/{uid}            uid = Firebase Authentication の利用者 ID（保護
 }
 ```
 
-- 大きさの見込み: 1 人 0.6〜0.8 KB、4 人で約 3 KB。1 MiB の上限から遠い。「かく」の字が増える（ひらがな・カタカナ 92 字＋漢字 約 40 字）と、`done`・`help` が全部埋まっても 1 人 約 3.8 KB、4 人で約 15 KB（やはり上限から遠い）。
+- 大きさの見込み: 1 人 0.6〜0.8 KB、4 人で約 3 KB。1 MiB の上限から遠い。「かく」の字が増える（ひらがな・カタカナ 92 字＋漢字 約 40 字）と、`done`・`help` が全部埋まっても 1 人 約 3.8 KB、4 人で約 15 KB（やはり上限から遠い）。W6 の `solo` が全部埋まっても 1 人 約 1 KB 増え、4 人で約 19 KB（1 MiB の上限から遠い）。
 - 端末内（`src/storage.js:111-118` の v2）との違い: `device`（音の設定・最後に選んだ子・移行日）は送らない（`docs/design-elementary.md` 6 章）。`seen`（もじで直近に出した絵）も送らない（7.5 に理由）。`updatedAt`・`ladderAt`・`deleted` は R4 で足す（7.5）。
 - 書き方: 端末の記録とクラウドの記録をマージしてから書くので、**トランザクション**（読む → `mergeProfiles` → 書く）にする。2 台が同時に書いても片方の変更が消えない。1 回の保存で読み取り 1・書き込み 1。
 - 数値は整数で送る（Firebase の JS SDK は安全な範囲の整数を整数型で保存する）。ルールは `is int` で確かめる。
@@ -289,12 +289,14 @@ service cloud.firestore {
     // 「かく」: done のキーは書ける字（traceChars() = src/strokes.js の SETS の字。W2 はひらがな 46 字。W3 以降で増える）、値は 1〜99
     function isTrace(t) {
       return t is map
-        && t.keys().hasOnly(['done', 'help', 'set', 'width']) && t.keys().hasAll(['done', 'help', 'set', 'width'])
+        && t.keys().hasOnly(['done', 'help', 'solo', 'set', 'width']) && t.keys().hasAll(['done', 'help', 'solo', 'set', 'width'])
         && t.done is map && t.done.keys().hasOnly(traceChars())
         && t.done.values().hasOnly(range1to99())
         && t.help is map && t.help.keys().hasOnly(traceChars())
         && t.help.values().hasOnly(range1to99())
-        // help ≤ done はルールでは確かめない（字ごとの比べは式が増えるため。端末の normalizeTrace が守る）
+        && t.solo is map && t.solo.keys().hasOnly(traceChars())
+        && t.solo.values().hasOnly(range1to99())
+        // help ≤ done・solo ≤ done はルールでは確かめない（字ごとの比べは式が増えるため。端末の normalizeTrace が守る）
         && t.set in ['auto', 'hira', 'kata', 'k1', 'k2']
         && t.width in ['auto', 'wide', 'normal'];
     }
@@ -360,7 +362,7 @@ service cloud.firestore {
 - **大きさ**: ルールには文書のバイト数を測る関数が無い。代わりに、**すべての値の形と件数を縛って**、文書が数 KB を超えないようにする（プロフィール 4 人、文字列は正規表現で長さを決め、数は整数、表は件数の上限）。どの値も長い文字列や入れ子の表にできない。
 - **時刻**: 文書の `updatedAt` はサーバーの時刻（`request.time`）でなければ通さない。
 - **削除**: 本人は自分の文書を消せる（アカウント全体の削除。`docs/r4-data-and-privacy.md` (d)）。
-- **式の数**: 1 リクエストの上限は 1,000。見込みは、プロフィール 1 人あたり約 100（W5 の `trace.help` で 3 つ増えた）、4 人と家族の部分で約 460。上限の半分ほど。R3 で項目を足すときは数え直す。
+- **式の数**: 1 リクエストの上限は 1,000。見込みは、プロフィール 1 人あたり約 103（W5 の `trace.help` で 3 つ、W6 の `trace.solo` でさらに 3 つ増えた）、4 人と家族の部分で約 470。上限の半分ほど。R3 で項目を足すときは数え直す。
 - **R3 に向けて**: レベルは `M`・`K`・`T`・`E` ＋ 2 けたまでの形で通すので、新しいレベルを足してもルールは直さなくてよい。ステージは S3 まで入れてある。車の種類を増やすときは `carIds()` を直す（`src/storage.js:8` と合わせる）。
 
 ### 5.3 ルールの確かめ方（公開前）
@@ -377,7 +379,7 @@ service cloud.firestore {
 | 6 | `name` を 7 文字・漢字・英字にする | 拒否（「こども1」は許可） |
 | 7 | `cards.shoubousha` を 4 や `'3'` にする | 拒否 |
 | 8 | `stats.math.questions` を -1 や 1.5 にする | 拒否 |
-| 8b | `trace.done`・`trace.help` に知らない字・0・100 を入れる／`trace.help` を欠く／`stats.trace` の項目を欠く | 拒否 |
+| 8b | `trace.done`・`trace.help`・`trace.solo` に知らない字・0・100 を入れる／`trace.help`・`trace.solo` を欠く／`stats.trace` の項目を欠く | 拒否 |
 | 9 | `updatedAt` を端末の時刻にする | 拒否 |
 | 10 | `deleted` を 17 件にする | 拒否 |
 | 11 | uid A で `families/A` を消す | 許可 |
