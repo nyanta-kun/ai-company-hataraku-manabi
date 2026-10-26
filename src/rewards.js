@@ -10,17 +10,20 @@
   function pick(arr, rng) { return arr[Math.floor(rng() * arr.length)]; }
 
   // owned: { 車id: ★の数 }（未入手はキーなし）、scene: 'kaji'|'takai'|'michi'
+  // rank: 遊んだレベルのステージの番号（0 = S0。省略は 0）。RESCUE_FROM（S1）以上のときだけ救助隊の車も候補に入る。S0 は今までと同じ 11 種
   // 戻り値: { id, stars（もらった後の★）, isNew } / 全車 ★3 のときは { sticker: true }
-  function pickReward(owned, scene, rng) {
+  function pickReward(owned, scene, rng, rank) {
     rng = defRng(rng);
     owned = owned || {};
-    var ids = D.CARS.map(function (c) { return c.id; });
+    var rescue = (rank | 0) >= D.RESCUE_FROM;
+    var ids = (rescue ? D.ALL_CARS : D.CARS).map(function (c) { return c.id; });
     var have = ids.filter(function (id) { return owned[id] > 0; });
     if (have.length === 0) return { id: FIRST_CAR, stars: 1, isNew: true };   // 1 回目は必ずしょうぼうしゃ
 
     var unowned = ids.filter(function (id) { return !(owned[id] > 0); });
     if (unowned.length > 0) {
-      var rel = (D.SCENE_CARS[scene] || []).filter(function (id) { return unowned.indexOf(id) >= 0; });
+      var near = (D.SCENE_CARS[scene] || []).concat(rescue ? (D.RESCUE_SCENE_CARS[scene] || []) : []);
+      var rel = near.filter(function (id) { return unowned.indexOf(id) >= 0; });
       var id = pick(rel.length ? rel : unowned, rng);
       return { id: id, stars: 1, isNew: true };
     }
@@ -34,10 +37,10 @@
 
   // 抽選して cards に反映する。cards は書き換えず、新しい cards を返す。
   // 戻り値: { r: pickReward の結果, cards: 反映後 }（ステッカーのときは cards は同じ中身のコピー）
-  function applyReward(cards, scene, rng) {
+  function applyReward(cards, scene, rng, rank) {
     var next = {};
     Object.keys(cards || {}).forEach(function (k) { next[k] = cards[k]; });
-    var r = pickReward(next, scene, rng);
+    var r = pickReward(next, scene, rng, rank);
     if (!r.sticker) next[r.id] = r.stars;
     return { r: r, cards: next };
   }

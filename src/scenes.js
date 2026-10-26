@@ -202,6 +202,7 @@
   function Stage(canvas) {
     this.canvas = canvas;
     this.scene = 'kaji';
+    this.rank = 0;   // 遊んでいるレベルのステージの番号。2（S2）のときだけ、現場に救助隊の車が1台加わる
     this.shown = 0;          // 表示中の進み具合（0..4。アニメで target に近づく）
     this.target = 0;
     this.anim = null;        // { t0, dur, from, to, kind }
@@ -228,6 +229,7 @@
     this.layout();
   };
   Stage.prototype.setScene = function (s) { this.scene = s; };
+  Stage.prototype.setRank = function (r) { this.rank = r | 0; };
   Stage.prototype.setProgress = function (n) { this.shown = this.target = n; this.anim = null; };
   Stage.prototype.setProblem = function (p) {
     this.prob = p; this.subT0 = null; this.marks = []; this.bounceIdx = -1; this.word = null; this.reveal = false;
@@ -339,7 +341,7 @@
     }
     var pr = this.prob;
     var hide = !this.reveal && !!pr && ((pr.kind !== 'letter' && pr.kind !== 'clock') || (this.scene === 'kaji' && this.word && this.word.pic === 'flame'));
-    drawBackground(ctx, this.scene, this.shown, fxT, now, H, hide);
+    drawBackground(ctx, this.scene, this.shown, fxT, now, H, hide, this.rank);
     // ボード
     var b = this.board();
     fillRR(ctx, b.x, b.y, b.w, b.h, 28, 'rgba(255,255,255,0.84)', 'rgba(58,43,36,0.35)', 3);
@@ -536,7 +538,7 @@
   // ---- 背景（進み具合つき） ----
   var ROCKS = [[0, 0, 1], [-0.7, 0.2, 0.8], [0.7, 0.2, 0.8], [-0.3, -0.5, 0.8], [0.35, -0.55, 0.8], [-1.1, 0.4, 0.6], [1.1, 0.4, 0.6], [0, -1.0, 0.7], [-0.6, -1.0, 0.6], [0.6, -1.0, 0.6]];
 
-  function drawBackground(ctx, scene, prog, fxT, now, H, hide) {
+  function drawBackground(ctx, scene, prog, fxT, now, H, hide, rank) {
     var gy = H * 0.86;
     var sky = ctx.createLinearGradient(0, 0, 0, gy);
     if (scene === 'kaji') { sky.addColorStop(0, '#ffd7a8'); sky.addColorStop(1, '#fff0d6'); }
@@ -553,12 +555,22 @@
     else { for (var d = 0; d < 6; d++) fillRR(ctx, W * (0.05 + d * 0.17), gy + (H - gy) * 0.45, W * 0.09, 6, 3, '#f5f5f5'); }
     var vs = clamp(Math.min(H * 0.27, W * 0.26), 70, 210), vy = gy - vs * 0.39 + 4;
     var Vh = V();
+    if (rank >= 2 && scene !== 'kaji') drawRescueCar(ctx, scene, prog, vs, vy, Vh);   // たかい・みちは、手前の車（はしご・しょべるかー）より先に描く
     if (scene === 'kaji') drawKaji(ctx, prog, fxT, now, H, gy, vs, vy, Vh, hide);
     else if (scene === 'takai') drawTakai(ctx, prog, fxT, now, H, gy, vs, vy, Vh, hide);
     else drawMichi(ctx, prog, fxT, now, H, gy, vs, vy, Vh, hide);
+    if (rank >= 2 && scene === 'kaji') drawRescueCar(ctx, scene, prog, vs, vy, Vh);
     if (prog >= 3.99) { // クリアのきらめき
       for (var s = 0; s < 6; s++) sparkle(ctx, W * (0.15 + s * 0.14), H * (0.72 + 0.08 * Math.sin(now * 2 + s)), 14 + 4 * Math.sin(now * 3 + s), 0.5 + 0.4 * Math.sin(now * 2.5 + s * 1.7));
     }
+  }
+
+  // S2 の現場に加わる救助隊の車（design-elementary 3.12）。かじ=かがくしょうぼうしゃ、たかい=しきしゃ、みち=きゅうじょこうさくしゃ（みちは岩がなくなるころに右から来る）
+  function drawRescueCar(ctx, scene, prog, vs, vy, Vh) {
+    var s = vs * 0.8, y = vy + vs * 0.04;
+    if (scene === 'kaji') Vh.drawVehicle(ctx, 'rescueChem', W * 0.46, y, s, -1);
+    else if (scene === 'takai') Vh.drawVehicle(ctx, 'rescueCmd', W * 0.46, y, s, -1);
+    else if (prog > 3) Vh.drawVehicle(ctx, 'rescueWork', lerp(W * 1.2, W * 0.6, ease(prog - 3)), vy + vs * 0.16, vs * 0.5, -1);   // 小さく描いて地面に置く（手前のしょべるかー・きゅうきゅうしゃが前に重なる）
   }
 
   function drawKaji(ctx, prog, fxT, now, H, gy, vs, vy, Vh, hide) {
@@ -728,6 +740,11 @@
     var size = Math.min(cw * 0.5, ch * 0.5) * pop, wy = ch * 0.42 - Math.abs(Math.sin(t * 2.2)) * ch * 0.02;
     for (var k = 0; k < 8; k++) { var a = t * 0.9 + k * Math.PI / 4, r = size * 0.85; sparkle(ctx, cw / 2 + Math.cos(a) * r, wy + Math.sin(a) * r * 0.8, 10 + 4 * Math.sin(t * 4 + k), u * (0.5 + 0.4 * Math.sin(t * 3 + k))); }
     drawWappen(ctx, cw / 2, wy, size, idx, t);
+    if (idx >= 2) {   // S2: 救助隊の車が2台、署の前を通る
+      var sz = Math.min(cw * 0.22, ch * 0.22), span = cw + sz * 3;
+      V().drawVehicle(ctx, 'rescueWork', ((t * 70) % span) - sz, gy + (ch - gy) * 0.42, sz, 1);
+      V().drawVehicle(ctx, 'rescueChem', ((t * 70 + sz * 1.6) % span) - sz, gy + (ch - gy) * 0.42, sz, 1);
+    }
   }
 
   var api = {

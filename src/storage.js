@@ -5,7 +5,8 @@
   var D = (typeof module !== 'undefined' && module.exports) ? require('./data.js') : root.Manabi.data;
   var KEY = 'hataraku-manabi:v2', KEY_V1 = 'hataraku-manabi:v1', KEY_BROKEN = 'hataraku-manabi:v2:broken';
   var GAME_IDS = D.GAMES;
-  var CAR_IDS = ['nekoguruma', 'forklift', 'gomi', 'shovel', 'bulldozer', 'dump', 'kyukyu', 'shoubousha', 'mizutank', 'hashigo', 'chodai'];
+  var CAR_IDS = ['nekoguruma', 'forklift', 'gomi', 'shovel', 'bulldozer', 'dump', 'kyukyu', 'shoubousha', 'mizutank', 'hashigo', 'chodai',
+    'rescuework', 'rescuechem', 'rescuecmd', 'rescueheli'];   // 末尾 4 つは救助隊の車（data.js の RESCUE_CARS。tests/rescue.test.js で一致を確かめる）
 
   var MAX_PROFILES = 4;
   // 新しいプロフィールの既定アイコンの順番（profiles.js も同じものを使う）

@@ -117,6 +117,18 @@
     { id: 'chodai',     stage: 11, name: 'ちょうだいはしごしゃ' }
   ];
 
+  // 救助隊の車 4 種（S1・S2 で遊んだときだけごほうびに出る。design-elementary 3.12）。stage は vehicles.js の pics の id（文字列）、sound は audio.js の車の音の名前。
+  // 読み上げ・表示の名前はひらがなのまま（CAR_YOMI に足さない）。実在メーカーのロゴは描かない
+  var RESCUE_CARS = [
+    { id: 'rescuework', stage: 'rescueWork', name: 'きゅうじょこうさくしゃ', sound: 'car4' },
+    { id: 'rescuechem', stage: 'rescueChem', name: 'かがくしょうぼうしゃ',   sound: 'car9' },
+    { id: 'rescuecmd',  stage: 'rescueCmd',  name: 'しきしゃ',               sound: 'car7' },
+    { id: 'rescueheli', stage: 'rescueHeli', name: 'きゅうじょへり',         sound: 'car11' }
+  ];
+  var ALL_CARS = CARS.concat(RESCUE_CARS);
+  // ごほうびに救助隊の車が出始めるステージの番号（0 = S0）
+  var RESCUE_FROM = 1;
+
   // 読み上げ用の表記（漢字・カタカナまじり）。ひらがなだけだと端末の読み上げが語の切れ目やアクセントを決められず平坦になるため。
   // 「はしご車」「ごみ収集車」「郵便車」などは「くるま」と読まれるので、〜しゃ の語はひらがなのまま（無い語は speech / name を読む）。
   // 画面の文字・頭文字の判定には使わない。語の id（WORDS / CARS）→ 表記。無い語は、カタカナ表記があればそれを、無ければ speech / name を読む
@@ -135,6 +147,12 @@
     kaji:  ['shoubousha', 'mizutank', 'hashigo', 'chodai'],
     takai: ['hashigo', 'chodai', 'shoubousha'],
     michi: ['shovel', 'bulldozer', 'dump', 'kyukyu']
+  };
+  // 救助隊の車と関連する現場（S1 以上のごほうび抽選でだけ使う。SCENE_CARS は変えない）
+  var RESCUE_SCENE_CARS = {
+    kaji:  ['rescuechem', 'rescuecmd'],
+    takai: ['rescueheli', 'rescuecmd'],
+    michi: ['rescuework', 'rescueheli']
   };
 
   // 数の読み（し ではなく よん）。index = 数 0..100（0 は ''）。11〜99 は十の位 + 一の位でつなぐ
@@ -371,7 +389,7 @@
   var NUM_EN = ['', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten'];
 
   var api = {
-    ENGLISH_WORDS: ENGLISH_WORDS, NUM_EN: NUM_EN, TIME_KANA: TIME_KANA, MIN_KANA: MIN_KANA, HAKO_KANA: HAKO_KANA, WORDS: WORDS, KATA_WORDS: KATA_WORDS, ALL_WORDS: ALL_WORDS, EXTRA_KATA: EXTRA_KATA, CONFUSABLE_KATA: CONFUSABLE_KATA, toHira: toHira, CATS: CATS, SEEN_MAX: SEEN_MAX, cleanSeen: cleanSeen, addSeen: addSeen, CONFUSABLE: CONFUSABLE, ROW: ROW, FAMILY: FAMILY, CARS: CARS,
+    ENGLISH_WORDS: ENGLISH_WORDS, NUM_EN: NUM_EN, TIME_KANA: TIME_KANA, MIN_KANA: MIN_KANA, HAKO_KANA: HAKO_KANA, WORDS: WORDS, KATA_WORDS: KATA_WORDS, ALL_WORDS: ALL_WORDS, EXTRA_KATA: EXTRA_KATA, CONFUSABLE_KATA: CONFUSABLE_KATA, toHira: toHira, CATS: CATS, SEEN_MAX: SEEN_MAX, cleanSeen: cleanSeen, addSeen: addSeen, CONFUSABLE: CONFUSABLE, ROW: ROW, FAMILY: FAMILY, CARS: CARS, RESCUE_CARS: RESCUE_CARS, ALL_CARS: ALL_CARS, RESCUE_FROM: RESCUE_FROM, RESCUE_SCENE_CARS: RESCUE_SCENE_CARS,
     SCENES: SCENES, SCENE_CARS: SCENE_CARS, NUM_KANA: NUM_KANA, YOMI: YOMI, CAR_YOMI: CAR_YOMI,
     COLORS: COLORS, COLOR_CLASH: COLOR_CLASH, ALPHA_LETTERS: ALPHA_LETTERS, ALPHA_CLASH: ALPHA_CLASH,
     STAGES: STAGES, GAMES: GAMES, YOUON_WORDS: YOUON_WORDS, YOUON_SMALL: YOUON_SMALL, YOUON_CONS: YOUON_CONS, KANJI_WORDS: KANJI_WORDS, KANJI_WORDS2: KANJI_WORDS2, AMPM_CASES: AMPM_CASES, AMPM_LABEL: AMPM_LABEL, KANJI: KANJI, allowedKanji: allowedKanji, furigana: furigana, TEXT: TEXT,
