@@ -2,7 +2,7 @@
 (function (root) {
   'use strict';
   var M = root.Manabi, D = M.data, P = M.problems, R = M.rewards, S = M.storage, PR = M.profiles, LD = M.ladder;
-  var A = M.audio, SP = M.speech, V = M.vehicles, SC = M.scenes, CF = M.clockface, TR = M.trace, STR = M.strokes;
+  var A = M.audio, SP = M.speech, V = M.vehicles, SC = M.scenes, CF = M.clockface, TR = M.trace, STR = M.strokes, FW = M.freewrite;
   var doc = root.document;
 
   function $(id) { return doc.getElementById(id); }
@@ -117,6 +117,26 @@
       ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.moveTo(-w * .1, h * .16); ctx.lineTo(w * .1, h * .16); ctx.lineTo(0, h * .38); ctx.closePath(); ctx.fill();
       ctx.fillStyle = dark; ctx.beginPath(); ctx.moveTo(-w * .03, h * .32); ctx.lineTo(w * .03, h * .32); ctx.lineTo(0, h * .38); ctx.closePath(); ctx.fill();
       ctx.restore();
+      return;
+    }
+    if (kind === 'undo') {   // もどす（左にまわる矢印）
+      ctx.strokeStyle = dark; ctx.lineWidth = w * .11;
+      ctx.beginPath(); ctx.arc(w * .52, h * .55, w * .27, Math.PI * 1.15, Math.PI * 2.15); ctx.stroke();
+      ctx.fillStyle = dark; ctx.beginPath(); ctx.moveTo(w * .14, h * .3); ctx.lineTo(w * .42, h * .14); ctx.lineTo(w * .4, h * .46); ctx.closePath(); ctx.fill();
+      return;
+    }
+    if (kind === 'check') { ln(.2, .54, .42, .76, .14, '#fff'); ln(.42, .76, .82, .26, .14, '#fff'); return; }
+    if (kind === 'solo') {   // えんぴつと星（ひとりで かく）
+      ctx.save(); ctx.translate(w * .42, h * .56); ctx.rotate(Math.PI / 4);
+      ctx.fillStyle = '#ffd23f'; ctx.fillRect(-w * .09, -h * .3, w * .18, h * .42);
+      ctx.fillStyle = '#f2a6a6'; ctx.fillRect(-w * .09, -h * .39, w * .18, h * .09);
+      ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.moveTo(-w * .09, h * .12); ctx.lineTo(w * .09, h * .12); ctx.lineTo(0, h * .32); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = dark; ctx.beginPath(); ctx.moveTo(-w * .03, h * .26); ctx.lineTo(w * .03, h * .26); ctx.lineTo(0, h * .32); ctx.closePath(); ctx.fill();
+      ctx.restore();
+      var sx = w * .76, sy = h * .27, sr = w * .17;
+      ctx.fillStyle = '#fff'; ctx.beginPath();
+      for (var q = 0; q < 10; q++) { var rr = q % 2 ? sr * .45 : sr, an = -Math.PI / 2 + q * Math.PI / 5; ctx.lineTo(sx + Math.cos(an) * rr, sy + Math.sin(an) * rr); }
+      ctx.closePath(); ctx.fill();
       return;
     }
     if (kind === 'back') { ln(.62, .2, .3, .5, .12); ln(.3, .5, .62, .8, .12); return; }
@@ -560,10 +580,14 @@
   }
   function startTrace(opts) {
     opts = opts || {};
-    clearTimers(); token++; run = null;
     var pl = planTrace(opts);
-    var chars = pl.plan.map(function (o) { return o.ch; });
-    trun = { chars: chars, plan: pl.plan, names: pl.names, idx: 0, scene: opts.scene || pickScene(), token: token, helpSaid: false, wrote: [], pid: data.id };
+    launchTrace(pl.plan, pl.names, opts, false);
+  }
+  // なぞり・ひとりで かく の出動の始まり（solo: 線なしで書く）
+  function launchTrace(plan, names, opts, solo) {
+    clearTimers(); token++; run = null;
+    var chars = plan.map(function (o) { return o.ch; });
+    trun = { chars: chars, plan: plan, names: names, idx: 0, scene: opts.scene || pickScene(), token: token, helpSaid: false, wrote: [], pid: data.id, solo: !!solo, told: false, nazori: false, phase: 'write', auto: opts.auto || '' };
     if (!tboard) tboard = new M.TraceBoard($('trace-board'), {
       onStrokeDone: function (i, auto, last) { if (trun && !last) sfx('pon', i + 1); },
       onBad: function (result, m) {
@@ -573,9 +597,12 @@
         else if (m === 3) say('いっしょに。');
       },
       onAssist: function () { if (trun) say('いっしょに かけたね。'); },
-      onCharDone: onTraceCharDone
+      onCharDone: onTraceCharDone,
+      onInk: updateSoloTools,
+      onIdle: nudgeSoloCard
     });
     show('trace');
+    $('s-trace').classList.toggle('solo', !!solo); $('s-trace').classList.remove('nazori');
     if (!tstage) tstage = new SC.Stage($('traceField'));
     tstage.noBoard = true; tstage.setScene(trun.scene); tstage.setRank(stageIdx()); tstage.setProgress(0); tstage.setProblem(null);
     updateTraceLamps(0); showNameTag(null);
@@ -588,6 +615,7 @@
   }
   function presentTraceChar() {
     if (!trun) return;
+    if (trun.solo) { presentSoloChar(); return; }
     var ch = trun.chars[trun.idx];
     trun.helpSaid = false;
     tboard.setChar(ch, !(data.trace.done[ch] > 0));   // 初めて書く字だけ、全部の画のお手本を流す（T8）
@@ -598,13 +626,19 @@
   }
   function onTraceCharDone(info) {
     if (!trun) return;
-    var ch = info.ch, done = trun.idx + 1, my = trun.token;
+    var ch = info.ch;
     trun.wrote.push(ch);
     data.trace = TR.recordTraceChar(data.trace, ch, info);   // 途中でやめても、書けた字は数える。maxM >= 2 なら たすけの回数も足す
     data.stats.trace.chars++; if (info.clean) data.stats.trace.clean++;
     save();
+    // ひとりで かく で合わなかった字を なぞり終えたとき（done は 1 回の出動で 1 だけ増える）
+    stepAfterChar(ch, trun.nazori ? 'なぞって かけたね！' : 'できた！ ' + traceDoneWord(ch) + '！');
+  }
+  // 1 字書けたあと（なぞり・ひとりで・なぞって）の共通: ランプ・音・現場が 1 段すすむ・次の字
+  function stepAfterChar(ch, word) {
+    var done = trun.idx + 1, my = trun.token;
     updateTraceLamps(done);
-    sfx('correct'); say('できた！ ' + traceDoneWord(ch) + '！');
+    sfx('correct'); say(word);
     later(700, function () {
       sfx(trun && trun.scene === 'kaji' ? 'water' : trun && trun.scene === 'takai' ? 'ladder' : 'dig');
       sfx('horn');
@@ -617,19 +651,142 @@
       if (trun.idx >= P.QUESTIONS_PER_SESSION) finishTrace(); else presentTraceChar();
     });
   }
+
+  // ---- ひとりで かく（線なしで書く。design-tracing 13.9）----
+  var prevSolo = {};       // 前の ひとりで かく の字（プロフィールの id ごと。保存しない）
+  var soloCard = { ch: '', t0: 0 };
+  var soloInviteSaid = {};
+  var soloDebugOn = false;
+  function soloChars() { return FW.soloReady(TR.charsOfSet(TR.traceSet(data.trace, LD.currentStage(data))), data.trace); }
+  function soloAvailable() { return soloChars().length >= P.QUESTIONS_PER_SESSION; }
+  // 誘い: その集合の字をひととおり なぞった（1 回以上）が、まだ全部は ひとりで書けていない
+  function soloInviteSet() {
+    var sets = FW.DEFAULTS.SOLO_SETS;
+    for (var i = 0; i < sets.length; i++) {
+      var cs = STR.SETS[sets[i]] ? STR.SETS[sets[i]].split('') : [];
+      if (cs.length && FW.soloInvite(cs, data.trace) && !FW.soloLicense(data.trace, sets[i])) return sets[i];
+    }
+    return '';
+  }
+  function startSolo(opts) {
+    opts = opts || {};
+    var plan = opts.chars ? opts.chars.map(function (c) { return { ch: c, why: 'new' }; })
+      : FW.pickSoloChars(TR.charsOfSet(TR.traceSet(data.trace, LD.currentStage(data))), data.trace, { n: P.QUESTIONS_PER_SESSION, name: data.name, prev: prevSolo[data.id] || [], chosen: opts.chosen || '' }, Math.random);
+    if (!plan.length) { startTrace(opts); return; }
+    launchTrace(plan, [], opts, true);
+  }
+  function soloPrompt(ch) { return tracePrompt(ch, null).replace('なぞってね。', 'ひとりで かいて みよう。'); }
+  function presentSoloChar() {
+    var ch = trun.chars[trun.idx];
+    trun.helpSaid = false; trun.told = false; trun.nazori = false; trun.phase = 'write';
+    $('s-trace').classList.add('solo'); $('s-trace').classList.remove('nazori');
+    layoutTrace();
+    tboard.setFree(ch); showNameTag(null);
+    soloCard.ch = ch; soloCard.t0 = 0;
+    updateSoloTools(0);
+    say(soloPrompt(ch));
+    if (trun.auto) later(900, soloAutoWrite);
+    kick();
+  }
+  function updateSoloTools(n) {
+    var b = $('btn-solo-done'); if (!b || !tboard) return;
+    var cnt = typeof n === 'number' ? n : tboard.ink.length, ok = !!(trun && trun.solo && trun.phase === 'write') && cnt > 0;
+    b.disabled = !ok;
+    $('btn-solo-undo').disabled = !(trun && trun.solo && trun.phase === 'write') || cnt === 0;
+    b.classList.remove('glow');
+    if (ok && trun.chars[trun.idx]) {   // 手本の画の数以上を書いて 2 秒たったら、軽く光らせる（自動では判定しない）
+      var my = trun.token, at = trun.idx, need = STR.STROKES[trun.chars[trun.idx]].s.length;
+      if (cnt >= need) later(2000, function () { if (trun && trun.token === my && trun.idx === at && trun.phase === 'write' && tboard.ink.length >= need) b.classList.add('glow'); });
+    }
+  }
+  function nudgeSoloCard() {
+    var c = $('solo-card'); if (!c || !trun || !trun.solo) return;
+    c.classList.remove('nudge'); void c.offsetWidth; c.classList.add('nudge');
+  }
+  function drawSoloCard(t) {
+    if (!trun || !trun.solo || !soloCard.ch) return;
+    var cv = $('solo-card'), c = sizeCanvas(cv);
+    if (!c.w) return;
+    var el = soloCard.t0 ? t - soloCard.t0 : null;
+    var going = M.TraceBoard.drawCard(c.ctx, soloCard.ch, c.w, el);
+    if (soloCard.t0 && !going) soloCard.t0 = 0;
+  }
+  // 札を押す・「おてほん」: 札の中で書き順のアニメーション。まだ何も書いていなければ、1 画目を板に 2 秒だけ薄く出す
+  function soloShowHint() {
+    if (!trun || !trun.solo || trun.phase !== 'write') return;
+    soloCard.t0 = now();
+    tboard.hintFirst();
+    say(soloPrompt(trun.chars[trun.idx]));
+    kick();
+  }
+  function soloDone() {
+    if (!trun || !trun.solo || trun.phase !== 'write' || !tboard) return;
+    var ch = trun.chars[trun.idx], ink = tboard.inkStrokes();
+    if (!ink.length) return;
+    var j = FW.judgeSolo(ch, ink, { told: trun.told });
+    if (soloDebugOn) showSoloJudge(ch, j);
+    if (!j || j.result === 'empty') return;
+    if (j.result === 'more') {   // 画が足りない・小さすぎる: 1 字に 1 回だけ、判定せずに続きを書かせる
+      trun.told = true; sfx('tap');
+      say(j.reason === 'small' ? 'もうすこし おおきく かいて みよう。' : 'つづきも かいてね。');
+      return;
+    }
+    var my = trun.token;
+    trun.phase = 'review'; updateSoloTools(0);
+    tboard.showFit(j.fit, j.result, j.focus);
+    if (j.result === 'ok') {
+      trun.wrote.push(ch);
+      data.trace = FW.recordSolo(data.trace, ch);   // done と solo をどちらも +1
+      data.stats.trace.chars++; data.stats.trace.clean++;
+      save();
+      stepAfterChar(ch, 'ひとりで かけたね！ ' + traceDoneWord(ch) + '！');
+    } else {   // 手本を重ねて見せ、いつものなぞりで書き終える（点数も、合わなかった回数の保存も無い）
+      say('おてほんと くらべて みよう。こんどは なぞって みよう。');
+      later(2600, function () {
+        if (!trun || trun.token !== my) return;
+        trun.nazori = true; trun.phase = 'trace';
+        $('s-trace').classList.add('nazori'); layoutTrace();
+        tboard.setChar(ch, true);
+        kick();
+      });
+    }
+    kick();
+  }
+  // 確認用: 判定の中身（保存しない）
+  function showSoloJudge(ch, j) {
+    var box = doc.getElementById('debug'); if (!box) return;
+    var pre = doc.getElementById('solojudge');
+    if (!pre) { pre = doc.createElement('pre'); pre.id = 'solojudge'; pre.style.cssText = 'position:fixed;left:0;bottom:0;z-index:60;margin:0;padding:4px 8px;background:rgba(255,255,255,.9);font-size:11px;max-width:100%;overflow:auto;max-height:40%;pointer-events:none'; doc.body.appendChild(pre); }
+    var D = FW.DEFAULTS;
+    pre.textContent = 'solo-judge ' + ch + ' → ' + (j && j.result) + ' focus ' + (j && j.focus) + (j && j.reason ? ' (' + j.reason + ')' : '') + '\n' +
+      ((j && j.detail) || []).map(function (d) {
+        return ' 手本' + (d.m + 1) + (d.m1 - d.m > 1 ? '+' + d.m1 : '') + ' ← 子' + (d.c + 1) + (d.c1 - d.c > 1 ? '+' + d.c1 : '') + (d.kind ? ' ' + d.kind : '') + ' ' +
+          (d.dot ? 'てん d=' + d.D.toFixed(2) + '/' + D.DOT_R : 'D=' + d.D.toFixed(2) + '/' + D.SHAPE_MEAN + ' max=' + d.Dmax.toFixed(2) + '/' + D.SHAPE_MAX + ' Dr=' + (d.Dr || 0).toFixed(2)) + (d.ok ? '' : ' x') + (d.reverse ? ' 逆' : '');
+      }).join('\n');
+  }
+  // 確認用の自動の書き手（#debug:play-solo-auto = 手本どおり、-auto-bad = 逆向き・逆順）
+  function soloAutoWrite() {
+    if (!trun || !trun.solo || trun.phase !== 'write') return;
+    var ch = trun.chars[trun.idx], r = Math.random;
+    var ink = FW.synthInk(ch, { size: 0.55 + r() * 0.3, cx: 0.4 + r() * 0.2, cy: 0.4 + r() * 0.2, tremor: 0.006, shift: 0.02, aspect: 0.9 + r() * 0.2 }, r);
+    if (trun.auto === 'bad') ink = ink.slice().reverse().map(function (st) { return st.slice().reverse(); });
+    tboard.setInk(ink);
+    later(700, soloDone);
+  }
+
   function finishTrace() {
     var st = data.stats;
     st.sessions++; st.trace.sessions++;
     var r = grantReward(trun.scene, stageIdx());   // S0 は今までと同じ出方。階段（afterSession）は呼ばない
     data.lastPlayed = todayStr();
     save();
-    reward = { r: r, t0: 0, game: 'trace', wrote: trun.wrote.slice(), firstNew: (trun.plan.filter(function (o) { return o.why === 'new'; })[0] || {}).ch || '' };
+    reward = { r: r, t0: 0, game: 'trace', solo: !!trun.solo, wrote: trun.wrote.slice(), firstNew: (trun.plan.filter(function (o) { return o.why === 'new'; })[0] || {}).ch || '' };
     rememberTrace();
     trun = null; tboard.stop();
     show('reward');
   }
   // 前の出動の字（書き終えた字）を覚える。1 字も書いていなければ、前の記録のまま
-  function rememberTrace() { if (trun && trun.wrote.length) prevTrace[trun.pid] = trun.wrote.slice(); }
+  function rememberTrace() { if (trun && trun.wrote.length) (trun.solo ? prevSolo : prevTrace)[trun.pid] = trun.wrote.slice(); }
   function quitTrace() {
     rememberTrace();
     clearTimers(); token++; trun = null; if (tboard) tboard.stop(); SP.cancel();
@@ -670,6 +827,7 @@
     var r = reward.r, car = rewardCar();
     $('reward-text').textContent = ''; $('reward-sub').textContent = '';
     drawReward();
+    updateRewardSolo();
     later(500, function () { sfx('card'); });
     later(1100, function () {
       sfx('fanfare');
@@ -683,6 +841,16 @@
       }
     });
     kick();
+  }
+  // ごほうびの「ひとりで かく」: かく の あと、出せる字が 4 字以上あるときだけ。集合の字をひととおり なぞったら光って誘う
+  function updateRewardSolo() {
+    var b = $('btn-r-solo'); if (!b) return;
+    var show = !!(reward && reward.game === 'trace' && soloAvailable()), set = show ? soloInviteSet() : '';
+    b.hidden = !show; b.classList.toggle('glow', !!set);
+    if (set && !soloInviteSaid[data.id + set]) {
+      soloInviteSaid[data.id + set] = true;   // その集合で 1 回だけ（開いている間だけ覚える）
+      later(4300, function () { say('ぜんぶ なぞれたね！ ひとりで かいて みよう。'); });
+    }
   }
   function drawReward() {
     var cv = $('cardCanvas'), c = sizeCanvas(cv), t = now() - reward.t0;
@@ -986,13 +1154,17 @@
     fillKids();
   }
 
+  function soloCount(set) { var cs = STR.SETS[set].split(''); return cs.filter(function (c) { return data.trace.solo && data.trace.solo[c] > 0; }).length; }
   function traceCount(set) { var cs = STR.SETS[set].split(''); return cs.filter(function (c) { return data.trace.done[c] > 0; }).length; }
   // 保護者画面の「かいた じ」: ひらがな N/46・カタカナ M/46（S1 から 1ねんの かんじ N/20、S2 から 2ねんの かんじ N/18。解放済みのステージの集合だけ）
   function traceProgressText() {
     var unl = D.stageIndex(data.stage.unlocked);
     return [['ひらがな', 'hira', 0], ['カタカナ', 'kata', 0], ['1ねんの かんじ', 'k1', 1], ['2ねんの かんじ', 'k2', 2]]
       .filter(function (a) { return unl >= a[2]; })
-      .map(function (a) { return a[0] + ' ' + traceCount(a[1]) + '/' + STR.SETS[a[1]].length; }).join('<br>');   // 1 つの集合ごとに改行（狭い画面で折り返すため）
+      .map(function (a) {
+        var solo = FW.DEFAULTS.SOLO_SETS.indexOf(a[1]) >= 0 ? '　ひとりで かけた じ ' + soloCount(a[1]) : '';
+        return a[0] + ' ' + traceCount(a[1]) + '/' + STR.SETS[a[1]].length + solo;
+      }).join('<br>');   // 1 つの集合ごとに改行（狭い画面で折り返すため）
   }
   // 保護者の「かく の ひょう」: 字ごとに書いた回数と、たすけが要った回数（オレンジ）。割合は出さない
   var ptSet = '';
@@ -1116,7 +1288,7 @@
         else { drawAnswerClocks(0); run.pulse = null; }
       }
     }
-    else if (screen === 'trace' && tboard) { tboard.draw(t); if (tstage) tstage.draw(t); keep = true; }
+    else if (screen === 'trace' && tboard) { tboard.draw(t); if (tstage) tstage.draw(t); drawSoloCard(t); keep = true; }
     else if (screen === 'reward' && reward) { drawReward(); keep = true; }
     else if (screen === 'promote' && promo) { drawPromote(); keep = true; }
     else if (screen === 'garage') { keep = drawGarage(); }
@@ -1170,8 +1342,13 @@
     $('btn-trace').addEventListener('click', function () { startTrace(); });
     holdButton($('btn-quit'), 2000, quitSession);
     holdButton($('btn-trace-quit'), 2000, quitTrace);
+    $('btn-solo-done').addEventListener('click', function () { soloDone(); });
+    $('btn-solo-undo').addEventListener('click', function () { if (trun && trun.solo && trun.phase === 'write' && tboard.undoInk()) sfx('tap'); });
+    $('solo-card').addEventListener('click', soloShowHint);
+    $('btn-r-solo').addEventListener('click', function () { sfx('tap'); startSolo(); });
     $('btn-trace-replay').addEventListener('click', function () {
       if (!trun || !tboard) return;
+      if (trun.solo && trun.phase === 'write') { soloShowHint(); return; }   // 線なし: 札の書き順と、1 画目のヒント
       if (tboard.replay()) say(tracePrompt(trun.chars[trun.idx], traceInfoAt(trun.idx)));   // 手本の書き足し中は効かない
       kick();
     });
@@ -1213,7 +1390,7 @@
     $('btn-r-end').addEventListener('click', function () { sfx('tap'); leaveReward('title'); });   // 昇格があれば先に昇格画面（そのあとタイトル）
     $('btn-r-again').addEventListener('click', function () {
       sfx('tap');
-      if (reward && reward.game === 'trace') startTrace(); else leaveReward('pick');   // かく から来たときは かく をもう一度
+      if (reward && reward.game === 'trace') { if (reward.solo && soloAvailable()) startSolo(); else startTrace(); } else leaveReward('pick');   // かく から来たときは かく をもう一度（ひとりで かく のあとは ひとりで かく。出せる字が足りなければ なぞり）
     });
     $('btn-pr-go').addEventListener('click', function () {   // 「すすむ」: 新しいステージを選んでタイトルへ
       sfx('tap'); if (promo) { replaceData(LD.selectStage(data, promo.stage)); save(); }
@@ -1253,7 +1430,8 @@
 
   // main.js から使う / デバッグ用
   M.ui = {
-    init: init, show: show, startSession: startSession, startTrace: startTrace, drawIcon: drawIcon,
+    init: init, show: show, startSession: startSession, startTrace: startTrace, startSolo: startSolo, drawIcon: drawIcon,
+    soloDebug: function (on) { soloDebugOn = on !== false; },
     get traceBoard() { return tboard; },
     // 確認用: 次の出動の字と why を返す（くじを固定）。prev は今のプロフィールの前の出動
     tracePlan: function () {
