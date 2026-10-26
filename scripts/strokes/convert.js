@@ -3,7 +3,7 @@
 //
 // 取得元: https://github.com/KanjiVG/kanjivg の release r20260714（tag）の kanji/<5桁の16進>.svg
 //   https://raw.githubusercontent.com/KanjiVG/kanjivg/r20260714/kanji/03042.svg など
-// 版: r20260714
+// 版: r20260714（tag）= commit d95a97627fd9fe5b2c8d06ca81e38149609c0c1e
 // ライセンス: KanjiVG は CC BY-SA 3.0（© Ulrich Apel, http://kanjivg.tagaini.net）。出力の src/strokes.js だけが CC BY-SA 3.0。このスクリプト自体は対象外。
 //
 // 使い方（外部ライブラリなし。Node 18 以上）:
@@ -15,9 +15,11 @@ const fs = require('fs');
 const path = require('path');
 
 const VERSION = 'r20260714';
+const COMMIT = 'd95a97627fd9fe5b2c8d06ca81e38149609c0c1e';
 const BASE = 'https://raw.githubusercontent.com/KanjiVG/kanjivg/' + VERSION + '/kanji/';
 const SETS = {
-  hira: 'あいうえおかきくけこさしすせそたちつてとなにぬねのはひふへほまみむめもやゆよらりるれろわをん'
+  // なぞる順番（易しい順。企画どおり）
+  hira: 'しつくへてのひそろるんいこりうとちらえすよわれみめゆぬねけにかさせもやおあまはむをたなきふほ'
 };
 const SCALE = 10;   // 109 を 10 倍して整数に丸める
 
@@ -99,9 +101,9 @@ const HEADER = [
   '//   Creative Commons Attribution-ShareAlike 3.0 (CC BY-SA 3.0)  https://creativecommons.org/licenses/by-sa/3.0/',
   '//',
   '// 出典: KanjiVG  http://kanjivg.tagaini.net  Copyright (C) 2009-2011 Ulrich Apel.',
-  '//   取得元: https://github.com/KanjiVG/kanjivg  版: ' + VERSION + '（kanji/<コード>.svg）',
-  '// 変更内容: 必要な字だけを選び、座標を 10 倍して整数に丸め、M/C/c/S/s/L/l を絶対座標の 3 次ベジェの配列に直した。',
-  '//   番号の位置（<text>）と画の種類（kvg:type）も取り出した。画の順番の入れ替えはまだ無い。',
+  '//   取得元: https://github.com/KanjiVG/kanjivg  版: ' + VERSION + '（tag）= commit ' + COMMIT + '（kanji/<コード>.svg）',
+  '// 変更内容: 必要な字だけを選び、座標を 10 倍して整数に丸め、M/m/C/c/S/s/L/l を絶対座標の 3 次ベジェの配列に直した。',
+  '//   番号の位置（<text>）と画の種類（kvg:type）も取り出した（ひらがなの SVG には kvg:type が無いので t は空文字）。画の順番の入れ替えはまだ無い。',
   '// 作り方: node scripts/strokes/convert.js <SVG のフォルダ> --fetch （手で書き換えず、変換し直す。順番の入れ替えを足すときは上の「変更内容」に書く）',
   '//',
   '// 形: STROKES[字] = { s: 画の配列, n: 番号の位置, t: 画の種類 }。',

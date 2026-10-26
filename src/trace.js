@@ -32,7 +32,7 @@
   // ---- 3.2 手本の点列 ----
   // 1 画（strokes.js の形）→ 弧長で等間隔 h の点列 [[x,y],…]（正規化座標）。始点と終点は必ず含める
   function strokePolyline(stroke, h) {
-    h = h || DEFAULTS.h;
+    if (typeof h !== 'number' || !(h > 0) || !isFinite(h)) h = DEFAULTS.h;
     var fine = [[stroke[0] / DATA_SIZE, stroke[1] / DATA_SIZE]];
     for (var i = 2; i + 5 < stroke.length; i += 6) {
       var p0 = fine[fine.length - 1];
@@ -89,6 +89,7 @@
   // ---- 3.3 許容幅 ----
   // B: 板の一辺（CSS px）, width: 'wide' | 'normal'（'auto' は呼ぶ側が traceWidth で決める）, script: 'kanji' なら g = 0.85
   function tolerance(B, width, script) {
+    if (typeof B !== 'number' || !(B > 0) || !isFinite(B)) B = 600;   // 板の大きさが測れないときは iPad 縦の大きさ
     var k = width === 'wide' ? DEFAULTS.wide : 1;
     var g = script === 'kanji' ? DEFAULTS.kanjiG : 1;
     return {
@@ -132,15 +133,27 @@
   function windowPts(poly) { return Math.max(1, Math.round(DEFAULTS.window / DEFAULTS.h)); }
 
   // 進度つき最近傍: idx から先の窓の中で p から near 以内の一番先の点
-  function advance(poly, idx, p, near) {
-    var hi = Math.min(poly.length - 1, idx + windowPts(poly)), best = idx;
-    for (var j = idx; j <= hi; j++) if (dist(p, poly[j]) <= near) best = j;
+  // 窓は idx と ref（near〜off で追った位置）の先まで。near に戻ってきたら idx が追いつく
+  function advance(poly, idx, ref, p, near) {
+    var hi = Math.min(poly.length - 1, Math.max(idx, ref) + windowPts(poly)), best = idx;
+    for (var j = idx; j <= hi; j++) {
+      if (dist(p, poly[j]) > near) continue;
+      best = j;
+    }
     return best;
+  }
+
+  // near〜off の間をなぞっているときの位置 ref（進度 idx とは別。「外」の判定の窓の中心にだけ使う）。
+  // ref から先の窓の中で p に一番近い点が off 以内なら、そこまで進める
+  function softRef(poly, ref, p, off) {
+    var hi = Math.min(poly.length - 1, ref + windowPts(poly)), best = ref, bd = Infinity;
+    for (var j = ref; j <= hi; j++) { var d = dist(p, poly[j]); if (d < bd) { bd = d; best = j; } }
+    return bd <= off ? best : ref;
   }
 
   function beginStroke(poly, p, tol) {
     var first = poly[0], lastPt = poly[poly.length - 1];
-    var base = { idx: 0, last: p, offLen: 0, off: false, dot: false };
+    var base = { idx: 0, ref: 0, last: p, offLen: 0, off: false, dot: false, travel: 0, idx0: 0 };
     if (isDot(poly)) {
       // 点: 画のどこから押してもよい（off の中なら）
       if (distToRange(poly, p, 0, poly.length - 1) <= tol.off) {
@@ -150,7 +163,9 @@
       return { state: base, result: 'miss' };
     }
     if (dist(p, first) <= tol.startR) {
-      base.idx = advance(poly, 0, p, tol.near);
+      base.idx = advance(poly, 0, 0, p, tol.near);
+      base.ref = softRef(poly, 0, p, tol.off);
+      base.idx0 = base.idx;
       return { state: base, result: 'started' };
     }
     if (dist(p, lastPt) <= tol.startR) return { state: base, result: 'reverse' };
@@ -158,7 +173,7 @@
   }
 
   function moveStroke(poly, state, pts, tol) {
-    var st = { idx: state.idx, last: state.last, offLen: state.offLen, off: state.off, dot: state.dot, inside: state.inside };
+    var st = { idx: state.idx, ref: state.ref, last: state.last, offLen: state.offLen, off: state.off, dot: state.dot, inside: state.inside, travel: state.travel, idx0: state.idx0 };
     if (st.off) return { state: st, result: 'off' };
     var W = windowPts(poly), step = tol.near / DEFAULTS.densifyDiv;
     for (var a = 0; a < pts.length; a++) {
@@ -168,8 +183,13 @@
         if (st.dot) {
           st.inside = distToRange(poly, q, 0, poly.length - 1) <= tol.off;
         } else {
-          st.idx = advance(poly, st.idx, q, tol.near);
-          var d = distToRange(poly, q, st.idx - W, st.idx + W);
+          st.travel += dist(st.last, q);
+          // 進度は、指の道のり＋near より先へは進めない（輪や交差で反対側の手本へ飛ばない。書けたことにするには、指の道のりが 手本の長さ×0.9 − near 以上いる。つまり近道で飛ばせるのは 手本の長さの 1 割＋near まで。小さい板・広い幅・助けで near が大きくても効く）
+          var cap = Math.max(st.idx0, Math.floor((st.travel + tol.near) / DEFAULTS.h));
+          st.idx = Math.max(st.idx, Math.min(advance(poly, st.idx, st.ref, q, tol.near), cap));
+          st.ref = Math.max(st.ref, st.idx);
+          st.ref = softRef(poly, st.ref, q, tol.off);
+          var d = distToRange(poly, q, st.ref - W, st.ref + W);
           if (d > tol.off) {
             st.offLen += dist(st.last, q);
             if (st.offLen > tol.offRun) { st.off = true; st.last = pts[a]; return { state: st, result: 'off' }; }
@@ -183,9 +203,21 @@
   }
 
   function endStroke(poly, state, tol) {
-    if (state.off) return { result: 'short' };
+    if (state.off) return { result: 'off' };   // 大きく外れたときは moveStroke が数え済み。二重に数えない
     if (state.dot) return { result: state.inside ? 'done' : 'short' };
-    return { result: state.idx >= tol.endP * (poly.length - 1) ? 'done' : 'short' };
+    if (state.idx < tol.endP * (poly.length - 1)) return { result: 'short' };
+    return { result: 'done' };
+  }
+
+  // やり直しの数え方（3.6）。rec = { m, misses }。off・short は m を足す。reverse・miss は 3 回目から m を足す
+  // （始点を光らせても押せない子も、必ず m=5 の手本の書き足しに届く）。started で miss の連続は 0 に戻る。done で m も戻す（次の画）
+  function recordAttempt(rec, result) {
+    var m = rec && rec.m > 0 ? rec.m : 0, misses = rec && rec.misses > 0 ? rec.misses : 0;
+    if (result === 'off' || result === 'short') m++;
+    else if (result === 'reverse' || result === 'miss') { misses++; if (misses >= 3) m++; }
+    else if (result === 'started') misses = 0;
+    else if (result === 'done') { m = 0; misses = 0; }
+    return { m: m, misses: misses };
   }
 
   // 進度 0〜1（描画・テスト用）
@@ -211,6 +243,7 @@
   // 字を n 個選ぶ。まだ書いていない字を chars の順に最大 n-1（その集合を初めて書くときは n）、書いた字から回数の少ない 1 つ（同数は rng）。
   // 足りなければ回数の少ない順で埋める。並びは復習の字が先、新しい字が後。重複なし。入力は書き換えない
   function pickTraceChars(chars, done, n, rng) {
+    if (typeof n !== 'number' || !(n > 0)) return [];
     var cnt = function (c) { var v = done && done[c]; return typeof v === 'number' && v > 0 ? v : 0; };
     var list = [], seen = {};
     chars.forEach(function (c) { if (!seen[c]) { seen[c] = 1; list.push(c); } });
@@ -238,7 +271,7 @@
   // 保存の補正。知らない字・数でない値・負の数は捨て、1〜99 に収める。知らない set / width は auto。入力は書き換えない
   function normalizeTrace(raw) {
     var src = raw && typeof raw === 'object' ? raw : {};
-    var known = {};
+    var known = Object.create(null);
     Object.keys(S.SETS).forEach(function (k) { S.SETS[k].split('').forEach(function (c) { known[c] = true; }); });
     var done = {};
     var d = src.done && typeof src.done === 'object' ? src.done : {};
@@ -259,7 +292,7 @@
   var api = {
     DEFAULTS: DEFAULTS, strokePolyline: strokePolyline, polyLength: polyLength, isDot: isDot, densify: densify, tolerance: tolerance,
     helpTolerance: helpTolerance, helpFor: helpFor, beginStroke: beginStroke, moveStroke: moveStroke, endStroke: endStroke,
-    progressOf: progressOf, traceSet: traceSet, pickTraceChars: pickTraceChars, traceWidth: traceWidth, normalizeTrace: normalizeTrace
+    progressOf: progressOf, recordAttempt: recordAttempt, traceSet: traceSet, pickTraceChars: pickTraceChars, traceWidth: traceWidth, normalizeTrace: normalizeTrace
   };
   if (node) module.exports = api;
   else { root.Manabi = root.Manabi || {}; root.Manabi.trace = api; }

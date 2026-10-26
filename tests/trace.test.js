@@ -104,19 +104,77 @@ function crossing(p) {
   return best;
 }
 
-test('6. 輪のある画: 正しくなぞれば単調に done、輪を飛ばして交差点から終点へ近道すると done にならない', () => {
-  [['の', 0], ['ぬ', 1], ['あ', 2], ['め', 1]].forEach(([ch, i]) => {
-    const p = poly(ch, i);
-    const x = crossing(p);
-    assert.ok(x, ch + ' に交差がある');
-    const full = run(p, p, TOL, { every: 2 });
-    assert.equal(full.end, 'done', ch);
-    for (let k = 1; k < full.prog.length; k++) assert.ok(full.prog[k] >= full.prog[k - 1], ch);
-    const cheat = p.slice(0, x[0] + 1).concat(p.slice(x[1]));
-    const r = run(p, cheat, TOL, { every: 2 });
-    assert.notEqual(r.end === 'done' && r.move === 'ok', true, ch + ' は近道で書けてはいけない');
-    assert.ok(r.move === 'off' || r.end === 'short', ch);
+// 近道の防止（設計 3.4）: 進度は 指の道のり＋near より先へ進まない。よって飛ばせるのは 手本の長さの 1 割＋near まで。
+// 輪の大きさ（交差する 2 点の間の弧長）がそれ（余裕をみて 1 割＋2·near）を超える近道は、幅・板の大きさ・助けの段階によらず done にならない
+test('6. 輪のある画: 正しくなぞれば単調に done。輪を飛ばして交差点から終点へ近道すると done にならない（全画 × 幅 × 板の大きさ × 助け）', () => {
+  const perChar = {};
+  for (const ch of SETS.hira) STROKES[ch].s.forEach((s, i) => {
+    const p = T.strokePolyline(s), len = T.polyLength(p);
+    for (const width of ['normal', 'wide']) for (const B of [300, 350, 600]) for (let m = 0; m <= 4; m++) {
+      const tol = T.helpTolerance(T.tolerance(B, width, 'kana'), m);
+      const tag = [ch, i, width, B, 'm' + m].join(' ');
+      const full = run(p, p, tol, { every: 2 });
+      assert.equal(full.end, 'done', tag);
+      for (let k = 1; k < full.prog.length; k++) assert.ok(full.prog[k] >= full.prog[k - 1], tag);
+      for (let a = 0; a < p.length; a += 3) for (let b = a + 20; b < p.length; b += 2) {
+        if (dist(p[a], p[b]) > 0.05) continue;                 // 交差している 2 点
+        if ((b - a) * 0.01 <= 0.1 * len + 2 * tol.near) continue;   // 輪が小さすぎる（許容の中）
+        perChar[ch] = (perChar[ch] || 0) + 1;
+        const cheat = p.slice(0, a + 1).concat(p.slice(b));
+        const r = run(p, cheat, tol, { every: 2 });
+        assert.notEqual(r.end, 'done', tag + ' ' + a + '→' + b + ' は近道で書けてはいけない');
+      }
+    }
   });
+    ['す', 'む', 'の', 'ぬ', 'あ', 'め', 'ね'].forEach(ch => assert.ok(perChar[ch] > 0, ch + ' の近道を試した'));
+  // る・て・そ・ん・え の輪は、許容（手本の長さの 1 割＋near）より小さく、指の太さの中に入る。見分けられないので対象にしない（設計 3.4）
+  assert.equal(perChar['る'], undefined);
+});
+
+test('6b. 3 点だけ（始点・中点・終点）の近道は小さい板・ひろめ・助け m=3 でも done にならない', () => {
+  const p = poly('る', 0);
+  const tol = T.helpTolerance(T.tolerance(300, 'wide', 'kana'), 3);
+  const jump = [p[0], p[Math.floor(p.length / 2)], p[p.length - 1]];
+  assert.notEqual(run(p, jump, tol).end, 'done');
+});
+
+test('6c. near と off の間を続けてなぞっても off にならない（進度は進まないだけ。設計 3.3）', () => {
+  const mid = (TOL.near + TOL.off) / 2;
+  [['い', 0], ['こ', 1], ['く', 0]].forEach(([ch, i]) => {
+    const p = poly(ch, i);
+    const r = run(p, [p[0]].concat(offsetPath(p, mid).slice(1)), TOL);
+    assert.equal(r.move, 'ok', ch);
+    assert.notEqual(r.end, 'off', ch);
+  });
+});
+
+test('6d. endStroke: off のあとは off を返す（二重に数えない）', () => {
+  const p = straight;
+  const b = T.beginStroke(p, p[0], TOL);
+  const m = T.moveStroke(p, b.state, [[p[0][0] + 0.3, p[0][1] + 0.5]], TOL);
+  assert.equal(m.result, 'off');
+  assert.equal(T.endStroke(p, m.state, TOL).result, 'off');
+});
+
+test('6e. recordAttempt: reverse・miss は 3 回目から m に数え、必ず m=5（手本の書き足し）に届く', () => {
+  let rec = { m: 0, misses: 0 };
+  const seq = [];
+  for (let i = 0; i < 10 && !T.helpFor(rec.m).autoComplete; i++) { rec = T.recordAttempt(rec, i % 2 ? 'reverse' : 'miss'); seq.push(rec.m); }
+  assert.deepEqual(seq, [0, 0, 1, 2, 3, 4, 5]);
+  assert.ok(T.helpFor(rec.m).autoComplete);
+  assert.deepEqual(T.recordAttempt({ m: 1, misses: 2 }, 'started'), { m: 1, misses: 0 });
+  assert.deepEqual(T.recordAttempt({ m: 1, misses: 0 }, 'off'), { m: 2, misses: 0 });
+  assert.deepEqual(T.recordAttempt({ m: 2, misses: 0 }, 'short'), { m: 3, misses: 0 });
+  assert.deepEqual(T.recordAttempt({ m: 2, misses: 1 }, 'done'), { m: 0, misses: 0 });
+  assert.deepEqual(T.recordAttempt(undefined, 'miss'), { m: 0, misses: 1 });
+});
+
+test('6f. 不正な引数: tolerance の B、strokePolyline の h、pickTraceChars の n', () => {
+  const ref = T.tolerance(600, 'normal', 'kana');
+  [0, -5, NaN, Infinity, undefined].forEach(B => assert.deepEqual(T.tolerance(B, 'normal', 'kana'), ref, String(B)));
+  const s = STROKES['く'].s[0];
+  [0, -1, NaN, undefined].forEach(h => assert.deepEqual(T.strokePolyline(s, h), T.strokePolyline(s, 0.01), String(h)));
+  [0, -2, NaN].forEach(n => assert.deepEqual(T.pickTraceChars([...SETS.hira], {}, n, rngOf(1)), [], String(n)));
 });
 
 test('7. 速い入力: 直線は 3 点だけでも done。曲がった画を弦で近道すると off', () => {
@@ -194,15 +252,15 @@ test('10. tolerance: px の下限が効く／効かない境目、ひろめは �
 
 test('11. pickTraceChars: 初回は新しい字 4 つが順番どおり。2 回目から新 3＋復習 1。全部書いたら回数の少ない順。決定的で入力を壊さない', () => {
   const chars = [...SETS.hira];
-  assert.deepEqual(T.pickTraceChars(chars, {}, 4, rngOf(1)), ['あ', 'い', 'う', 'え']);
-  const done = { あ: 1, い: 1, う: 1, え: 1 };
+  assert.deepEqual(T.pickTraceChars(chars, {}, 4, rngOf(1)), ['し', 'つ', 'く', 'へ']);
+  const done = { し: 1, つ: 1, く: 1, へ: 1 };
   const second = T.pickTraceChars(chars, done, 4, rngOf(1));
   assert.equal(second.length, 4);
-  assert.deepEqual(second.slice(1), ['お', 'か', 'き']);           // 復習が先、新しい字は順番どおり
-  assert.ok(['あ', 'い', 'う', 'え'].includes(second[0]));
+  assert.deepEqual(second.slice(1), ['て', 'の', 'ひ']);           // 復習が先、新しい字は順番どおり
+  assert.ok(['し', 'つ', 'く', 'へ'].includes(second[0]));
   // 回数の少ない字から復習する
-  const third = T.pickTraceChars(chars, { あ: 3, い: 1, う: 2, え: 3 }, 4, rngOf(5));
-  assert.equal(third[0], 'い');
+  const third = T.pickTraceChars(chars, { し: 3, つ: 1, く: 2, へ: 3 }, 4, rngOf(5));
+  assert.equal(third[0], 'つ');
   // 全部書いた: 回数の少ない順
   const all = {};
   chars.forEach((c, i) => { all[c] = 2; });
@@ -213,15 +271,18 @@ test('11. pickTraceChars: 初回は新しい字 4 つが順番どおり。2 回�
   const nearly = {}; chars.slice(0, 45).forEach(c => { nearly[c] = 1; });
   const e = T.pickTraceChars(chars, nearly, 4, rngOf(3));
   assert.equal(e.length, 4);
-  assert.ok(e.includes('ん'));
+  assert.ok(e.includes('ほ'));
   assert.equal(new Set(e).size, 4);
   // 重複なし・決定的・入力を書き換えない
   const snapshot = JSON.stringify(done), cs = chars.slice();
   assert.deepEqual(T.pickTraceChars(chars, done, 4, rngOf(9)), T.pickTraceChars(chars, done, 4, rngOf(9)));
   assert.equal(JSON.stringify(done), snapshot);
   assert.deepEqual(chars, cs);
+  assert.deepEqual(T.pickTraceChars(chars, {}, 0, rngOf(1)), []);
+  assert.deepEqual(T.pickTraceChars(chars, {}, -3, rngOf(1)), []);
+  assert.equal(chars.slice(0, 4).join(''), 'しつくへ');
   for (let seed = 0; seed < 20; seed++) {
-    const r = T.pickTraceChars(chars, { あ: 1, い: 2, う: 1, お: 5 }, 4, rngOf(seed));
+    const r = T.pickTraceChars(chars, { し: 1, つ: 2, く: 1, お: 5 }, 4, rngOf(seed));
     assert.equal(new Set(r).size, r.length);
   }
 });
@@ -230,7 +291,7 @@ test('12. traceSet: S0 はひらがなが残っていれば hira、全部書い�
   assert.equal(T.traceSet({ done: {}, set: 'auto' }, 'S0'), 'hira');
   const all = {}; [...SETS.hira].forEach(c => { all[c] = 1; });
   assert.equal(T.traceSet({ done: all, set: 'auto' }, 'S0'), 'hira+kata');
-  const almost = Object.assign({}, all); delete almost['ん'];
+  const almost = Object.assign({}, all); delete almost['ほ'];
   assert.equal(T.traceSet({ done: almost, set: 'auto' }, 'S0'), 'hira');
   assert.equal(T.traceSet({ done: all, set: 'auto' }, 'S1'), 'k1');
   assert.equal(T.traceSet({ done: all, set: 'auto' }, 'S2'), 'k2');
@@ -261,6 +322,9 @@ test('13. normalizeTrace: 知らない字・負・文字列・100 以上・知�
   assert.equal(JSON.stringify(raw), before);
   assert.deepEqual(T.normalizeTrace({ done: 'x', set: 'hira', width: 'wide' }), { done: {}, set: 'hira', width: 'wide' });
   assert.deepEqual(T.normalizeTrace({ done: [1, 2], set: 'k1', width: 'normal' }).done, {});
+  // Object のもとからある名前は字として拾わない
+  const proto = T.normalizeTrace({ done: { constructor: 3, toString: 2, __proto__: 5, hasOwnProperty: 1, し: 2 } });
+  assert.deepEqual(Object.keys(proto.done), ['し']);
   // 正しいデータは変わらない（冪等）
   assert.deepEqual(T.normalizeTrace(n), n);
 });
