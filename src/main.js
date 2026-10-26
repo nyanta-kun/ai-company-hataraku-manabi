@@ -34,6 +34,14 @@
     });
   }
 
+  // 今のプロフィールで次の出動の字と why を確認パネルに出す（くじを固定）
+  function showTracePlan() {
+    var box = doc.getElementById('debug'), pre = doc.getElementById('traceplan');
+    if (!pre) { pre = doc.createElement('pre'); pre.id = 'traceplan'; box.appendChild(pre); }
+    var r = ui.tracePlan();
+    pre.textContent = 'trace-plan ' + r.name + ' 名前の字[' + r.names.join('') + '] 前[' + r.prev.join('') + ']: ' + r.plan.map(function (o) { return o.ch + '(' + o.why + ')'; }).join(' ');
+  }
+
   // 書き順の照合用の一覧（ひらがな 46 字を番号・矢印・画ごとの色つきで並べる）。もう一度押すと閉じる
   function toggleTraceSheet(setName) {
     var old = doc.getElementById('tracesheet');
@@ -82,6 +90,7 @@
     btn('全車★3', function () { D.ALL_CARS.forEach(function (c) { ui.data.cards[c.id] = 3; }); ui.setData(ui.data); });
     btn('全車なし', function () { ui.data.cards = {}; ui.setData(ui.data); });
     btn('しゃこ', function () { ui.show('garage'); });
+    btn('もじの ひょう', function () { ui.previewMoji(); });
     btn('おうちのひと', function () { ui.show('parent'); });
     btn('こども+', function () { ui.addDummyProfile(); });
     btn('だれ', function () { ui.show('who'); });
@@ -90,6 +99,8 @@
     btn('かく', function () { ui.startTrace({ fast: true }); });
     btn('かく: じどうで かく', function () { ui.startTrace({ fast: true }); ui.traceAuto(true); });
     btn('書き順一覧', function () { toggleTraceSheet(); });
+    btn('かく: たすけ を つける', function () { log('たすけ: ' + ui.traceAddHelp()); });
+    btn('かく: つぎの 4じ', function () { showTracePlan(); });
     btn('声なし', function () { M.speech.forceVoiceless(); });
     box.appendChild(err);
 
@@ -118,6 +129,8 @@
       ui.startSession(game, { fast: true, scene: g[3] || undefined });
       if (g[4]) root.setTimeout(function () { ui.debugProgress(+g[4]); }, 50);
     } else if (g[0] === 'trace' && g[1] === 'sheet') toggleTraceSheet(g[2]);
+    else if (g[0] === 'trace' && g[1] === 'plan') showTracePlan();
+    else if (g[0] === 'trace' && g[1] === 'table') ui.previewMoji(g[2]);   // #debug:trace-table（-kata など集合も指定できる）
     else if (g[0] === 'trace') { ui.startTrace({ fast: true }); if (g[1] === 'auto') ui.traceAuto(true); }
     else if (g[0] === 'pics') togglePicGrid();
     else if (g[0] === 'pick') ui.show('pick');

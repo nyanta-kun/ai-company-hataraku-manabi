@@ -20,7 +20,7 @@
     [this.base, this.fing].forEach(function (c) { c.style.cssText = 'position:absolute;left:0;top:0;width:100%;height:100%;touch-action:none'; wrap.appendChild(c); });
     this.bctx = this.base.getContext('2d'); this.fctx = this.fing.getContext('2d');
     this.B = 300; this.dpr = 1; this.width = 'wide'; this.script = 'hira'; this.tol = T.tolerance(300, 'wide', 'hira');
-    this.ch = ''; this.polys = []; this.nums = []; this.cur = 0; this.doneS = []; this.recs = []; this.dirty = false;
+    this.ch = ''; this.polys = []; this.nums = []; this.cur = 0; this.doneS = []; this.recs = []; this.dirty = false; this.maxM = 0;
     this.phase = 'idle'; this.active = null; this.anim = null; this.glow = 0; this.lastAct = now(); this.penUntil = 0; this.penDown = false;
     this.celebrate = 0; this.idleShown = false; this.pendingB = 0; this.auto = false; this.autoBusy = false; this.timers = [];
     this.bind();
@@ -61,7 +61,7 @@
     this.nums = d.n.map(function (p) { return [p[0] / DATA, p[1] / DATA]; });
     this.cur = 0; this.doneS = this.polys.map(function () { return false; });
     this.recs = this.polys.map(function () { return { m: 0, misses: 0 }; });
-    this.dirty = false; this.active = null; this.anim = null; this.glow = 0; this.celebrate = 0;
+    this.dirty = false; this.maxM = 0; this.active = null; this.anim = null; this.glow = 0; this.celebrate = 0;
     this.phase = 'ready'; this.lastAct = now(); this.idleShown = false;
     this.fctx.clearRect(0, 0, this.B, this.B);
     if (this.pendingB) this.layout(this.pendingB);
@@ -151,6 +151,7 @@
     // reverse・miss: 線は描かず始点を光らせる。3 回続いたらお手本を流す（3 回目から m にも数える。recordAttempt）
     this.recs[this.cur] = T.recordAttempt(rec, r.result);
     var nr = this.recs[this.cur];
+    if (nr.m > this.maxM) this.maxM = nr.m;   // 1 字の中の m の最大（たすけが要ったかを純粋関数側で決める。W5）
     if (nr.m > 0) this.dirty = true;
     this.glow = now() + 2;
     if (this.cbs.onBad) this.cbs.onBad(r.result, nr.m, this.cur);
@@ -180,6 +181,7 @@
     if (cancelled && r.result === 'short') { this.fctx.clearRect(0, 0, this.B, this.B); if (this.pendingB) this.layout(this.pendingB); return; }   // 端末に取り消された: 子どものせいではない
     this.recs[this.cur] = T.recordAttempt(this.recs[this.cur], r.result);
     var nr = this.recs[this.cur];
+    if (nr.m > this.maxM) this.maxM = nr.m;
     if (r.result === 'done') {
       this.fctx.clearRect(0, 0, this.B, this.B);
       this.completeStroke(false);
@@ -209,7 +211,7 @@
     if (this.cur >= this.polys.length) {
       this.cur = this.polys.length - 1; this.phase = 'done'; this.celebrate = now();
       if (this.cbs.onStrokeDone) this.cbs.onStrokeDone(i, auto, true);
-      if (this.cbs.onCharDone) this.cbs.onCharDone({ clean: !this.dirty, ch: this.ch });
+      if (this.cbs.onCharDone) this.cbs.onCharDone({ clean: !this.dirty, ch: this.ch, maxM: this.maxM });
       return;
     }
     if (auto) this.dirty = true;

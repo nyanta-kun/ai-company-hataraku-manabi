@@ -59,6 +59,16 @@
       for (var i = 1; i < 4; i++) ln(.22, .5 + i * .1, .78, .5 + i * .1, .03, dark);
       return;
     }
+    if (kind === 'station') {   // 消防署（タイトルの署を小さく）: ベージュの 2 階建て・窓が並ぶ・赤い屋根の帯。シャッターは描かない
+      ctx.fillStyle = '#e8d9c3'; ctx.strokeStyle = dark; ctx.lineWidth = w * 0.045; ctx.lineJoin = 'round';
+      ctx.fillRect(w * .12, h * .26, w * .76, h * .66); ctx.strokeRect(w * .12, h * .26, w * .76, h * .66);
+      ctx.fillStyle = '#e53935'; ctx.fillRect(w * .05, h * .1, w * .9, h * .18); ctx.strokeRect(w * .05, h * .1, w * .9, h * .18);
+      for (var r = 0; r < 2; r++) for (var c = 0; c < 3; c++) {
+        ctx.fillStyle = r === 0 ? '#ffe680' : '#8fb4c9';
+        ctx.fillRect(w * (.2 + c * .22), h * (.38 + r * .26), w * .16, h * .17); ctx.strokeRect(w * (.2 + c * .22), h * (.38 + r * .26), w * .16, h * .17);
+      }
+      return;
+    }
     if (kind === 'kazu') {   // ● ● ●
       [[.25, .35], [.5, .35], [.75, .35], [.37, .68], [.63, .68]].forEach(function (p) { ctx.beginPath(); ctx.arc(p[0] * w, p[1] * h, w * .1, 0, 7); ctx.fillStyle = '#fff'; ctx.fill(); });
       return;
@@ -510,17 +520,50 @@
     for (var i = 0; i < all.length; i++) if (all[i].ch === ch) return all[i];
     return null;
   }
-  function tracePrompt(ch) {
+  // info = { why, name }（W5）。名前の字そのもの（exact）のときだけ「たろうの ろ」。濁点・小さい字から来た字はいつもの声（例語）
+  function tracePrompt(ch, info) {
+    if (info && info.why === 'name' && info.exact && info.name) return info.name + 'の ' + ch + '。なぞってね。';
     var kw = kanjiWord(ch);
     if (kw) return kw.speech + '。なぞってね。';
     var ex = exampleOf(ch); return (ex !== ch ? ex + 'の ' : '') + ch + '。なぞってね。';
   }
   function traceDoneWord(ch) { var kw = kanjiWord(ch); return kw ? kw.yomi : ch; }
+  // 前の出動の字（プロフィールの id ごとに 1 回分。保存しない＝アプリを閉じれば消える。W5）
+  var prevTrace = {};
+  // 次の出動の組み方（startTrace と #debug:trace-plan で共通）。→ { plan, chars, names }
+  function planTrace(opts, rng) {
+    opts = opts || {};
+    var chars = opts.chars || TR.charsOfSet(opts.set || TR.traceSet(data.trace, LD.currentStage(data)));
+    var kanji = chars.length > 0 && chars.every(function (c) { return c >= '\u4e00'; });   // 漢字だけの集合では名前の枠を使わない
+    var plan = TR.planTraceSession(chars, data.trace, { n: P.QUESTIONS_PER_SESSION, name: data.name, prev: prevTrace[data.id] || [], chosen: opts.chosen || '', kanji: kanji }, rng || Math.random);
+    return { plan: plan, chars: chars, names: kanji ? [] : TR.nameTraceChars(data.name, chars) };
+  }
+  function traceInfoAt(i) {
+    var pl = trun && trun.plan[i]; if (!pl) return null;
+    var nm = null;
+    trun.names.forEach(function (o) { if (o.ch === pl.ch) nm = o; });
+    return { why: pl.why, name: data.name, exact: !!(nm && nm.exact), at: nm ? nm.at : -1 };
+  }
+  // 現場の帯の隅の名札（車の絵と名前。いまの字に当たる字だけ色を付ける）。名前の枠の字のときだけ出す
+  function showNameTag(info) {
+    var tag = $('trace-nametag'); if (!tag) return;
+    tag.textContent = '';
+    if (!info || info.why !== 'name') { tag.hidden = true; return; }
+    tag.hidden = false;
+    var cv = doc.createElement('canvas'), sp = doc.createElement('span');
+    cv.setAttribute('data-car', data.icon);
+    tag.appendChild(cv); tag.appendChild(sp);
+    data.name.split('').forEach(function (c, i) {
+      var e = doc.createElement('b'); e.textContent = c; if (i === info.at) e.className = 'on'; sp.appendChild(e);
+    });
+    drawCarIcon(cv, data.icon);
+  }
   function startTrace(opts) {
     opts = opts || {};
     clearTimers(); token++; run = null;
-    var chars = TR.pickTraceChars(opts.chars || TR.charsOfSet(opts.set || TR.traceSet(data.trace, LD.currentStage(data))), data.trace.done, P.QUESTIONS_PER_SESSION, Math.random);
-    trun = { chars: chars, idx: 0, scene: opts.scene || pickScene(), token: token, helpSaid: false };
+    var pl = planTrace(opts);
+    var chars = pl.plan.map(function (o) { return o.ch; });
+    trun = { chars: chars, plan: pl.plan, names: pl.names, idx: 0, scene: opts.scene || pickScene(), token: token, helpSaid: false, wrote: [], pid: data.id };
     if (!tboard) tboard = new M.TraceBoard($('trace-board'), {
       onStrokeDone: function (i, auto, last) { if (trun && !last) sfx('pon', i + 1); },
       onBad: function (result, m) {
@@ -535,7 +578,7 @@
     show('trace');
     if (!tstage) tstage = new SC.Stage($('traceField'));
     tstage.noBoard = true; tstage.setScene(trun.scene); tstage.setRank(stageIdx()); tstage.setProgress(0); tstage.setProblem(null);
-    updateTraceLamps(0);
+    updateTraceLamps(0); showNameTag(null);
     tboard.setWidth(TR.traceWidth(data.trace, LD.currentStage(data)));
     tboard.stop(); layoutTrace(); tstage.resize(); tstage.draw(now());
     sfx(A.carSound(DISPATCH_STAGE[trun.scene]));
@@ -548,13 +591,16 @@
     var ch = trun.chars[trun.idx];
     trun.helpSaid = false;
     tboard.setChar(ch, !(data.trace.done[ch] > 0));   // 初めて書く字だけ、全部の画のお手本を流す（T8）
-    say(tracePrompt(ch));
+    var info = traceInfoAt(trun.idx);
+    showNameTag(info);
+    say(tracePrompt(ch, info));
     kick();
   }
   function onTraceCharDone(info) {
     if (!trun) return;
     var ch = info.ch, done = trun.idx + 1, my = trun.token;
-    data.trace.done[ch] = Math.min(99, (data.trace.done[ch] > 0 ? data.trace.done[ch] : 0) + 1);   // 途中でやめても、書けた字は数える
+    trun.wrote.push(ch);
+    data.trace = TR.recordTraceChar(data.trace, ch, info);   // 途中でやめても、書けた字は数える。maxM >= 2 なら たすけの回数も足す
     data.stats.trace.chars++; if (info.clean) data.stats.trace.clean++;
     save();
     updateTraceLamps(done);
@@ -577,11 +623,15 @@
     var r = grantReward(trun.scene, stageIdx());   // S0 は今までと同じ出方。階段（afterSession）は呼ばない
     data.lastPlayed = todayStr();
     save();
-    reward = { r: r, t0: 0, game: 'trace' };
+    reward = { r: r, t0: 0, game: 'trace', wrote: trun.wrote.slice(), firstNew: (trun.plan.filter(function (o) { return o.why === 'new'; })[0] || {}).ch || '' };
+    rememberTrace();
     trun = null; tboard.stop();
     show('reward');
   }
+  // 前の出動の字（書き終えた字）を覚える。1 字も書いていなければ、前の記録のまま
+  function rememberTrace() { if (trun && trun.wrote.length) prevTrace[trun.pid] = trun.wrote.slice(); }
   function quitTrace() {
+    rememberTrace();
     clearTimers(); token++; trun = null; if (tboard) tboard.stop(); SP.cancel();
     show('title');
   }
@@ -703,10 +753,12 @@
       });
     });
     $('g-count').textContent = have + ' / ' + cars.length;
+    showGarageTab();
     drawGarage();
   }
   function drawGarage() {
     var t = now(), busy = false;
+    if (garageOpen.tab === 'moji') return false;
     slots.forEach(function (s) {
       var c = sizeCanvas(s.cv), ctx = c.ctx, sz = Math.min(c.w * 0.85, c.h * 1.1);   // 絵は単位座標で上 0.86・下 1.14 ほどまで出るので、枠に収まる大きさにする
       ctx.clearRect(0, 0, c.w, c.h);
@@ -721,6 +773,114 @@
     });
     return busy;
   }
+
+
+  // ---- しゃこの「もじ」: 五十音の表（design 11.5・11.6）。数字・割合・苦手は出さない。書いた字に車のスタンプ、3 回以上は金 ----
+  var garageOpen = { tab: 'cars', set: '', stamp: [] };   // しゃこを開くたびの状態。stamp: ごほうび画面から来たときに順に押す字
+  var mojiSheetCh = '';
+  var SET_LABEL = { hira: 'ひらがな', kata: 'かたかな', k1: '1ねん', k2: '2ねん' };
+  var SET_LABEL_PARENT = { hira: 'ひらがな', kata: 'カタカナ', k1: '1ねんの かんじ', k2: '2ねんの かんじ' };
+  var MOJI_MAX = 96, MOJI_MIN = 44;
+  function setOfChar(ch) { var hit = ''; ['hira', 'kata', 'k1', 'k2'].forEach(function (k) { if (!hit && STR.SETS[k] && STR.SETS[k].indexOf(ch) >= 0) hit = k; }); return hit; }
+  // 見せる集合: 今のステージで書ける集合のうち、データがあるもの
+  function mojiSets() { return TR.allowedSets(LD.currentStage(data)).filter(function (k) { return !!STR.SETS[k]; }); }
+  function defaultMojiSet() {
+    var sets = mojiSets(), cur = TR.traceSet(data.trace, LD.currentStage(data));
+    var want = cur === 'hira+kata' ? 'kata' : cur;
+    return sets.indexOf(want) >= 0 ? want : sets[0];
+  }
+  var stampCache = {};
+  // 小さな canvas に一度だけ描いて data URL にし、全部のマスで使い回す（自分の車）
+  function stampURL(kind, gold) {
+    var car = carById(data.icon) || D.CARS[0], key = kind + (gold ? 'g' : '') + car.id;
+    if (stampCache[key]) return stampCache[key];
+    var W = 64, cv = doc.createElement('canvas'); cv.width = cv.height = W;
+    var ctx = cv.getContext('2d');
+    if (kind === 'stamp') {
+      ctx.beginPath(); ctx.arc(W / 2, W / 2, W / 2 - 4, 0, 7); ctx.fillStyle = '#fff'; ctx.fill();
+      ctx.lineWidth = gold ? 7 : 4; ctx.strokeStyle = gold ? '#f2a900' : '#7aa7d9'; ctx.stroke();
+      V.drawVehicle(ctx, car.stage, W / 2, W * 0.5, W * 0.62);
+    } else {
+      V.drawVehicle(ctx, car.stage, W / 2, W * 0.45, W * 0.9);
+    }
+    stampCache[key] = cv.toDataURL();
+    return stampCache[key];
+  }
+  function reducedMotion() { return !!(root.matchMedia && root.matchMedia('(prefers-reduced-motion: reduce)').matches); }
+  function mojiOrient() { return root.innerWidth > root.innerHeight ? 'cols' : 'rows'; }
+  function showGarageTab() {
+    var moji = garageOpen.tab === 'moji';
+    $('garage-grid').hidden = moji; $('moji-view').hidden = !moji; $('g-count').hidden = moji;
+    $('gt-cars').classList.toggle('sel', !moji); $('gt-moji').classList.toggle('sel', moji);
+    $('moji-sheet').hidden = true; mojiSheetCh = '';
+    if (moji) buildMoji();
+  }
+  function buildMoji() {
+    var sets = mojiSets(), box = $('moji-sets');
+    if (sets.indexOf(garageOpen.set) < 0) garageOpen.set = defaultMojiSet();
+    box.textContent = '';
+    if (sets.length > 1) sets.forEach(function (k) {
+      var b = el('button', k === garageOpen.set ? 'sel' : '', SET_LABEL[k]); b.type = 'button';
+      b.addEventListener('click', function () { sfx('tap'); garageOpen.set = k; garageOpen.stamp = []; buildMoji(); });
+      box.appendChild(b);
+    });
+    box.hidden = sets.length <= 1;
+    layoutMoji();
+  }
+  function layoutMoji() {
+    var grid = $('moji-grid'); if (!grid || $('moji-view').hidden) return;
+    var g = TR.traceGrid(garageOpen.set, mojiOrient()), cols = g[0].length, rows = g.length;
+    var landscape = mojiOrient() === 'cols';
+    grid.textContent = '';
+    grid.style.gridTemplateColumns = 'repeat(' + cols + ', minmax(0, 1fr))';
+    grid.style.maxWidth = (landscape ? MOJI_MAX * cols + 6 * cols + 24 : 520) + 'px';
+    var availH = $('moji-view').clientHeight - $('moji-sets').offsetHeight - 4 - 14 - 6 * (rows - 1);
+    var rowH = Math.max(MOJI_MIN, Math.min(MOJI_MAX, Math.floor(availH / rows)));
+    grid.style.gridAutoRows = rowH + 'px';
+    var colW = Math.max(30, ((grid.clientWidth || root.innerWidth) - 24 - 6 * (cols - 1)) / cols);
+    var fs = Math.round(Math.min(rowH, colW) * 0.6);
+    var names = TR.nameTraceChars(data.name, STR.SETS[garageOpen.set].split('')), isName = {};
+    names.forEach(function (o) { isName[o.ch] = true; });
+    var pending = garageOpen.stamp.slice(), delay = 0, scrolled = false, scrollTo1 = null;
+    g.forEach(function (row) {
+      row.forEach(function (ch) {
+        var c = doc.createElement('button'); c.type = 'button';
+        if (!ch) { c.className = 'mcell blank'; c.tabIndex = -1; c.setAttribute('aria-hidden', 'true'); grid.appendChild(c); return; }
+        var n = data.trace.done[ch] > 0 ? data.trace.done[ch] : 0;
+        c.className = 'mcell' + (n ? ' got' : '');
+        c.style.fontSize = fs + 'px';
+        c.setAttribute('aria-label', ch + (n ? ' かいた' : ' まだ'));
+        c.appendChild(doc.createTextNode(ch));
+        if (isName[ch]) { var nm = doc.createElement('img'); nm.className = 'nmark'; nm.alt = ''; nm.src = stampURL('icon'); c.appendChild(nm); }
+        if (n) {
+          var st = doc.createElement('img'); st.className = 'stamp'; st.alt = ''; st.src = stampURL('stamp', n >= 3);
+          var pi = pending.indexOf(ch);
+          if (pi >= 0 && !reducedMotion()) {
+            st.className += ' wait';
+            (function (img, d) { later(400 + d, function () { img.className = 'stamp pop'; sfx('pon', 1); if (img.parentNode && img.parentNode.scrollIntoView) img.parentNode.scrollIntoView({ block: 'nearest' }); }); })(st, delay);
+            delay += 300; pending.splice(pi, 1);
+          }
+          c.appendChild(st);
+          if (pi >= 0 && !scrolled) { scrolled = true; scrollTo1 = c; }
+        }
+        c.addEventListener('click', function () { openMojiSheet(ch); });
+        grid.appendChild(c);
+      });
+    });
+    if (scrollTo1) scrollTo1.scrollIntoView({ block: 'nearest' });   // 押されるマスが画面の外なら、そこまで表を動かす
+    garageOpen.stamp = [];
+  }
+  // 字の札（下から）: 字（手本の形）・例語の絵・声。「かく」で、この字が 1 字目の出動
+  function openMojiSheet(ch) {
+    sfx('tap'); mojiSheetCh = ch;
+    $('moji-sheet').hidden = false;
+    var c = sizeCanvas($('moji-canvas'));
+    c.ctx.clearRect(0, 0, c.w, c.h);
+    M.TraceBoard.drawSheet(c.ctx, ch, 8, 8, Math.min(c.w, c.h) - 16);
+    var kw = kanjiWord(ch), ex = kw ? '' : exampleOf(ch);
+    say((kw ? kw.speech + '。' : (ex !== ch ? ex + 'の ' : '') + ch + '。') + 'かいて みる？');
+  }
+  function closeMojiSheet() { $('moji-sheet').hidden = true; mojiSheetCh = ''; SP.cancel(); }
 
   // ---- おうちのひと ----
   var clearStep = 0;
@@ -834,6 +994,39 @@
       .filter(function (a) { return unl >= a[2]; })
       .map(function (a) { return a[0] + ' ' + traceCount(a[1]) + '/' + STR.SETS[a[1]].length; }).join('<br>');   // 1 つの集合ごとに改行（狭い画面で折り返すため）
   }
+  // 保護者の「かく の ひょう」: 字ごとに書いた回数と、たすけが要った回数（オレンジ）。割合は出さない
+  var ptSet = '';
+  function fillTraceTable() {
+    var unl = D.stageIndex(data.stage.unlocked);
+    var sets = ['hira', 'kata', 'k1', 'k2'].filter(function (k) { return STR.SETS[k] && unl >= (k === 'k1' ? 1 : k === 'k2' ? 2 : 0); });
+    if (sets.indexOf(ptSet) < 0) ptSet = sets[0];
+    var tabs = $('pt-sets'); tabs.textContent = '';
+    sets.forEach(function (k) {
+      var b = kidBtn(SET_LABEL_PARENT[k], 'sub' + (k === ptSet ? ' sel' : ''), function () { ptSet = k; fillTraceTable(); });
+      tabs.appendChild(b);
+    });
+    var chars = STR.SETS[ptSet].split(''), got = chars.filter(function (c) { return data.trace.done[c] > 0; }).length;
+    var weak = chars.filter(function (c) { return TR.isWeak(data.trace, c); });
+    $('pt-sum').innerHTML = 'かいた じ ' + got + '/' + chars.length + '・まだ ' + (chars.length - got) + '<br>いま おおめに でる じ（たすけが いった じ）: ' + (weak.length ? esc(weak.join('・')) : 'なし');
+    var names = TR.nameTraceChars(data.name, chars), isName = {};
+    names.forEach(function (o) { isName[o.ch] = true; });
+    var g = TR.traceGrid(ptSet, 'rows'), grid = $('pt-grid'); grid.textContent = '';
+    grid.style.gridTemplateColumns = 'repeat(' + g[0].length + ', minmax(0, 1fr))';
+    g.forEach(function (row) {
+      row.forEach(function (ch) {
+        var c = el('div', 'pcell');
+        if (!ch) { c.className += ' blank'; grid.appendChild(c); return; }
+        var n = data.trace.done[ch] > 0 ? data.trace.done[ch] : 0, h = data.trace.help[ch] > 0 ? data.trace.help[ch] : 0;
+        if (n) c.className += ' got';
+        c.appendChild(el('b', '', ch));
+        var cnt = el('span', 'cnt', n ? String(n) : '');
+        if (h) cnt.appendChild(el('em', '', String(h)));
+        c.appendChild(cnt);
+        if (isName[ch]) c.appendChild(el('span', 'pn', '★'));
+        grid.appendChild(c);
+      });
+    });
+  }
   function fillParent() {
     relockAsk = '';   // 「とじる」の確認は、ほかの操作で描き直したら消える
     var st = data.stats, have = 0, stars = 0;
@@ -860,7 +1053,7 @@
     $('p-restored').hidden = !restoredShown;
     $('p-storage-note').hidden = S.isPersistent();
     clearStep = 0; $('p-clear').textContent = 'ぜんぶの こどもの きろくを けす'; $('p-clear-note').textContent = '';
-    updateBadges(); fillKids();
+    updateBadges(); fillKids(); fillTraceTable();
   }
   // 保護者画面: ステージ（手動の解放・再ロック。design-elementary 3.6）
   var relockAsk = ''; // 「とじる」を 1 回押したステージの id（2 段階の確認）
@@ -947,12 +1140,17 @@
       if (screen === 'trace') layoutTrace();
       if (screen === 'reward' && reward) drawReward();
       if (screen === 'promote') drawPromote();
-      if (screen === 'garage') drawGarage();
+      if (screen === 'garage') { if (garageOpen.tab === 'moji') layoutMoji(); else drawGarage(); }
     });
     root.addEventListener('orientationchange', function () { root.setTimeout(function () { root.dispatchEvent(new root.Event('resize')); }, 200); });
 
     $('btn-go').addEventListener('click', function () { sfx('tap'); show('pick'); });
-    $('btn-garage').addEventListener('click', function () { sfx('tap'); show('garage'); });
+    $('btn-garage').addEventListener('click', function () { sfx('tap'); garageOpen = { tab: 'cars', set: garageOpen.set, stamp: [] }; show('garage'); });
+    $('gt-cars').addEventListener('click', function () { sfx('tap'); garageOpen.tab = 'cars'; garageOpen.stamp = []; showGarageTab(); drawGarage(); kick(); });
+    $('gt-moji').addEventListener('click', function () { sfx('tap'); garageOpen.tab = 'moji'; showGarageTab(); });
+    $('moji-close').addEventListener('click', function () { sfx('tap'); closeMojiSheet(); });
+    $('moji-sheet').addEventListener('click', function (e) { if (e.target === this) closeMojiSheet(); });
+    $('moji-go').addEventListener('click', function () { var ch = mojiSheetCh; if (!ch) return; sfx('tap'); closeMojiSheet(); startTrace({ chosen: ch }); });
     $('btn-sound').addEventListener('click', function () {
       var on = !(dev.sound.sfx || dev.sound.voice);
       dev.sound.sfx = dev.sound.voice = on; applySound(); save(); updateVoiceMark(); updatePick();
@@ -974,7 +1172,7 @@
     holdButton($('btn-trace-quit'), 2000, quitTrace);
     $('btn-trace-replay').addEventListener('click', function () {
       if (!trun || !tboard) return;
-      if (tboard.replay()) say(tracePrompt(trun.chars[trun.idx]));   // 手本の書き足し中は効かない
+      if (tboard.replay()) say(tracePrompt(trun.chars[trun.idx], traceInfoAt(trun.idx)));   // 手本の書き足し中は効かない
       kick();
     });
     doc.addEventListener('visibilitychange', function () { if (doc.hidden && tboard && tboard.active) tboard.cancelActive(); });   // 画面が隠れたら書きかけの線を捨てる
@@ -1003,7 +1201,16 @@
       var n = stage.mark(i);
       if (n) { stage.bounce(i, now()); sfx('pon', n); say(NUMK[n]); kick(); }
     });
-    $('btn-r-garage').addEventListener('click', function () { sfx('tap'); leaveReward('garage'); });
+    $('btn-r-garage').addEventListener('click', function () {
+      sfx('tap');
+      if (reward && reward.game === 'trace') {   // かく から来たときは「もじ」を開き、今日の字にスタンプが押される
+        var w = reward.wrote || [];
+        var firstNew = reward.firstNew || '';   // その出動の新しい字の集合を優先（なければ今の集合）
+        garageOpen = { tab: 'moji', set: firstNew ? setOfChar(firstNew) : '', stamp: w.slice() };
+      } else garageOpen = { tab: 'cars', set: garageOpen.set, stamp: [] };
+      leaveReward('garage');
+    });
+    $('btn-r-end').addEventListener('click', function () { sfx('tap'); leaveReward('title'); });   // 昇格があれば先に昇格画面（そのあとタイトル）
     $('btn-r-again').addEventListener('click', function () {
       sfx('tap');
       if (reward && reward.game === 'trace') startTrace(); else leaveReward('pick');   // かく から来たときは かく をもう一度
@@ -1048,6 +1255,18 @@
   M.ui = {
     init: init, show: show, startSession: startSession, startTrace: startTrace, drawIcon: drawIcon,
     get traceBoard() { return tboard; },
+    // 確認用: 次の出動の字と why を返す（くじを固定）。prev は今のプロフィールの前の出動
+    tracePlan: function () {
+      var seed = 12345, rng = function () { seed = (seed * 1103515245 + 12345) % 2147483648; return seed / 2147483648; };
+      var r = planTrace({}, rng);
+      return { plan: r.plan, prev: (prevTrace[data.id] || []).slice(), names: r.names.map(function (o) { return o.ch; }), name: data.name };
+    },
+    // 確認用: いまの字の たすけ（help）を 1 足す（help ≤ done を保つ）
+    traceAddHelp: function () {
+      var ch = trun && trun.chars[trun.idx]; if (!ch) return '';
+      var t = data.trace, d = Math.max(1, t.done[ch] || 0), h = Math.min(99, d, (t.help[ch] || 0) + 1);
+      t.done[ch] = d; t.help[ch] = h; save(); return ch + ' done ' + d + ' help ' + h;
+    },
     traceAuto: function (on) { if (tboard) { tboard.auto = on !== false; kick(); } },
     get data() { return data; },
     setData: function (d) {   // 今のプロフィールを置き換える
@@ -1069,6 +1288,12 @@
       reward = { r: r, t0: 0 }; show('reward');
     },
     previewGarage: function () {
+      garageOpen = { tab: 'cars', set: '', stamp: [] };
+      show('garage');
+    },
+    // 確認用: 「もじ」の表を開く（setId 省略は今の集合）。stamp に字を渡すと、その字に順にスタンプが押される
+    previewMoji: function (setId, stamp) {
+      garageOpen = { tab: 'moji', set: setId || '', stamp: stamp || [] };
       show('garage');
     },
     current: function () { return run ? run.qs[run.idx] : null; },

@@ -79,7 +79,7 @@
       </div>
     </header>
     <div id="trace-main">
-      <div id="trace-fieldwrap"><canvas id="traceField"></canvas></div>
+      <div id="trace-fieldwrap"><canvas id="traceField"></canvas><div id="trace-nametag" hidden></div></div>
       <div id="trace-boardarea"><div id="trace-board"></div></div>
     </div>
   </section>
@@ -94,6 +94,7 @@
         <div class="row">
           <button id="btn-r-garage" class="big alt" type="button"><canvas width="96" height="96" data-icon="garage"></canvas><span>しゃこへ</span></button>
           <button id="btn-r-again" class="big" type="button"><canvas width="96" height="96" data-icon="truck"></canvas><span>もういちど</span></button>
+          <button id="btn-r-end" class="big end" type="button"><canvas width="96" height="96" data-icon="station"></canvas><span>おしまい</span></button>
         </div>
       </div>
     </div>
@@ -118,9 +119,27 @@
   <section id="s-garage" class="screen">
     <header class="bar">
       <button id="btn-g-back" class="mini" type="button" aria-label="もどる"><canvas width="48" height="48" data-icon="back"></canvas></button>
-      <h2>しゃこ</h2><span id="g-count"></span>
+      <h2>しゃこ</h2>
+      <div id="g-tabs">
+        <button id="gt-cars" type="button" class="gtab sel"><canvas width="48" height="48" data-icon="garage"></canvas><span>くるま</span></button>
+        <button id="gt-moji" type="button" class="gtab"><canvas width="48" height="48" data-icon="pencil"></canvas><span>もじ</span></button>
+      </div>
+      <span id="g-count"></span>
     </header>
     <div id="garage-grid"></div>
+    <div id="moji-view" hidden>
+      <div id="moji-sets"></div>
+      <div id="moji-grid"></div>
+    </div>
+    <div id="moji-sheet" hidden>
+      <div id="moji-card">
+        <canvas id="moji-canvas"></canvas>
+        <div class="moji-btns">
+          <button id="moji-go" type="button" class="big trace"><canvas width="96" height="96" data-icon="pencil"></canvas><span>かく</span></button>
+          <button id="moji-close" type="button" class="mini" aria-label="やめる"><canvas width="48" height="48" data-icon="x"></canvas></button>
+        </div>
+      </div>
+    </div>
   </section>
 
   <!-- おうちのひと -->
@@ -136,6 +155,12 @@
         <p id="p-kid-note" class="note">したの 「すすみぐあい」「レベル」は、いま えらんでいる こ（★）の ものです。ほかの こを おすと きりかわります。</p>
       </div>
       <div class="card"><h3>すすみぐあい <span class="who-tag badge small"></span></h3><div id="p-progress"></div></div>
+      <div class="card" id="p-trace-card"><h3>かく の ひょう</h3>
+        <div id="pt-sets"></div>
+        <div id="pt-sum"></div>
+        <div id="pt-grid"></div>
+        <p class="note">たすけ（オレンジの すうじ）は、おてほんが ながれたり、せんの はばが ひろがったり した かいすう です。できなかった という いみでは ありません。たすけが いった じ は、つぎから すこし おおめに でます。</p>
+      </div>
       <div class="card"><h3>おと</h3>
         <label class="chk"><input type="checkbox" id="p-sfx"> こうかおん</label>
         <label class="chk"><input type="checkbox" id="p-voice"> よみあげ</label>
