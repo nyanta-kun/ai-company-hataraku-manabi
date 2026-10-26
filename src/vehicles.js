@@ -1042,10 +1042,60 @@
     wave(ctx, -0.96, 0.96, 0.48);
   };
 
+  // ---- でんしゃの棚に足した 5 種（実在の新幹線の名前を使うが、ロゴ・文字・会社名・車体番号は描かない。形と色の特徴だけ。
+  //      家族で使う前提。一般公開するときは名前と塗装を見直す: docs/plan-rewards.md・design-rewards.md）----
+  // 先頭が長い新幹線のかたち。o = { nose, body, bands: [{ y, h, col }], cab（運転席の窓）, wheels（false で車輪なし）, bottom（車体の下端）}
+  function bullet(ctx, o) {
+    var b = o.bottom;
+    poly(ctx, o.nose, o.body); rr(ctx, 0.02, -0.3, 0.8, b + 0.3, 0.08, o.body);
+    o.bands.forEach(function (bd) {
+      ctx.save(); ctx.beginPath(); ctx.rect(-1, bd.y, 2, bd.h); ctx.clip();
+      poly(ctx, o.nose, bd.col); rr(ctx, 0.02, -0.3, 0.8, b + 0.3, 0.08, bd.col);
+      ctx.restore();
+    });
+    poly(ctx, o.nose, null); rr(ctx, 0.02, -0.3, 0.8, b + 0.3, 0.08, null);
+    poly(ctx, o.cab, '#bfe6fb');
+    for (var i = 0; i < 4; i++) win(ctx, -0.26 + i * 0.22, -0.2, 0.15, 0.14);
+    for (var j = 0; j < 3; j++) win(ctx, 0.1 + j * 0.22, -0.2, 0.15, 0.14);
+    if (o.wheels !== false) { [-0.5, -0.1, 0.2, 0.66].forEach(function (x) { wheel(ctx, x, b + 0.05, 0.09); }); }
+  }
+  pics.hayabusa = function (ctx) {   // はやぶさ（緑の車体に、ピンクの帯。とても長い鼻）
+    bullet(ctx, { bottom: 0.28, body: '#2f9e63',
+      nose: [[-0.94, 0.28], [-0.92, 0.18], [-0.72, -0.02], [-0.5, -0.2], [-0.3, -0.3], [0.0, -0.3], [0.0, 0.28]],
+      bands: [{ y: 0.07, h: 0.07, col: '#f48fb1' }, { y: 0.2, h: 0.1, col: '#d9dde0' }],
+      cab: [[-0.62, -0.06], [-0.46, -0.18], [-0.34, -0.2], [-0.34, -0.06]] });
+  };
+  pics.komachi = function (ctx) {   // こまち（赤い車体に白い帯。丸みのある先頭）
+    bullet(ctx, { bottom: 0.28, body: '#e53935',
+      nose: [[-0.9, 0.28], [-0.88, 0.12], [-0.66, -0.12], [-0.4, -0.28], [-0.2, -0.3], [0.0, -0.3], [0.0, 0.28]],
+      bands: [{ y: 0.08, h: 0.06, col: '#fafafa' }, { y: 0.22, h: 0.08, col: '#b3271f' }],
+      cab: [[-0.66, -0.06], [-0.5, -0.18], [-0.36, -0.2], [-0.36, -0.06]] });
+  };
+  pics.kagayaki = function (ctx) {   // かがやき（白い車体に、青い帯と銅色の細い帯）
+    bullet(ctx, { bottom: 0.28, body: '#fafafa',
+      nose: [[-0.92, 0.28], [-0.9, 0.14], [-0.64, -0.12], [-0.36, -0.28], [-0.2, -0.3], [0.0, -0.3], [0.0, 0.28]],
+      bands: [{ y: 0.0, h: 0.1, col: '#1e4fa0' }, { y: 0.12, h: 0.05, col: '#b87333' }],
+      cab: [[-0.7, -0.08], [-0.52, -0.2], [-0.36, -0.22], [-0.36, -0.08]] });
+  };
+  pics.doctoryellow = function (ctx) {   // どくたーいえろー（黄色い車体に青い帯。点検用）
+    bullet(ctx, { bottom: 0.28, body: '#ffd23f',
+      nose: [[-0.92, 0.28], [-0.88, 0.14], [-0.6, -0.14], [-0.34, -0.3], [0.0, -0.3], [0.0, 0.28]],
+      bands: [{ y: 0.04, h: 0.08, col: '#1e6fd0' }, { y: 0.2, h: 0.1, col: '#f2b705' }],
+      cab: [[-0.7, -0.08], [-0.52, -0.2], [-0.36, -0.22], [-0.36, -0.08]] });
+  };
+  pics.linear = function (ctx) {   // りにあ（白と青の流線形。車輪なしで、浮いて走る。かたい溝の上）
+    rr(ctx, -0.95, 0.3, 1.9, 0.12, 0.03, '#9aa0a6');                                           // ガイドウェイ（下端 0.42）
+    bullet(ctx, { bottom: 0.24, wheels: false, body: '#fafafa',
+      nose: [[-0.92, 0.24], [-0.88, 0.1], [-0.64, -0.1], [-0.4, -0.26], [-0.2, -0.3], [0.0, -0.3], [0.0, 0.24]],
+      bands: [{ y: 0.0, h: 0.09, col: '#2a6fd0' }, { y: 0.15, h: 0.09, col: '#4aa3df' }],
+      cab: [[-0.7, -0.06], [-0.54, -0.18], [-0.38, -0.2], [-0.38, -0.06]] });
+  };
+
   var DIRECTIONAL = { airplane: 1, train: 1, shinkansen: 1, ship: 1, steam: 1, postcar: 1, taxi: 1, motorbike: 1, crane: 1,
     truck: 1, patrol: 1, heli: 1, bus: 1, roller: 1,
     rescueHeli: 1, rescueWork: 1, rescueChem: 1, rescueCmd: 1,
-    tram: 1, monorail: 1, freight: 1, cablecar: 1, airship: 1, propplane: 1, fishboat: 1, yacht: 1, tugboat: 1, fireboat: 1, cargoship: 1 };
+    tram: 1, monorail: 1, freight: 1, cablecar: 1, airship: 1, propplane: 1, fishboat: 1, yacht: 1, tugboat: 1, fireboat: 1, cargoship: 1,
+    hayabusa: 1, komachi: 1, kagayaki: 1, doctoryellow: 1, linear: 1 };
   // 絵の id 一覧（出題に使える絵）
   var PICS = ['v1', 'v2', 'v3', 'v4', 'v5', 'v6', 'v7', 'v8', 'v9', 'v10', 'v11', 'hose', 'flame'].concat(Object.keys(pics));
   function hasPic(id) { return typeof id === 'string' && PICS.indexOf(id) >= 0; }

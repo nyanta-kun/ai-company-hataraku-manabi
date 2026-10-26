@@ -129,7 +129,7 @@
   // ごほうびに救助隊の車が出始めるステージの番号（0 = S0）
   var RESCUE_FROM = 1;
 
-  // 棚の乗り物 27 種（design-rewards.md 2 章。今の絵 15 種 + 描き足した 12 種）。stage は vehicles.js の pics の id、sound は audio.js の車の音の名前（audio.js の PIC_SOUND と一致。tests/shelves.test.js）。
+  // 棚の乗り物 32 種（design-rewards.md 2 章。今の絵 15 種 + 描き足した 12 種）。stage は vehicles.js の pics の id、sound は audio.js の車の音の名前（audio.js の PIC_SOUND と一致。tests/shelves.test.js）。
   // id は小文字の英字だけ（firestore.rules の cards の正規表現）。名前はひらがなとのばし棒だけ。CAR_YOMI には足さない（読み上げはひらがなのまま）
   var VEHICLES = [
     { id: 'patrol',     stage: 'patrol',     name: 'ぱとかー',         sound: 'car15' },
@@ -147,6 +147,12 @@
     { id: 'monorail',   stage: 'monorail',   name: 'ものれーる',       sound: 'car12' },
     { id: 'freight',    stage: 'freight',    name: 'かもつれっしゃ',   sound: 'car12' },
     { id: 'cablecar',   stage: 'cablecar',   name: 'けーぶるかー',     sound: 'car12' },
+    // 実在の新幹線の名前（家族で使う前提。ロゴ・文字・会社名・車体番号は描かない。一般公開するときは名前と塗装を見直す）
+    { id: 'hayabusa',     stage: 'hayabusa',     name: 'はやぶさ',         sound: 'car13' },
+    { id: 'komachi',      stage: 'komachi',      name: 'こまち',           sound: 'car13' },
+    { id: 'kagayaki',     stage: 'kagayaki',     name: 'かがやき',         sound: 'car13' },
+    { id: 'doctoryellow', stage: 'doctoryellow', name: 'どくたーいえろー', sound: 'car13' },
+    { id: 'linear',       stage: 'linear',       name: 'りにあ',           sound: 'car13' },
     { id: 'airplane',   stage: 'airplane',   name: 'ひこうき',         sound: 'car13' },
     { id: 'heli',       stage: 'heli',       name: 'へりこぷたー',     sound: 'car17' },
     { id: 'rocket',     stage: 'rocket',     name: 'ろけっと',         sound: 'car13' },
@@ -160,14 +166,14 @@
     { id: 'fireboat',   stage: 'fireboat',   name: 'しょうぼうてい',   sound: 'car9' },
     { id: 'cargoship',  stage: 'cargoship',  name: 'こんてなせん',     sound: 'car14' }
   ];
-  // 42 種（しゃこ・carById・保存の一覧）。CARS・RESCUE_CARS・ALL_CARS は上のまま変えない（今の抽選が使う）
+  // 47 種（しゃこ・carById・保存の一覧）。CARS・RESCUE_CARS・ALL_CARS は上のまま変えない（今の抽選が使う）
   var ALL_VEHICLES = ALL_CARS.concat(VEHICLES);
   // 棚。並び = しゃこの棚の順。ids の先頭が棚の「顔」。from = 出始めるステージ（きゅうじょたい は RESCUE_FROM。S0 の子には棚ごと見せない）
   function idsOf(list) { return list.map(function (c) { return c.id; }); }
   var SHELVES = [
     { id: 'hataraku', name: 'はたらくくるま', face: 'shoubousha', ids: idsOf(CARS) },
     { id: 'machi',    name: 'まちの くるま',  face: 'patrol',     ids: ['patrol', 'bus', 'taxi', 'postcar', 'truck', 'motorbike', 'crane', 'roller'] },
-    { id: 'densha',   name: 'でんしゃ',       face: 'train',      ids: ['train', 'shinkansen', 'steam', 'tram', 'monorail', 'freight', 'cablecar'] },
+    { id: 'densha',   name: 'でんしゃ',       face: 'train',      ids: ['train', 'shinkansen', 'steam', 'tram', 'monorail', 'freight', 'cablecar', 'hayabusa', 'komachi', 'kagayaki', 'doctoryellow', 'linear'] },
     { id: 'sora',     name: 'そら',           face: 'airplane',   ids: ['airplane', 'heli', 'rocket', 'balloon', 'airship', 'propplane'] },
     { id: 'umi',      name: 'うみ',           face: 'ship',       ids: ['ship', 'fishboat', 'yacht', 'tugboat', 'fireboat', 'cargoship'] },
     { id: 'kyujo',    name: 'きゅうじょたい', face: 'rescuework', ids: idsOf(RESCUE_CARS), from: RESCUE_FROM }

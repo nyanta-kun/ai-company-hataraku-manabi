@@ -61,8 +61,8 @@ service cloud.firestore {
     }
     function isCards(c) {
       return c is map
-        && c.size() <= 42
-        && (c.size() == 0 || isKeyList(c.keys(), '(nekoguruma|forklift|gomi|shovel|bulldozer|dump|kyukyu|shoubousha|mizutank|hashigo|chodai|rescuework|rescuechem|rescuecmd|rescueheli|patrol|bus|taxi|postcar|truck|motorbike|crane|roller|train|shinkansen|steam|tram|monorail|freight|cablecar|airplane|heli|rocket|balloon|airship|propplane|ship|fishboat|yacht|tugboat|fireboat|cargoship)'))
+        && c.size() <= 47
+        && (c.size() == 0 || isKeyList(c.keys(), '(nekoguruma|forklift|gomi|shovel|bulldozer|dump|kyukyu|shoubousha|mizutank|hashigo|chodai|rescuework|rescuechem|rescuecmd|rescueheli|patrol|bus|taxi|postcar|truck|motorbike|crane|roller|train|shinkansen|steam|tram|monorail|freight|cablecar|hayabusa|komachi|kagayaki|doctoryellow|linear|airplane|heli|rocket|balloon|airship|propplane|ship|fishboat|yacht|tugboat|fireboat|cargoship)'))
         && c.values().hasOnly([1, 2, 3]);
     }
     // 回数 16 個（sessions と、4 つのゲームの sessions・questions・firstTry と、trace の sessions・chars・clean）を、まとめて「0 以上の整数の文字列」で確かめる

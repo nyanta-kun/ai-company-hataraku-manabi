@@ -271,6 +271,7 @@
     rescueWork: 'car4', rescueChem: 'car9', rescueCmd: 'car7', rescueHeli: 'car11',
     patrol: 'car15', bus: 'car6', taxi: 'car6', postcar: 'car6', truck: 'car6', motorbike: 'car5', crane: 'car4', roller: 'car5',
     train: 'car12', shinkansen: 'car13', steam: 'car16', tram: 'car12', monorail: 'car12', freight: 'car12', cablecar: 'car12',
+    hayabusa: 'car13', komachi: 'car13', kagayaki: 'car13', doctoryellow: 'car13', linear: 'car13',
     airplane: 'car13', heli: 'car17', rocket: 'car13', balloon: 'car13', airship: 'car17', propplane: 'car17',
     ship: 'car14', fishboat: 'car14', yacht: 'car14', tugboat: 'car14', fireboat: 'car9', cargoship: 'car14'
   };

@@ -162,7 +162,7 @@ families/{uid}/profiles/{id}      プロフィール 1 人 1 文書。端末内�
   created: 'YYYY-MM-DD' | '',
   levels:  { math: 'M3', letter: 'K2', clock: 'T1', english: 'E1' },
   locked:  { math: false, letter: false, clock: false, english: false },
-  cards:   { shoubousha: 2, ... }, 乗り物 → ★ 1〜3。42 種（車・電車・飛行機・船。src/storage.js の CAR_IDS）
+  cards:   { shoubousha: 2, ... }, 乗り物 → ★ 1〜3。47 種（車・電車・飛行機・船。src/storage.js の CAR_IDS）
   stats:   { sessions: 12, math: { sessions, questions, firstTry }, letter: {...}, clock: {...}, english: {...},
            trace: { sessions, chars, clean } },   「かく」の回数・書いた字の数・やり直しなしの字の数
   trace:   { done: { 'し': 2, ... }, help: { 'ぬ': 2, ... }, solo: { 'し': 1, ... }, set: 'auto', width: 'auto' },   done: 字 → 書き終えた回数 1〜99、help: 字 → たすけが要った回数 1〜99（W5）、solo: 字 → ひとりで（線なしで）書けた回数 1〜99（W6）。help・solo の字は done にある字だけ（ルールが確かめる）。help ≤ done・solo ≤ done の回数の大小は端末の normalizeTrace が守る（ルールは確かめない）。指の線は保存しない
@@ -272,8 +272,8 @@ service cloud.firestore {
     }
     function isCards(c) {
       return c is map
-        && c.size() <= 42
-        && (c.size() == 0 || isKeyList(c.keys(), '(nekoguruma|forklift|gomi|shovel|bulldozer|dump|kyukyu|shoubousha|mizutank|hashigo|chodai|rescuework|rescuechem|rescuecmd|rescueheli|patrol|bus|taxi|postcar|truck|motorbike|crane|roller|train|shinkansen|steam|tram|monorail|freight|cablecar|airplane|heli|rocket|balloon|airship|propplane|ship|fishboat|yacht|tugboat|fireboat|cargoship)'))
+        && c.size() <= 47
+        && (c.size() == 0 || isKeyList(c.keys(), '(nekoguruma|forklift|gomi|shovel|bulldozer|dump|kyukyu|shoubousha|mizutank|hashigo|chodai|rescuework|rescuechem|rescuecmd|rescueheli|patrol|bus|taxi|postcar|truck|motorbike|crane|roller|train|shinkansen|steam|tram|monorail|freight|cablecar|hayabusa|komachi|kagayaki|doctoryellow|linear|airplane|heli|rocket|balloon|airship|propplane|ship|fishboat|yacht|tugboat|fireboat|cargoship)'))
         && c.values().hasOnly([1, 2, 3]);
     }
     // 回数 16 個（sessions と、4 つのゲームの sessions・questions・firstTry と、trace の sessions・chars・clean）を、まとめて「0 以上の整数の文字列」で確かめる
