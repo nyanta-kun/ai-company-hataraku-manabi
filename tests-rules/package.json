@@ -1,0 +1,10 @@
+{
+  "name": "hataraku-manabi-rules-test",
+  "private": true,
+  "description": "Firestore ルールのエミュレーター試験（アプリには含めない）",
+  "scripts": { "test": "node --test *.test.js" },
+  "devDependencies": {
+    "@firebase/rules-unit-testing": "^5.0.0",
+    "firebase": "^12.0.0"
+  }
+}
