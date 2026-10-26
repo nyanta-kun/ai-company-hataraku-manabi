@@ -132,7 +132,19 @@ canvas { display: block; }
 .slot.none { background: #d8d1c0; }
 .slot.none .nm { color: #7a705e; }
 
-#garage-grid[hidden], #moji-view[hidden], #moji-sheet[hidden] { display: none; }
+#garage-grid[hidden], #moji-view[hidden], #moji-sheet[hidden], #shelf-tabs[hidden], #shelf-head[hidden] { display: none; }
+/* しゃこの棚の切り替え（絵だけの 48px のボタンを 1 行に。6 つで 318px なので 375px の画面に収まる）と、棚の見出し */
+#shelf-tabs { display: flex; gap: 6px; justify-content: center; padding: 4px 8px 6px; flex: none; background: #e4dccb; }
+.stab { flex: none; width: 48px; height: 48px; padding: 0; border-radius: 14px; background: #f7f1e3; border: 3px solid #8a7f6c; display: flex; align-items: center; justify-content: center; }
+.stab canvas { width: 36px; height: 36px; pointer-events: none; }
+.stab.sel { background: #16a085; border-color: #0e6b58; }
+#shelf-head { display: flex; align-items: center; gap: 8px; padding: 0 14px 4px; flex: none; background: #e4dccb; min-height: 30px; }
+#sh-name { font-size: 18px; font-weight: bold; color: #3a2b24; }
+#sh-how { display: flex; align-items: center; gap: 2px; min-height: 36px; padding: 0 8px; border-radius: 12px; background: #fff3d6; border: 2px solid #c9b98f; font-size: 13px; font-weight: bold; color: #3a2b24; }
+#sh-how[hidden] { display: none; }
+#sh-how canvas { width: 24px; height: 24px; }
+#g-count { margin-left: auto; font-size: 18px; font-weight: bold; color: #3a2b24; }
+@media (max-width: 400px) { #shelf-tabs { gap: 4px; padding: 4px 6px 6px; } #shelf-head { padding: 0 8px 4px; gap: 6px; } #sh-name { font-size: 16px; } }
 #g-tabs { display: flex; gap: 6px; }
 .gtab { display: flex; align-items: center; gap: 4px; min-height: 48px; padding: 0 10px; border-radius: 14px; background: #f7f1e3; border: 3px solid #8a7f6c; font-size: 16px; font-weight: bold; color: #3a2b24; }
 .gtab canvas { width: 28px; height: 28px; }

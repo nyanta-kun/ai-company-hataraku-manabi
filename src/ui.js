@@ -7,7 +7,8 @@
 
   function $(id) { return doc.getElementById(id); }
   function now() { return root.performance.now() / 1000; }
-  function carById(id) { for (var i = 0; i < D.ALL_CARS.length; i++) if (D.ALL_CARS[i].id === id) return D.ALL_CARS[i]; return null; }
+  function carById(id) { for (var i = 0; i < D.ALL_VEHICLES.length; i++) if (D.ALL_VEHICLES[i].id === id) return D.ALL_VEHICLES[i]; return null; }
+  function shelfOfCar(id) { for (var i = 0; i < D.SHELVES.length; i++) if (D.SHELVES[i].ids.indexOf(id) >= 0) return D.SHELVES[i]; return null; }
   function todayStr() { var d = new Date(); return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2); }
 
   var state = S.load();             // v2 全体（device ＋ プロフィール配列）
@@ -781,10 +782,10 @@
   function finishTrace() {
     var st = data.stats;
     st.sessions++; st.trace.sessions++;
-    var r = grantReward(trun.scene, stageIdx());   // S0 は今までと同じ出方。階段（afterSession）は呼ばない
+    var r = grantReward(trun.scene, stageIdx(), 'trace');   // 階段（afterSession）は呼ばない。かく の棚は うみ
     data.lastPlayed = todayStr();
     save();
-    reward = { r: r, t0: 0, game: 'trace', solo: !!trun.solo, license: trun.license || '', wrote: trun.wrote.slice(), firstNew: (trun.plan.filter(function (o) { return o.why === 'new'; })[0] || {}).ch || '' };
+    reward = { r: r, t0: 0, game: 'trace', played: 'trace', solo: !!trun.solo, license: trun.license || '', wrote: trun.wrote.slice(), firstNew: (trun.plan.filter(function (o) { return o.why === 'new'; })[0] || {}).ch || '' };
     rememberTrace();
     trun = null; tboard.stop();
     show('reward');
@@ -799,8 +800,9 @@
 
   // ごほうびを抽選して data.cards に反映する（通常の流れと確認パネルで共通）
   // rank: 遊んだレベルのステージの番号。S1 以上のときだけ救助隊の車も出る（rewards.js）。省略は S0 と同じ
-  function grantReward(scene, rank) {
-    var a = R.applyReward(data.cards, scene, Math.random, rank);
+  // game: 遊んだゲーム（math・letter・clock・english・trace）。そのゲームの棚の乗り物が先に出る。省略は今までの出方（確認用）
+  function grantReward(scene, rank, game) {
+    var a = R.applyReward(data.cards, scene, Math.random, rank, game);
     data.cards = a.cards;
     return a.r;
   }
@@ -811,10 +813,10 @@
     st[game].questions += P.QUESTIONS_PER_SESSION; st[game].firstTry += run.firstTry;
     var res = LD.afterSession(data, game, run.level, run.firstTry, run.review, todayStr());
     replaceData(res.profile);
-    var r = grantReward(run.scene, D.stageIndex(D.stageOf(run.level)));
+    var r = grantReward(run.scene, D.stageIndex(D.stageOf(run.level)), game);
     data.lastPlayed = todayStr();
     save();
-    reward = { r: r, t0: 0, promo: res.promotedTo };   // 昇格したら、ごほうびの次に しょうかく の画面を出す
+    reward = { r: r, t0: 0, played: game, promo: res.promotedTo };   // 昇格したら、ごほうびの次に しょうかく の画面を出す
     run = null;
     show('reward');
   }
@@ -825,6 +827,12 @@
   }
 
   // ---- ごほうび ----
+  // 「しゃこへ」で開く棚: もらった乗り物の棚。ステッカーのときは遊んだゲームの棚。どちらも無ければ前に開いていた棚
+  function rewardShelf() {
+    var sh = reward && reward.r.id ? shelfOfCar(reward.r.id) : null;
+    if (!sh && reward && reward.played && D.GAME_SHELF[reward.played]) sh = D.SHELVES.filter(function (x) { return x.id === D.GAME_SHELF[reward.played]; })[0];
+    return sh ? sh.id : garageOpen.shelf;
+  }
   function rewardCar() { return reward && reward.r.id ? carById(reward.r.id) : null; }
   function startRewardAnim() {
     reward.t0 = now(); reward.sound = 0;
@@ -841,7 +849,10 @@
       sfx('fanfare');
       if (car) {
         $('reward-text').textContent = car.name + ' をげっと！';
-        if (r.isNew) $('reward-sub').innerHTML = kidText(D.TEXT.rewardNew); else $('reward-sub').textContent = '★が ふえたよ！';   // S0 は「あたらしい くるま！」のまま
+        if (r.isNew) {   // はたらくくるま・まちの くるま・きゅうじょたい は「あたらしい くるま！」、でんしゃ・そら・うみ は「あたらしい のりもの！」（漢字なし）
+          var sh = shelfOfCar(car.id);
+          if (sh && ['densha', 'sora', 'umi'].indexOf(sh.id) >= 0) $('reward-sub').textContent = D.REWARD_NEW_RIDE; else $('reward-sub').innerHTML = kidText(D.TEXT.rewardNew);
+        } else $('reward-sub').textContent = '★が ふえたよ！';
         say(carYomi(car) + 'を、ゲット！');
       } else {
         $('reward-text').textContent = 'ごほうびすてっかー！';
@@ -899,21 +910,51 @@
 
   // ---- しゃこ ----
   var slots = [];
-  // しゃこに並べる車。S0 の子には今までの 11 種だけ（救助隊の車は、S1 以上を解放しているか、もう持っているときに並ぶ）
+  // しゃこの棚（design-rewards.md 4 章）。見える棚: 出始めるステージ（from）が無い棚と、解放済みのステージが from 以上、またはその棚の乗り物をもう持っている棚。
+  // きゅうじょたい は S0 の子には棚ごと見せない（S1 から戻した子など、カードを持っていれば見せる）
+  function visibleShelves() {
+    var un = D.stageIndex(data.stage.unlocked);
+    return D.SHELVES.filter(function (sh) { return sh.from === undefined || un >= sh.from || sh.ids.some(function (id) { return data.cards[id] > 0; }); });
+  }
+  // 見える棚の乗り物（保護者画面の数）
   function garageCars() {
-    var show = D.stageIndex(data.stage.unlocked) >= D.RESCUE_FROM || D.RESCUE_CARS.some(function (c) { return data.cards[c.id] > 0; });
-    return show ? D.ALL_CARS : D.CARS;
+    var out = [];
+    visibleShelves().forEach(function (sh) { sh.ids.forEach(function (id) { out.push(carById(id)); }); });
+    return out;
+  }
+  var SHELF_GAME = { hataraku: 'math', machi: 'letter', densha: 'clock', sora: 'english', umi: 'trace' };   // 棚 → そのゲーム（D.GAME_SHELF の逆）
+  var GAME_NAME = { math: 'かず', letter: 'もじ', clock: 'とけい', english: 'えいご', trace: 'かく' };
+  var GAME_ICON = { math: 'kazu', letter: 'moji', clock: 'tokei', english: 'eigo', trace: 'pencil' };
+  function currentShelf() {
+    var list = visibleShelves(), id = garageOpen.shelf;
+    for (var i = 0; i < list.length; i++) if (list[i].id === id) return list[i];
+    garageOpen.shelf = list[0].id;   // 見えない棚が選ばれていたら はたらくくるま に戻す
+    return list[0];
+  }
+  function buildShelfTabs(cur) {
+    var box = $('shelf-tabs'); box.textContent = '';
+    visibleShelves().forEach(function (sh) {
+      var b = el('button', 'stab' + (sh.id === cur.id ? ' sel' : '')); b.type = 'button';
+      b.setAttribute('role', 'tab'); b.setAttribute('aria-label', sh.name); b.setAttribute('aria-selected', sh.id === cur.id ? 'true' : 'false'); b.dataset.shelf = sh.id;
+      var cv = doc.createElement('canvas'); cv.width = 96; cv.height = 96; b.appendChild(cv); box.appendChild(b);
+      V.drawVehicle(cv.getContext('2d'), carById(sh.face).stage, 48, 46, 84);
+      b.addEventListener('click', function () {
+        unlockOnce(); sfx('tap'); say(sh.name);
+        garageOpen.shelf = sh.id; garageOpen.run = ''; buildGarage(); kick();
+      });
+    });
   }
   function buildGarage() {
     var grid = $('garage-grid'); grid.innerHTML = ''; slots = [];
     var have = 0;
-    var cars = garageCars();
+    var sh = currentShelf(), cars = sh.ids.map(carById);
+    buildShelfTabs(sh);
     cars.forEach(function (car) {
       var n = data.cards[car.id] || 0; if (n) have++;
       // button だと iOS Safari が中身の高さを枠に数えず、絵と名前が枠の外にはみ出すので div にする
       var el = doc.createElement('div');
       el.setAttribute('role', 'button'); el.tabIndex = 0; el.className = 'slot' + (n ? '' : ' none');
-      el.setAttribute('aria-label', n ? car.name : 'まだ いない くるま');
+      el.setAttribute('aria-label', n ? car.name : 'まだ いない のりもの');
       el.addEventListener('keydown', function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); el.click(); } });
       var stars = ''; for (var i = 1; i <= 3; i++) stars += i <= n ? '★' : '☆';
       el.innerHTML = '<canvas></canvas><div class="nm"></div><div class="st"></div>';
@@ -922,13 +963,25 @@
       grid.appendChild(el);
       var slot = { el: el, car: car, n: n, cv: el.querySelector('canvas'), drive: -1 };
       slots.push(slot);
+      if (garageOpen.run === car.id && n) slot.drive = now();   // ごほうびから来たとき、もらった乗り物の枠が 1 回走る
       el.addEventListener('click', function () {
         unlockOnce();
         if (!slot.n) { sfx('tap'); return; }
         slot.drive = now(); sfx(A.carSound(car.stage)); say(carYomi(car)); kick();
       });
     });
+    garageOpen.run = '';
+    // 棚の見出し: 棚の名前・そのゲームの絵（持っていない乗り物が残る棚だけ。きゅうじょたい は出さない）・数
+    $('sh-name').textContent = sh.name;
     $('g-count').textContent = have + ' / ' + cars.length;
+    var game = SHELF_GAME[sh.id], how = $('sh-how');
+    how.hidden = !game || sh.from !== undefined || have >= cars.length;
+    if (!how.hidden) {
+      how.setAttribute('aria-label', GAME_NAME[game] + 'で ふえるよ');
+      how.querySelector('.gn').textContent = GAME_NAME[game] + 'で ふえるよ';
+      drawIcon(how.querySelector('canvas'), GAME_ICON[game]);
+      how.onclick = function () { unlockOnce(); sfx('tap'); say(GAME_NAME[game] + 'で あそぶと ふえるよ'); };
+    }
     showGarageTab();
     drawGarage();
   }
@@ -952,7 +1005,7 @@
 
 
   // ---- しゃこの「もじ」: 五十音の表（design 11.5・11.6）。数字・割合・苦手は出さない。書いた字に車のスタンプ、3 回以上は金 ----
-  var garageOpen = { tab: 'cars', set: '', stamp: [] };   // しゃこを開くたびの状態。stamp: ごほうび画面から来たときに順に押す字
+  var garageOpen = { tab: 'cars', set: '', stamp: [], shelf: 'hataraku', run: '' };   // しゃこを開くたびの状態。stamp: ごほうび画面から来たときに順に押す字。shelf: 開く棚（アプリを開いている間だけ覚える）。run: 開いたとき 1 回走る乗り物の id
   var mojiSheetCh = '';
   var SET_LABEL = { hira: 'ひらがな', kata: 'かたかな', k1: '1ねん', k2: '2ねん' };
   var SET_LABEL_PARENT = { hira: 'ひらがな', kata: 'カタカナ', k1: '1ねんの かんじ', k2: '2ねんの かんじ' };
@@ -990,7 +1043,7 @@
   function mojiOrient() { return root.innerWidth > root.innerHeight ? 'cols' : 'rows'; }
   function showGarageTab() {
     var moji = garageOpen.tab === 'moji';
-    $('garage-grid').hidden = moji; $('moji-view').hidden = !moji; $('g-count').hidden = moji;
+    $('garage-grid').hidden = moji; $('moji-view').hidden = !moji; $('shelf-tabs').hidden = moji; $('shelf-head').hidden = moji;
     $('gt-cars').classList.toggle('sel', !moji); $('gt-moji').classList.toggle('sel', moji);
     $('moji-sheet').hidden = true; mojiSheetCh = '';
     if (moji) buildMoji();
@@ -1230,8 +1283,12 @@
   function fillParent() {
     relockAsk = '';   // 「とじる」の確認は、ほかの操作で描き直したら消える
     var st = data.stats, have = 0, stars = 0;
-    var shelf = garageCars();
+    var shelf = garageCars(), shelfRows = '';
     shelf.forEach(function (c) { var n = data.cards[c.id] || 0; if (n) have++; stars += n; });
+    visibleShelves().forEach(function (sh) {   // 棚ごとの数だけ（割合・順位は出さない）
+      var got = sh.ids.filter(function (id) { return data.cards[id] > 0; }).length;
+      shelfRows += '<div class="prow"><span>' + sh.name + '</span><b>' + got + ' / ' + sh.ids.length + '</b></div>';
+    });
     function pct(g) { var q = st[g].questions; return q ? Math.round(st[g].firstTry / q * 100) + '%' : '-'; }
     $('p-progress').innerHTML =
       '<div class="prow"><span>しゅつどうの かいすう</span><b>' + st.sessions + '</b></div>' +
@@ -1240,7 +1297,7 @@
       '<div class="prow"><span>とけい：いまのレベル</span><b>' + data.levels.clock + '（1かいめで せいかい ' + pct('clock') + '）</b></div>' +
       '<div class="prow"><span>えいご：いまのレベル</span><b>' + data.levels.english + '（1かいめで せいかい ' + pct('english') + '）</b></div>' +
       '<div class="prow"><span>かく：かいた じ</span><b style="text-align:right">' + traceProgressText() + '<br>（' + st.trace.sessions + 'かい）</b></div>' +
-      '<div class="prow"><span>あつめた くるま</span><b>' + have + ' / ' + shelf.length + '（★ ' + stars + '）</b></div>';
+      '<div class="prow"><span>あつめた のりもの</span><b>' + have + ' / ' + shelf.length + '（★ ' + stars + '）</b></div>' + shelfRows;
     $('p-sfx').checked = dev.sound.sfx; $('p-voice').checked = dev.sound.voice;
     ['math', 'letter', 'clock', 'english'].forEach(function (g) {
       var sel = $('p-lv-' + g);
@@ -1350,7 +1407,7 @@
     root.addEventListener('orientationchange', function () { root.setTimeout(function () { root.dispatchEvent(new root.Event('resize')); }, 200); });
 
     $('btn-go').addEventListener('click', function () { sfx('tap'); show('pick'); });
-    $('btn-garage').addEventListener('click', function () { sfx('tap'); garageOpen = { tab: 'cars', set: garageOpen.set, stamp: [] }; show('garage'); });
+    $('btn-garage').addEventListener('click', function () { sfx('tap'); garageOpen = { tab: 'cars', set: garageOpen.set, stamp: [], shelf: garageOpen.shelf, run: '' }; show('garage'); });
     $('gt-cars').addEventListener('click', function () { sfx('tap'); garageOpen.tab = 'cars'; garageOpen.stamp = []; showGarageTab(); drawGarage(); kick(); });
     $('gt-moji').addEventListener('click', function () { sfx('tap'); garageOpen.tab = 'moji'; showGarageTab(); });
     $('moji-close').addEventListener('click', function () { sfx('tap'); closeMojiSheet(); });
@@ -1418,8 +1475,8 @@
       if (reward && reward.game === 'trace') {   // かく から来たときは「もじ」を開き、今日の字にスタンプが押される
         var w = reward.wrote || [];
         var firstNew = reward.firstNew || '';   // その出動の新しい字の集合を優先（なければ今の集合）
-        garageOpen = { tab: 'moji', set: firstNew ? setOfChar(firstNew) : '', stamp: w.slice() };
-      } else garageOpen = { tab: 'cars', set: garageOpen.set, stamp: [] };
+        garageOpen = { tab: 'moji', set: firstNew ? setOfChar(firstNew) : '', stamp: w.slice(), shelf: rewardShelf(), run: '' };   // 「のりもの」に切り替えると もらった乗り物の棚（うみ など）
+      } else garageOpen = { tab: 'cars', set: garageOpen.set, stamp: [], shelf: rewardShelf(), run: reward && reward.r.id ? reward.r.id : '' };
       leaveReward('garage');
     });
     $('btn-r-end').addEventListener('click', function () { sfx('tap'); leaveReward('title'); });   // 昇格があれば先に昇格画面（そのあとタイトル）
@@ -1495,18 +1552,18 @@
     gotoPromote: function (stageId) { promo = { stage: stageId || 'S1', t0: 0 }; show('promote'); },
     get state() { return state; },
     addDummyProfile: function () { addLock = 0; addKid(); kidEdit = null; },
-    gotoReward: function (scene, rank) {   // rank: 確認用。省略は S0 と同じ
-      var r = grantReward(scene || 'kaji', rank);
+    gotoReward: function (scene, rank, game) {   // 確認用。rank 省略は S0 と同じ。game 省略は今までの出方（棚なし）
+      var r = grantReward(scene || 'kaji', rank, game);
       save();
-      reward = { r: r, t0: 0 }; show('reward');
+      reward = { r: r, t0: 0, played: game || '' }; show('reward');
     },
     previewGarage: function () {
-      garageOpen = { tab: 'cars', set: '', stamp: [] };
+      garageOpen = { tab: 'cars', set: '', stamp: [], shelf: garageOpen.shelf, run: '' };
       show('garage');
     },
     // 確認用: 「もじ」の表を開く（setId 省略は今の集合）。stamp に字を渡すと、その字に順にスタンプが押される
     previewMoji: function (setId, stamp) {
-      garageOpen = { tab: 'moji', set: setId || '', stamp: stamp || [] };
+      garageOpen = { tab: 'moji', set: setId || '', stamp: stamp || [], shelf: garageOpen.shelf, run: '' };
       show('garage');
     },
     current: function () { return run ? run.qs[run.idx] : null; },

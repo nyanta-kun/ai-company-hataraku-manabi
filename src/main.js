@@ -90,7 +90,11 @@
     });
     btn('ごほうび', function () { ui.gotoReward('kaji'); });
     btn('ごほうびS2', function () { ui.gotoReward('kaji', 2); });
-    btn('全車★3', function () { D.ALL_CARS.forEach(function (c) { ui.data.cards[c.id] = 3; }); ui.setData(ui.data); });
+    [['math', 'かず'], ['letter', 'もじ'], ['clock', 'とけい'], ['english', 'えいご'], ['trace', 'かく']].forEach(function (g) {   // ゲームごと（その棚の乗り物が出る）。#debug:reward:<現場>:<rank>:<game> でも
+      btn('ごほうび ' + g[1], function () { ui.gotoReward('kaji', 1, g[0]); });
+    });
+    btn('全車★3', function () { D.ALL_VEHICLES.forEach(function (c) { ui.data.cards[c.id] = 3; }); ui.setData(ui.data); });
+    btn('はたらく★3', function () { D.ALL_CARS.forEach(function (c) { ui.data.cards[c.id] = 3; }); ui.setData(ui.data); });   // 今の 15 種だけ（ステッカーの確認用）
     btn('全車なし', function () { ui.data.cards = {}; ui.setData(ui.data); });
     btn('しゃこ', function () { ui.show('garage'); });
     btn('もじの ひょう', function () { ui.previewMoji(); });
@@ -148,7 +152,7 @@
     else if (g[0] === 'trace') { ui.startTrace({ fast: true }); if (g[1] === 'auto') ui.traceAuto(true); }
     else if (g[0] === 'pics') togglePicGrid();
     else if (g[0] === 'pick') ui.show('pick');
-    else if (g[0] === 'reward') ui.gotoReward(g[1] || 'kaji', +g[2] || 0);
+    else if (g[0] === 'reward') ui.gotoReward(g[1] || 'kaji', +g[2] || 0, g[3] || undefined);
     else if (g[0] === 'garage') ui.previewGarage();
     else if (g[0] === 'parent') ui.show('parent');
     else if (g[0] === 'who') ui.show('who');
