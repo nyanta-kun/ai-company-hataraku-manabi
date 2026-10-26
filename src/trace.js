@@ -101,7 +101,7 @@
     };
   }
 
-  // ---- 3.6 助けの段階。m = その画のやり直しの回数（off と short の合計）----
+  // ---- 3.6 助けの段階。m = その画のやり直しの回数（off と short の合計。reverse・miss は 3 回目から。recordAttempt）----
   // m=2 で near・off ×1.25、m=3 で ×1.5、m=4 以上で off を見ない。m>=5 は autoComplete（手本が書き足して次の画へ）
   function helpTolerance(tol, m) {
     var f = m >= 3 ? 1.5 : m >= 2 ? 1.25 : 1;
@@ -133,9 +133,10 @@
   function windowPts(poly) { return Math.max(1, Math.round(DEFAULTS.window / DEFAULTS.h)); }
 
   // 進度つき最近傍: idx から先の窓の中で p から near 以内の一番先の点
-  // 窓は idx と ref（near〜off で追った位置）の先まで。near に戻ってきたら idx が追いつく
+  // 窓は idx と ref（near〜off で追った位置）の先まで。near に戻ってきたら idx が追いつく。
+  // 進度の窓は 2W（0.24）: 速い指が折り返しの先端を飛ばして戻り側に乗っても止めないため（正しくなぞる子を止めないことを、近道の防止より優先）
   function advance(poly, idx, ref, p, near) {
-    var hi = Math.min(poly.length - 1, Math.max(idx, ref) + windowPts(poly)), best = idx;
+    var hi = Math.min(poly.length - 1, Math.max(idx, ref) + 2 * windowPts(poly)), best = idx;
     for (var j = idx; j <= hi; j++) {
       if (dist(p, poly[j]) > near) continue;
       best = j;
@@ -153,7 +154,7 @@
 
   function beginStroke(poly, p, tol) {
     var first = poly[0], lastPt = poly[poly.length - 1];
-    var base = { idx: 0, ref: 0, last: p, offLen: 0, off: false, dot: false, travel: 0, idx0: 0 };
+    var base = { idx: 0, ref: 0, last: p, offLen: 0, off: false, dot: false, travel: 0 };
     if (isDot(poly)) {
       // 点: 画のどこから押してもよい（off の中なら）
       if (distToRange(poly, p, 0, poly.length - 1) <= tol.off) {
@@ -165,7 +166,6 @@
     if (dist(p, first) <= tol.startR) {
       base.idx = advance(poly, 0, 0, p, tol.near);
       base.ref = softRef(poly, 0, p, tol.off);
-      base.idx0 = base.idx;
       return { state: base, result: 'started' };
     }
     if (dist(p, lastPt) <= tol.startR) return { state: base, result: 'reverse' };
@@ -173,7 +173,7 @@
   }
 
   function moveStroke(poly, state, pts, tol) {
-    var st = { idx: state.idx, ref: state.ref, last: state.last, offLen: state.offLen, off: state.off, dot: state.dot, inside: state.inside, travel: state.travel, idx0: state.idx0 };
+    var st = { idx: state.idx, ref: state.ref, last: state.last, offLen: state.offLen, off: state.off, dot: state.dot, inside: state.inside, travel: state.travel };
     if (st.off) return { state: st, result: 'off' };
     var W = windowPts(poly), step = tol.near / DEFAULTS.densifyDiv;
     for (var a = 0; a < pts.length; a++) {
@@ -184,9 +184,7 @@
           st.inside = distToRange(poly, q, 0, poly.length - 1) <= tol.off;
         } else {
           st.travel += dist(st.last, q);
-          // 進度は、指の道のり＋near より先へは進めない（輪や交差で反対側の手本へ飛ばない。書けたことにするには、指の道のりが 手本の長さ×0.9 − near 以上いる。つまり近道で飛ばせるのは 手本の長さの 1 割＋near まで。小さい板・広い幅・助けで near が大きくても効く）
-          var cap = Math.max(st.idx0, Math.floor((st.travel + tol.near) / DEFAULTS.h));
-          st.idx = Math.max(st.idx, Math.min(advance(poly, st.idx, st.ref, q, tol.near), cap));
+          st.idx = advance(poly, st.idx, st.ref, q, tol.near);
           st.ref = Math.max(st.ref, st.idx);
           st.ref = softRef(poly, st.ref, q, tol.off);
           var d = distToRange(poly, q, st.ref - W, st.ref + W);

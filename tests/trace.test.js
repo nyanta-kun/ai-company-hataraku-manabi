@@ -104,31 +104,29 @@ function crossing(p) {
   return best;
 }
 
-// 近道の防止（設計 3.4）: 進度は 指の道のり＋near より先へ進まない。よって飛ばせるのは 手本の長さの 1 割＋near まで。
-// 輪の大きさ（交差する 2 点の間の弧長）がそれ（余裕をみて 1 割＋2·near）を超える近道は、幅・板の大きさ・助けの段階によらず done にならない
-test('6. 輪のある画: 正しくなぞれば単調に done。輪を飛ばして交差点から終点へ近道すると done にならない（全画 × 幅 × 板の大きさ × 助け）', () => {
-  const perChar = {};
-  for (const ch of SETS.hira) STROKES[ch].s.forEach((s, i) => {
-    const p = T.strokePolyline(s), len = T.polyLength(p);
-    for (const width of ['normal', 'wide']) for (const B of [300, 350, 600]) for (let m = 0; m <= 4; m++) {
+// 近道の防止は W1 では「防げる範囲」だけ（設計 3.4）。窓（進度の前後だけを見る）で防げるのは、輪が大きく、幅が ふつう か助けが m<=1 のとき。
+// る・て・そ・ん・え の小さい輪や、ひろめ＋助け(m>=2) の す・む などは防がない（正しくなぞる子を止めないことを優先する。下の 14）
+test('6. 輪のある画: 正しくなぞれば単調に done。大きい輪を飛ばして交差点から終点へ近道すると done にならない（の・ぬ・あ・め・ね・お・ま・み・よ・な）', () => {
+  const chars = [['の', 0], ['ぬ', 1], ['あ', 2], ['め', 1], ['ね', 1], ['お', 1], ['ま', 2], ['み', 0], ['よ', 1], ['な', 3]];
+  let tried = 0;
+  for (const [ch, i] of chars) {
+    const p = T.strokePolyline(STROKES[ch].s[i]), len = T.polyLength(p);
+    for (const width of ['normal', 'wide']) for (const B of [300, 350, 600]) for (let m = 0; m <= 1; m++) {
       const tol = T.helpTolerance(T.tolerance(B, width, 'kana'), m);
       const tag = [ch, i, width, B, 'm' + m].join(' ');
       const full = run(p, p, tol, { every: 2 });
       assert.equal(full.end, 'done', tag);
       for (let k = 1; k < full.prog.length; k++) assert.ok(full.prog[k] >= full.prog[k - 1], tag);
       for (let a = 0; a < p.length; a += 3) for (let b = a + 20; b < p.length; b += 2) {
-        if (dist(p[a], p[b]) > 0.05) continue;                 // 交差している 2 点
-        if ((b - a) * 0.01 <= 0.1 * len + 2 * tol.near) continue;   // 輪が小さすぎる（許容の中）
-        perChar[ch] = (perChar[ch] || 0) + 1;
-        const cheat = p.slice(0, a + 1).concat(p.slice(b));
-        const r = run(p, cheat, tol, { every: 2 });
+        if (dist(p[a], p[b]) > 0.05) continue;                       // 交差している 2 点
+        if ((b - a) * 0.01 <= 0.1 * len + 2 * tol.near) continue;    // 輪が小さい（許容の中）
+        tried++;
+        const r = run(p, p.slice(0, a + 1).concat(p.slice(b)), tol, { every: 2 });
         assert.notEqual(r.end, 'done', tag + ' ' + a + '→' + b + ' は近道で書けてはいけない');
       }
     }
-  });
-    ['す', 'む', 'の', 'ぬ', 'あ', 'め', 'ね'].forEach(ch => assert.ok(perChar[ch] > 0, ch + ' の近道を試した'));
-  // る・て・そ・ん・え の輪は、許容（手本の長さの 1 割＋near）より小さく、指の太さの中に入る。見分けられないので対象にしない（設計 3.4）
-  assert.equal(perChar['る'], undefined);
+  }
+  assert.ok(tried > 100, '試した近道: ' + tried);
 });
 
 test('6b. 3 点だけ（始点・中点・終点）の近道は小さい板・ひろめ・助け m=3 でも done にならない', () => {
@@ -327,4 +325,75 @@ test('13. normalizeTrace: 知らない字・負・文字列・100 以上・知�
   assert.deepEqual(Object.keys(proto.done), ['し']);
   // 正しいデータは変わらない（冪等）
   assert.deepEqual(T.normalizeTrace(n), n);
+});
+
+// 14. 正しくなぞる子を止めない（W1 の合格条件）。normal/wide × m=0〜4 のすべてで done（off・short にならない）
+function expectDone(p, pts, tag, B) {
+  for (const width of ['normal', 'wide']) for (let m = 0; m <= 4; m++) {
+    const tol = T.helpTolerance(T.tolerance(B || 600, width, 'kana'), m);
+    const r = run(p, pts, tol);
+    assert.equal(r.begin, 'started', tag + ' ' + width + ' m' + m);
+    assert.equal(r.move, 'ok', tag + ' ' + width + ' m' + m + ' ' + r.move);
+    assert.equal(r.end, 'done', tag + ' ' + width + ' m' + m);
+  }
+}
+const allStrokes = [];
+for (const ch of SETS.hira) STROKES[ch].s.forEach((s, i) => allStrokes.push([ch + i, T.strokePolyline(s)]));
+const smooth = (p, w) => p.map((_, i) => {
+  const lo = Math.max(0, i - w), hi = Math.min(p.length - 1, i + w);
+  let x = 0, y = 0; for (let k = lo; k <= hi; k++) { x += p[k][0]; y += p[k][1]; }
+  return [x / (hi - lo + 1), y / (hi - lo + 1)];
+});
+// 弧長 gap ごとの粗い点列（速い指）。始点と終点を含む
+function sparse(p, gap) {
+  const out = [p[0]]; let acc = 0;
+  for (let i = 1; i < p.length; i++) { acc += dist(p[i - 1], p[i]); if (acc >= gap) { out.push(p[i]); acc = 0; } }
+  if (out[out.length - 1] !== p[p.length - 1]) out.push(p[p.length - 1]);
+  return out;
+}
+
+test('14a. の・ぬ・め・す を ±0.9·near ずらしてなぞっても done（normal/wide × m0〜4）', () => {
+  [['の', 0], ['ぬ', 1], ['め', 1], ['す', 1]].forEach(([ch, i]) => {
+    const p = poly(ch, i);
+    for (const sign of [1, -1]) for (const width of ['normal', 'wide']) for (let m = 0; m <= 4; m++) {
+      const tol = T.helpTolerance(T.tolerance(600, width, 'kana'), m);
+      const near0 = T.tolerance(600, width, 'kana').near;
+      const pts = [p[0]].concat(offsetPath(p, sign * 0.9 * near0).slice(1));
+      const r = run(p, pts, tol);
+      assert.equal(r.move, 'ok', [ch, sign, width, m].join(' '));
+      assert.equal(r.end, 'done', [ch, sign, width, m].join(' '));
+    }
+  });
+});
+
+test('14b. 全104画を内側・外側に 0.03/0.04/0.05 ずらしても done', () => {
+  for (const [tag, p] of allStrokes) for (const d of [0.03, 0.04, 0.05, -0.03, -0.04, -0.05]) {
+    expectDone(p, [p[0]].concat(offsetPath(p, d).slice(1)), tag + ' ' + d);
+  }
+});
+
+test('14c. 0.85 倍に縮めた字をなぞっても done', () => {
+  for (const [tag, p] of allStrokes) {
+    expectDone(p, p.map(q => [0.5 + (q[0] - 0.5) * 0.85, 0.5 + (q[1] - 0.5) * 0.85]), tag + ' x0.85');
+  }
+});
+
+test('14d. 角を丸めてなぞった そ（と ほかの字）も done', () => {
+  for (const [tag, p] of allStrokes) {
+    if (tag === 'そ0' || tag === 'る0' || tag === 'て0') for (const w of [4, 8, 12]) expectDone(p, smooth(p, w), tag + ' smooth' + w);
+  }
+});
+
+test('14e. 点の間が 0.25 の速い指でも done', () => {
+  for (const [tag, p] of allStrokes) expectDone(p, sparse(p, 0.25), tag + ' fast');
+});
+
+test('14f. 外側へ 0.9·near ずれた の を wide・m=3 でなぞっても done', () => {
+  const p = poly('の', 0);
+  const base = T.tolerance(600, 'wide', 'kana'), tol = T.helpTolerance(base, 3);
+  for (const sign of [1, -1]) {
+    const r = run(p, [p[0]].concat(offsetPath(p, sign * 0.9 * base.near).slice(1)), tol);
+    assert.equal(r.move, 'ok');
+    assert.equal(r.end, 'done');
+  }
 });
