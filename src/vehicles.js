@@ -464,7 +464,7 @@
     wheel(ctx, -0.5, 0.4, 0.17); wheel(ctx, 0.5, 0.4, 0.17);
   };
 
-  pics.motorbike =function (ctx) {   // N14 オートバイ
+  pics.motorbike = function (ctx) {   // N14 オートバイ
     ctx.translate(0, -0.14);
     line(ctx, 0.2, 0.2, 0.5, 0.36, 0.08);                                                     // 後ろのアーム
     wheel(ctx, -0.56, 0.36, 0.22); wheel(ctx, 0.52, 0.36, 0.22);

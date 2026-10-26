@@ -117,7 +117,7 @@
     { id: 'chodai',     stage: 11, name: 'ちょうだいはしごしゃ' }
   ];
 
-  // 救助隊の車 5 種（S1・S2 で遊んだときだけごほうびに出る。design-elementary 3.12）。stage は vehicles.js の pics の id（文字列）、sound は audio.js の車の音の名前。
+  // 救助隊の車 4 種（S1・S2 で遊んだときだけごほうびに出る。design-elementary 3.12）。stage は vehicles.js の pics の id（文字列）、sound は audio.js の車の音の名前。
   // 読み上げ・表示の名前はひらがなのまま（CAR_YOMI に足さない）。実在メーカーのロゴは描かない
   var RESCUE_CARS = [
     { id: 'rescuework', stage: 'rescueWork', name: 'きゅうじょこうさくしゃ', sound: 'car4' },

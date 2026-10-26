@@ -555,13 +555,11 @@
     else { for (var d = 0; d < 6; d++) fillRR(ctx, W * (0.05 + d * 0.17), gy + (H - gy) * 0.45, W * 0.09, 6, 3, '#f5f5f5'); }
     var vs = clamp(Math.min(H * 0.27, W * 0.26), 70, 210), vy = gy - vs * 0.39 + 4;
     var Vh = V();
+    if (rank >= 2 && scene !== 'kaji') drawRescueCar(ctx, scene, prog, vs, vy, Vh);   // たかい・みちは、手前の車（はしご・しょべるかー）より先に描く
     if (scene === 'kaji') drawKaji(ctx, prog, fxT, now, H, gy, vs, vy, Vh, hide);
     else if (scene === 'takai') drawTakai(ctx, prog, fxT, now, H, gy, vs, vy, Vh, hide);
-    else {
-      if (rank >= 2) drawRescueCar(ctx, scene, prog, vs, vy, Vh);   // みちは奥の車線なので、手前の車より先に描く
-      drawMichi(ctx, prog, fxT, now, H, gy, vs, vy, Vh, hide);
-    }
-    if (rank >= 2 && scene !== 'michi') drawRescueCar(ctx, scene, prog, vs, vy, Vh);
+    else drawMichi(ctx, prog, fxT, now, H, gy, vs, vy, Vh, hide);
+    if (rank >= 2 && scene === 'kaji') drawRescueCar(ctx, scene, prog, vs, vy, Vh);
     if (prog >= 3.99) { // クリアのきらめき
       for (var s = 0; s < 6; s++) sparkle(ctx, W * (0.15 + s * 0.14), H * (0.72 + 0.08 * Math.sin(now * 2 + s)), 14 + 4 * Math.sin(now * 3 + s), 0.5 + 0.4 * Math.sin(now * 2.5 + s * 1.7));
     }
@@ -572,7 +570,7 @@
     var s = vs * 0.8, y = vy + vs * 0.04;
     if (scene === 'kaji') Vh.drawVehicle(ctx, 'rescueChem', W * 0.46, y, s, -1);
     else if (scene === 'takai') Vh.drawVehicle(ctx, 'rescueCmd', W * 0.46, y, s, -1);
-    else if (prog > 3) Vh.drawVehicle(ctx, 'rescueWork', lerp(W * 1.2, W * 0.6, ease(prog - 3)), vy + vs * 0.1, vs * 0.62, -1);   // 小さく描いて地面に置く（手前のしょべるかー・きゅうきゅうしゃが前に重なる）
+    else if (prog > 3) Vh.drawVehicle(ctx, 'rescueWork', lerp(W * 1.2, W * 0.6, ease(prog - 3)), vy + vs * 0.16, vs * 0.5, -1);   // 小さく描いて地面に置く（手前のしょべるかー・きゅうきゅうしゃが前に重なる）
   }
 
   function drawKaji(ctx, prog, fxT, now, H, gy, vs, vy, Vh, hide) {

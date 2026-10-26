@@ -271,7 +271,8 @@
     };
     if (!stage) stage = new SC.Stage($('sceneCanvas'));
     show('play');
-    stage.setScene(run.scene); stage.setRank(D.stageIndex(D.stageOf(run.level))); stage.setProgress(0);
+    stage.setScene(run.scene); stage.setRank(stageIdx());   // 現場の救助隊の車は「いま選んでいるステージ」で決める（ごほうびの抽選は遊んだレベル）
+     stage.setProgress(0);
     updateLamps(0);
     stage.resize();
     sfx(A.carSound(DISPATCH_STAGE[run.scene]));   // 出動する車の音（現場ごと）
