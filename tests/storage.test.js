@@ -89,7 +89,7 @@ test('normalize: null・文字列・数・配列は既定（こども1 が 1 人
     assert.equal(d.profiles.length, 1);
     assert.equal(d.profiles[0].name, 'こども1');
     assert.equal(d.device.lastProfileId, ID);
-    assert.deepEqual(d.device.sound, { sfx: true, voice: true });
+    assert.deepEqual(d.device.sound, { sfx: true, voice: true, speaker: '' });
   }
   // id・today を省略しても形は正しい
   const f = S.normalize(null);
@@ -129,7 +129,7 @@ test('normalize: 名前・アイコン・日付の不正値は既定。lastProfi
 
 test('normalize: device.sound は bool だけ採る。保存して読み直しても同じ', () => {
   const d = S.normalize({ device: { sound: { sfx: false, voice: 'x' } } }, ID, TODAY);
-  assert.deepEqual(d.device.sound, { sfx: false, voice: true });
+  assert.deepEqual(d.device.sound, { sfx: false, voice: true, speaker: '' });
   const st = S.normalize({ device: { sound: { sfx: false, voice: false }, migratedV1: TODAY }, profiles: [prof(ID, { cards: { dump: 2 } })] }, ID, TODAY);
   assert.deepEqual(S.normalize(JSON.parse(JSON.stringify(st)), 'p_zz_1', '2000-01-01'), st);
 });
@@ -162,7 +162,7 @@ test('migrateV1: v1 のサンプルがレベル・カード・統計・直近の
     assert.equal(m.profiles.length, 1, name);
     for (const k of ['levels', 'locked', 'cards', 'stats', 'seen', 'lastPlayed']) assert.deepEqual(p[k], exp[k], name + ':' + k);
     assert.equal(p.name, 'こども1', name); assert.equal(p.id, ID, name); assert.equal(p.icon, 'shoubousha', name); assert.equal(p.created, TODAY, name);
-    assert.deepEqual(m.device.sound, { sfx: typeof v1.sound.sfx === 'boolean' ? v1.sound.sfx : true, voice: typeof v1.sound.voice === 'boolean' ? v1.sound.voice : true }, name);
+    assert.deepEqual(m.device.sound, { sfx: typeof v1.sound.sfx === 'boolean' ? v1.sound.sfx : true, voice: typeof v1.sound.voice === 'boolean' ? v1.sound.voice : true, speaker: '' }, name);
     assert.equal(m.device.migratedV1, TODAY, name); assert.equal(m.device.lastProfileId, ID, name);
     assert.deepEqual(S.normalize(m, 'p_zz', '2000-01-01'), m, name);   // v2 として正しい形
   }
@@ -172,7 +172,7 @@ test('migrateV1: v1 のサンプルがレベル・カード・統計・直近の
   assert.deepEqual(cur.seen.letter, ['v6', 'bus']);
   const all = S.migrateV1(V1_SAMPLES['全車★3・全 locked・音すべて off'], ID, TODAY);
   assert.equal(Object.keys(all.profiles[0].cards).length, 11);
-  assert.deepEqual(all.device.sound, { sfx: false, voice: false });
+  assert.deepEqual(all.device.sound, { sfx: false, voice: false, speaker: '' });
   assert.deepEqual(S.migrateV1(null, ID, TODAY).profiles[0].levels, S.defaultProgress().levels);
 });
 
@@ -326,4 +326,15 @@ test('自動名「こども1〜4」は読み直しても変わらない（削除
   st = PR.renameProfile(st, 'p_a_0001', 'たろう').state;
   back = S.normalize(JSON.parse(JSON.stringify(st)), 'p_z_0000', '2026-10-24');
   assert.deepEqual(back.profiles.map(p => p.name), ['たろう', 'こども3']);
+});
+
+test('T5 normalize: device.sound.speaker は声の id（小文字の英数字とハイフン 20 字まで）だけ採る。無い・形が違う値は \'\'。他は変わらない', () => {
+  const sp = v => S.normalize({ device: { sound: { sfx: false, voice: true, speaker: v } } }, ID, TODAY).device.sound;
+  assert.deepEqual(sp(undefined), { sfx: false, voice: true, speaker: '' });   // 今の保存データ（speaker 無し）
+  ['metan', 'device', 'zunda-mon', 'a'.repeat(20), ''].forEach(v => assert.equal(sp(v).speaker, v));
+  [5, null, {}, [], 'a'.repeat(21), 'Metan', 'me tan', 'めたん', 'a/b', '../x', '<b>'].forEach(v => assert.equal(sp(v).speaker, '', String(v)));
+  assert.equal(sp('x').sfx, false); assert.equal(sp('x').voice, true);
+  const st = S.normalize({ device: { sound: { speaker: 'metan' } } }, ID, TODAY);
+  assert.deepEqual(S.normalize(JSON.parse(JSON.stringify(st)), 'p_zz_1', '2000-01-01'), st);   // 保存して読み直しても同じ
+  assert.equal(st.version, 2);   // 保存データの版は変えない
 });

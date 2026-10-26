@@ -2,7 +2,7 @@
 (function (root) {
   'use strict';
   var M = root.Manabi, D = M.data, P = M.problems, R = M.rewards, S = M.storage, PR = M.profiles, LD = M.ladder;
-  var A = M.audio, SP = M.speech, V = M.vehicles, SC = M.scenes, CF = M.clockface, TR = M.trace, STR = M.strokes, FW = M.freewrite;
+  var LN = M.lines, A = M.audio, SP = M.speech, V = M.vehicles, SC = M.scenes, CF = M.clockface, TR = M.trace, STR = M.strokes, FW = M.freewrite;
   var doc = root.document;
 
   function $(id) { return doc.getElementById(id); }
@@ -176,7 +176,7 @@
       sp.textContent = p.name; b.appendChild(cv); b.appendChild(sp); box.appendChild(b);
       b.addEventListener('click', function () {
         sfx('tap'); useProfile(p.id); show('title');
-        say(p.name + 'さん、しゅつどうの じゅんび！');
+        say(LN.who(p.name).text, { alt: LN.who(p.name).alt });   // 名前は端末の声。声が無いときだけ、名前を抜いた文を音声ファイルで
       });
       drawCarIcon(cv, p.icon);
     });
@@ -191,9 +191,9 @@
     if (name !== 'play' && name !== 'reward') SP.cancel();
     [].forEach.call(doc.querySelectorAll('.screen'), function (s) { s.classList.toggle('active', s.id === 's-' + name); });
     updateVoiceMark();
-    if (name === 'who') { buildWho(); later(300, function () { say('だれが遊ぶ？'); }); }
+    if (name === 'who') { buildWho(); later(300, function () { say(LN.FIXED.who); }); }
     if (name === 'title') { updateBadges(); drawTitle(); kick(); }
-    if (name === 'pick') { updateBadges(); updatePick(); later(300, function () { say('どれで出動する？'); }); }
+    if (name === 'pick') { updateBadges(); updatePick(); later(300, function () { say(LN.FIXED.pick); }); }
     if (name === 'garage') buildGarage();
     if (name === 'parent') fillParent();
     if (name === 'play' && stage) { stage.resize(); stage.draw(now()); }
@@ -244,7 +244,7 @@
   }
 
   // ---- 音 ----
-  function applySound() { A.setEnabled(dev.sound.sfx); SP.setEnabled(dev.sound.voice); }
+  function applySound() { A.setEnabled(dev.sound.sfx); SP.setEnabled(dev.sound.voice); SP.setSpeaker(dev.sound.speaker); }
   function sfx(name, arg) { A.play(name, arg); }
   function say(text, opts) { return SP.speak(text, opts); }
   function seq(items, opts) { return SP.speakSeq(items, opts); }
@@ -293,7 +293,6 @@
     var s = list[Math.floor(Math.random() * list.length)];
     lastScene = s; return s;
   }
-  var NUMK = D.NUM_KANA;
 
   // 国語で直近に出した絵（古い順・最大 12 個）。出動が始まって問題が決まった時点で記録する（途中でやめても「見た」とみなす）
   function seenLetter() { return data.seen && Array.isArray(data.seen.letter) ? data.seen.letter : []; }
@@ -313,55 +312,21 @@
       idx: 0, firstTry: 0, wrong: 0, off: [], busy: true, token: token
     };
     if (!stage) stage = new SC.Stage($('sceneCanvas'));
+    SP.prefetch(LN.sessionTexts(qs));   // 4 問ぶんの音声を先に読んでおく（声が端末の声のときは何もしない）
     show('play');
     stage.setScene(run.scene); stage.setRank(stageIdx());   // 現場の救助隊の車は「いま選んでいるステージ」で決める（ごほうびの抽選は遊んだレベル）
      stage.setProgress(0);
     updateLamps(0);
     stage.resize();
     sfx(A.carSound(DISPATCH_STAGE[run.scene]));   // 出動する車の音（現場ごと）
-    say('出動！');
+    say(LN.FIXED.dispatch);
     stage.setProblem(null); stage.draw(now());
     later(opts.fast ? 0 : 1500, function () { presentQuestion(); });
   }
   function updateLamps(n) {
     [].forEach.call($('lamps').children, function (e, i) { e.classList.toggle('on', i < n); });
   }
-  function promptText(p) {
-    if (p.kind === 'count') return 'いくつあるかな？';
-    if (p.kind === 'add') return NUMK[p.a] + 'たす' + NUMK[p.b] + 'は、いくつ？';   // 数字で渡すと「1たす4」などの読みが揺れるので、数の読み（よん・なな）で渡す
-    if (p.kind === 'sub') return NUMK[p.a] + 'ひく' + NUMK[p.b] + 'は、いくつ？';
-    if (p.kind === 'mul') return 'ひとはこに、' + NUMK[p.a] + 'こずつ。' + D.HAKO_KANA[p.b] + 'で、ぜんぶでいくつ？';   // 数字で渡さず数の読みで。「かける」は式の絵に任せる
-    if (p.kind === 'clock') {
-      if (p.form === 'read') return 'とけいを見てね。出動の時間は、なんじかな？';
-      if (p.form === 'readmin') return 'とけいを見てね。出動の時間は、なんじ なんぷんかな？';
-      if (p.form === 'ampm') return '出動は、' + P.readTime(p.h, p.m) + '。ごぜんかな、ごごかな？';   // 絵（朝・夕方・夜）と時計を見て選ぶ。午前・午後はひらがなで読む
-      if (p.form === 'elapsed') return 'いまは、' + P.readTime(p.h0, p.m0) + '。' + P.readMinutes(p.dm) + 'たったら、どのとけいかな？';
-      return '出動は、' + P.readTime(p.h, p.m) + '。どのとけいかな？';
-    }
-    if (p.kind === 'english') return 'どれかな？';   // 英語の意味は日本語で言わない（言うと英語を聞かなくても答えられる）
-    if (p.level === 'K7') return p.word + '。最初の音は、どれかな？';   // 拗音（しょ）を選ぶ。ひらがなの語をそのまま読む
-    if (p.script === 'kanji') return p.speech + '。どの かんじかな？';          // K8・K9。読み上げ文はひらがなだけ（漢字を渡さない）
-    return yomiOf(wordOf(p.wordId)) + '。最初の文字は、どれかな？';
-  }
-  function isSpecialLetter(q) { return q.kind === 'letter' && (q.level === 'K7' || q.script === 'kanji'); }
-  // 語の読み上げ（漢字・カタカナまじりで自然に読ませる。data.js の YOMI）
-  function yomiOf(w) { var id = w.id.replace(/_k$/, ''); return D.YOMI[id] || w.kata || (w.script === 'kata' ? w.label : w.speech); }
-  function carYomi(car) { return D.CAR_YOMI[car.id] || car.name; }
-  function wordOf(id) { for (var i = 0; i < D.ALL_WORDS.length; i++) if (D.ALL_WORDS[i].id === id) return D.ALL_WORDS[i]; return null; }
-  // 文字の例語（「ひこうきの ひ」）。同じ頭文字の語が複数ある文字は、文字そのものでない例語を優先する
-  function exampleOf(ch) {
-    var hit = null;
-    for (var i = 0; i < D.ALL_WORDS.length; i++) {
-      var w = D.ALL_WORDS[i];
-      if (w.head !== ch) continue;
-      if (w.example !== ch) return w.example;
-      hit = hit || w.example;
-    }
-    return hit || D.EXTRA_KATA[ch] || ch;
-  }
-
-  // 正解のときの例語。その語自身の例語を使うが、例語が文字そのもの（ひ）なら、別の語の例語（ひこうき）にする
-  function correctExample(q) { var w = wordOf(q.wordId); return w.example !== q.answer ? w.example : exampleOf(q.answer); }
+  var promptText = LN.prompt, carYomi = LN.carYomi;   // 読み上げ文は src/lines.js
 
   // 問題の読み上げ。えいごは「英語」→（短い間）→「日本語の補助」。英語の声が無ければ日本語だけ
   function sayPrompt(q) {
@@ -445,11 +410,8 @@
     run.off.push(v);
     btn.classList.add('off', 'shake'); btn.classList.remove('glow');
     sfx('oshii');
-    var said = 'おしい！もう一回。';
-    if (q.kind === 'letter' && !isSpecialLetter(q)) said = exampleOf(v) + 'の ' + D.toHira(v) + '。おしい！もう一回。';
-    else if (q.kind === 'clock' && (q.form === 'pick' || q.form === 'elapsed' || q.form === 'readmin') && v.indexOf('swap:') !== 0) { var tk = v.split(':'); said = P.readTime(+tk[0], +tk[1]) + '。おしい！もう一回。'; }
-    if (q.kind === 'english') seq([{ text: q.form === 'word' ? englishOf(v).en : q.form === 'color' ? P.colorOf(v).en : q.form === 'alpha' ? v : D.NUM_EN[v], lang: 'en' }, { text: 'おしい！もう一回。', lang: 'ja', gap: 250 }]);
-    else say(said);
+    if (q.kind === 'english') seq([{ text: q.form === 'word' ? englishOf(v).en : q.form === 'color' ? P.colorOf(v).en : q.form === 'alpha' ? v : D.NUM_EN[v], lang: 'en' }, { text: LN.FIXED.oshii, lang: 'ja', gap: 250 }]);
+    else say(LN.wrong(q, v));
     var left = answerButtons().filter(function (b) { return !b.classList.contains('off'); });
     var voiceless = SP.isVoiceless() || !dev.sound.voice, enOff_ = enOff();
     if (run.wrong >= 2 || left.length <= 1 || ((q.kind === 'letter' || (q.kind === 'clock' && P.CLOCK[q.level].glowWhenVoiceless)) && voiceless) || (q.kind === 'english' && enOff_)) {
@@ -457,12 +419,12 @@
         if (!run || run.busy) return;
         answerButtons().forEach(function (b) { if (b.getAttribute('data-v') === String(q.answer)) b.classList.add('glow'); });
         if (q.kind === 'clock') {
-          say(q.form === 'read' ? 'こっちかな？みじかい はりを見てね。' : q.form === 'readmin' ? 'こっちかな？みじかい はりと、ながい はりを見てね。' : 'こっちかな？');
+          say(LN.hint(q));
           if (q.form === 'read' || q.form === 'readmin') stage.pulseHour(now()); else run.pulse = { key: q.answer, t0: now() };
         } else if (q.kind === 'english') {
-          seq([{ text: q.en + '?', lang: 'en' }, { text: 'こっちかな？', lang: 'ja', gap: 250 }]);
+          seq([{ text: q.en + '?', lang: 'en' }, { text: LN.FIXED.hint, lang: 'ja', gap: 250 }]);
           stage.bouncePic(now());
-        } else say('こっちかな？');
+        } else say(LN.hint(q));
         if (q.kind === 'count' || q.kind === 'add' || q.kind === 'sub' || q.kind === 'mul') countAloud(q);
         else if (q.kind === 'letter') stage.bouncePic(now());
         kick();
@@ -480,7 +442,7 @@
       if (run.busy || i >= total) { run.counting = false; return; }
       var n = stage.mark(i);
       stage.bounce(i, now());
-      sfx('pon', n); say(NUMK[n]); kick();
+      sfx('pon', n); say(LN.number(n)); kick();
       later(800, function () { tick(i + 1); });
     };
     later(1200, function () { tick(0); });
@@ -494,18 +456,13 @@
     sfx('correct');
     var done = run.idx + 1, my0 = run.token;
     run.countWait = false;
-    if (q.level === 'K7') say('そう！' + q.answer + '！ ' + q.word + 'の ' + q.answer + '。');
-    else if (q.script === 'kanji') say('そう！' + q.yomi + '！');
-    else if (q.kind === 'letter') say('そう！' + D.toHira(q.answer) + '！ ' + correctExample(q) + 'の ' + D.toHira(q.answer) + '。');
-    else if (q.kind === 'clock' && q.form === 'ampm') say('そう！' + D.AMPM_LABEL[q.ap] + '、' + P.readTime(q.h, q.m) + '！');
-    else if (q.kind === 'clock') say('そう！' + P.readTime(q.h, q.m) + '！');
-    else if (q.kind === 'english') {
-      var ok = [{ text: 'そう！', lang: 'ja' }, { text: q.en + '!', lang: 'en' }];
+    if (q.kind !== 'english') say(LN.correct(q));
+    else {
+      var ok = [{ text: LN.FIXED.so, lang: 'ja' }, { text: q.en + '!', lang: 'en' }];
       if (q.form === 'number') ok.push({ text: D.NUM_EN.slice(1, q.n + 1).join(', '), lang: 'en', gap: 300 });   // 数のものを 1 つずつ数える（1 回の読み上げ）
       if (q.form === 'number') { run.countWait = true; if (!seq(ok, { onend: function () { if (run && run.token === my0) run.countWait = false; } })) run.countWait = false; }
       else seq(ok);
     }
-    else say('そう！' + NUMK[q.answer] + '！');
     updateLamps(done);
     later(700, function () {
       sfx(run.scene === 'kaji' ? 'water' : run.scene === 'takai' ? 'ladder' : 'dig');
@@ -535,20 +492,7 @@
     tboard.layout(B);
     if (tstage) tstage.resize();
   }
-  // 漢字の字の読み上げ: 読み上げには漢字を渡さない（声が読めない・読みが揺れる）。K8・K9 の読み上げ文（ひらがなだけ。例「ひ。もえる ひ」）を使う
-  function kanjiWord(ch) {
-    var all = D.KANJI_WORDS.concat(D.KANJI_WORDS2);
-    for (var i = 0; i < all.length; i++) if (all[i].ch === ch) return all[i];
-    return null;
-  }
-  // info = { why, name }（W5）。名前の字そのもの（exact）のときだけ「たろうの ろ」。濁点・小さい字から来た字はいつもの声（例語）
-  function tracePrompt(ch, info) {
-    if (info && info.why === 'name' && info.exact && info.name) return info.name + 'の ' + ch + '。なぞってね。';
-    var kw = kanjiWord(ch);
-    if (kw) return kw.speech + '。なぞってね。';
-    var ex = exampleOf(ch); return (ex !== ch ? ex + 'の ' : '') + ch + '。なぞってね。';
-  }
-  function traceDoneWord(ch) { var kw = kanjiWord(ch); return kw ? kw.yomi : ch; }
+  var tracePrompt = LN.tracePrompt;   // 読み上げ文は src/lines.js
   // 前の出動の字（プロフィールの id ごとに 1 回分。保存しない＝アプリを閉じれば消える。W5）
   var prevTrace = {};
   // 次の出動の組み方（startTrace と #debug:trace-plan で共通）。→ { plan, chars, names }
@@ -594,14 +538,15 @@
       onBad: function (result, m) {
         if (!trun) return;
         if (result === 'off' || result === 'short') sfx('oshii');
-        if (m === 1 && !trun.helpSaid) { trun.helpSaid = true; say('まるの ところから、もういちど。'); }
-        else if (m === 3) say('いっしょに。');
+        if (m === 1 && !trun.helpSaid) { trun.helpSaid = true; say(LN.FIXED.roundStart); }
+        else if (m === 3) say(LN.FIXED.together);
       },
-      onAssist: function () { if (trun) say('いっしょに かけたね。'); },
+      onAssist: function () { if (trun) say(LN.FIXED.assisted); },
       onCharDone: onTraceCharDone,
       onInk: updateSoloTools,
       onIdle: nudgeSoloCard
     });
+    SP.prefetch(LN.traceTexts(chars));
     show('trace');
     $('s-trace').classList.toggle('solo', !!solo); $('s-trace').classList.remove('nazori');
     if (!tstage) tstage = new SC.Stage($('traceField'));
@@ -610,7 +555,7 @@
     tboard.setWidth(TR.traceWidth(data.trace, LD.currentStage(data)));
     tboard.stop(); layoutTrace(); tstage.resize(); tstage.draw(now());
     sfx(A.carSound(DISPATCH_STAGE[trun.scene]));
-    say('出動！');
+    say(LN.FIXED.dispatch);
     later(opts.fast ? 0 : 1200, presentTraceChar);
     kick();
   }
@@ -622,7 +567,7 @@
     tboard.setChar(ch, !(data.trace.done[ch] > 0));   // 初めて書く字だけ、全部の画のお手本を流す（T8）
     var info = traceInfoAt(trun.idx);
     showNameTag(info);
-    say(tracePrompt(ch, info));
+    say(tracePrompt(ch, info), { alt: LN.tracePromptAlt(ch, info) });
     kick();
   }
   function onTraceCharDone(info) {
@@ -633,7 +578,7 @@
     data.stats.trace.chars++; if (info.clean) data.stats.trace.clean++;
     save();
     // ひとりで かく で合わなかった字を なぞり終えたとき（done は 1 回の出動で 1 だけ増える）
-    stepAfterChar(ch, trun.nazori ? 'なぞって かけたね！' : 'できた！ ' + traceDoneWord(ch) + '！');
+    stepAfterChar(ch, LN.traceDone(ch, trun.nazori));
   }
   // 1 字書けたあと（なぞり・ひとりで・なぞって）の共通: ランプ・音・現場が 1 段すすむ・次の字
   function stepAfterChar(ch, word) {
@@ -677,7 +622,7 @@
     if (!plan.length) { startTrace(opts); return; }
     launchTrace(plan, [], opts, true);
   }
-  function soloPrompt(ch) { return tracePrompt(ch, null).replace('なぞってね。', 'ひとりで かいて みよう。'); }
+  var soloPrompt = LN.soloPrompt;
   function presentSoloChar() {
     var ch = trun.chars[trun.idx];
     trun.helpSaid = false; trun.told = false; trun.nazori = false; trun.phase = 'write';
@@ -731,7 +676,7 @@
     if (!j.fit && j.result !== 'more') j = { result: 'more', reason: 'small' };   // 枠が作れないとき（重ねられない）は、続きを書かせる
     if (j.result === 'more') {   // 画が足りない・小さすぎる: 1 字に 1 回だけ、判定せずに続きを書かせる
       trun.told = true; sfx('tap');
-      say(j.reason === 'small' ? 'もうすこし おおきく かいて みよう。' : 'つづきも かいてね。');
+      say(j.reason === 'small' ? LN.FIXED.bigger : LN.FIXED.more);
       return;
     }
     var my = trun.token;
@@ -744,9 +689,9 @@
       if (!had && FW.soloLicense(data.trace, setId)) trun.license = setId;   // 集合を全部ひとりで書けた: めんきょ（ごほうびのあとに知らせる。ステージは変わらない）
       data.stats.trace.chars++; data.stats.trace.clean++;
       save();
-      stepAfterChar(ch, 'ひとりで かけたね！ ' + traceDoneWord(ch) + '！');
+      stepAfterChar(ch, LN.soloDone(ch));
     } else {   // 手本を重ねて見せ、いつものなぞりで書き終える（点数も、合わなかった回数の保存も無い）
-      say('おてほんと くらべて みよう。こんどは なぞって みよう。');
+      say(LN.FIXED.compare);
       later(2600, function () {
         if (!trun || trun.token !== my) return;
         trun.nazori = true; trun.phase = 'trace';
@@ -838,12 +783,13 @@
     reward.t0 = now(); reward.sound = 0;
     var r = reward.r, car = rewardCar();
     $('reward-text').textContent = ''; $('reward-sub').textContent = '';
+    SP.prefetch(car ? [LN.carGet(car)] : [LN.FIXED.sticker]);
     drawReward();
     updateRewardSolo();
     later(500, function () { sfx('card'); });
     if (reward.license) later(7500, function () {   // 誘いの声（4.3 秒）と重ならないようにずらす
       var nm = SET_LABEL[reward.license] + ' めんきょ';
-      $('reward-sub').textContent = nm + ' を もらったよ！'; sfx('fanfare'); say(nm + 'を、もらったよ！');
+      $('reward-sub').textContent = nm + ' を もらったよ！'; sfx('fanfare'); say(LN.license(reward.license));
     });
     later(1100, function () {
       sfx('fanfare');
@@ -853,10 +799,10 @@
           var sh = shelfOfCar(car.id);
           if (sh && ['densha', 'sora', 'umi'].indexOf(sh.id) >= 0) $('reward-sub').textContent = D.REWARD_NEW_RIDE; else $('reward-sub').innerHTML = kidText(D.TEXT.rewardNew);
         } else $('reward-sub').textContent = '★が ふえたよ！';
-        say(carYomi(car) + 'を、ゲット！');
+        say(LN.carGet(car));
       } else {
         $('reward-text').textContent = 'ごほうびすてっかー！';
-        say('ごほうびステッカー！');
+        say(LN.FIXED.sticker);
       }
     });
     kick();
@@ -868,7 +814,7 @@
     b.hidden = !show; b.classList.toggle('glow', !!set);
     if (set && !soloInviteSaid[data.id + set]) {
       soloInviteSaid[data.id + set] = true;   // その集合で 1 回だけ（開いている間だけ覚える）
-      later(4300, function () { say('ぜんぶ なぞれたね！ ひとりで かいて みよう。'); });
+      later(4300, function () { say(LN.FIXED.inviteSolo); });
     }
   }
   function drawReward() {
@@ -898,7 +844,7 @@
     $('promote-text').textContent = stg.rank + ' に しょうかく！';
     $('promote-sub').textContent = 'すすんで みる？';
     drawPromote();
-    later(300, function () { sfx('fanfare'); say(stg.rank + 'に、しょうかく！'); });
+    later(300, function () { sfx('fanfare'); say(LN.promote(stg)); });
     kick();
   }
   function drawPromote() {
@@ -923,7 +869,7 @@
     return out;
   }
   var SHELF_GAME = { hataraku: 'math', machi: 'letter', densha: 'clock', sora: 'english', umi: 'trace' };   // 棚 → そのゲーム（D.GAME_SHELF の逆）
-  var GAME_NAME = { math: 'かず', letter: 'もじ', clock: 'とけい', english: 'えいご', trace: 'かく' };
+  var GAME_NAME = LN.GAME_NAME;
   var GAME_ICON = { math: 'kazu', letter: 'moji', clock: 'tokei', english: 'eigo', trace: 'pencil' };
   function currentShelf() {
     var list = visibleShelves(), id = garageOpen.shelf;
@@ -980,7 +926,7 @@
       how.setAttribute('aria-label', GAME_NAME[game] + 'で ふえるよ');
       how.querySelector('.gn').textContent = GAME_NAME[game] + 'で ふえるよ';
       drawIcon(how.querySelector('canvas'), GAME_ICON[game]);
-      how.onclick = function () { unlockOnce(); sfx('tap'); say(GAME_NAME[game] + 'で あそぶと ふえるよ'); };
+      how.onclick = function () { unlockOnce(); sfx('tap'); say(LN.shelfHow(game)); };
     }
     showGarageTab();
     drawGarage();
@@ -1007,7 +953,7 @@
   // ---- しゃこの「もじ」: 五十音の表（design 11.5・11.6）。数字・割合・苦手は出さない。書いた字に車のスタンプ、3 回以上は金 ----
   var garageOpen = { tab: 'cars', set: '', stamp: [], shelf: 'hataraku', run: '' };   // しゃこを開くたびの状態。stamp: ごほうび画面から来たときに順に押す字。shelf: 開く棚（アプリを開いている間だけ覚える）。run: 開いたとき 1 回走る乗り物の id
   var mojiSheetCh = '';
-  var SET_LABEL = { hira: 'ひらがな', kata: 'かたかな', k1: '1ねん', k2: '2ねん' };
+  var SET_LABEL = LN.SET_LABEL;
   var SET_LABEL_PARENT = { hira: 'ひらがな', kata: 'カタカナ', k1: '1ねんの かんじ', k2: '2ねんの かんじ' };
   var MOJI_MAX = 96, MOJI_MIN = 44;
   function setOfChar(ch) { var hit = ''; ['hira', 'kata', 'k1', 'k2'].forEach(function (k) { if (!hit && STR.SETS[k] && STR.SETS[k].indexOf(ch) >= 0) hit = k; }); return hit; }
@@ -1125,8 +1071,7 @@
     c.ctx.clearRect(0, 0, c.w, c.h);
     M.TraceBoard.drawSheet(c.ctx, ch, 8, 8, Math.min(c.w, c.h) - 16);
     $('moji-solo').hidden = !(soloAvailable() && data.trace.done[ch] > 0 && FW.DEFAULTS.SOLO_SETS.indexOf(setOfChar(ch)) >= 0);
-    var kw = kanjiWord(ch), ex = kw ? '' : exampleOf(ch);
-    say((kw ? kw.speech + '。' : (ex !== ch ? ex + 'の ' : '') + ch + '。') + 'かいて みる？');
+    say(LN.mojiSheet(ch));
   }
   function closeMojiSheet() { $('moji-sheet').hidden = true; mojiSheetCh = ''; SP.cancel(); }
 
@@ -1427,7 +1372,7 @@
     $('btn-clock').addEventListener('click', function () { startSession('clock'); });
     $('btn-english').addEventListener('click', function () {
       if (enOff()) {   // 英語の声が無い: 出動しない。おしい音と、日本語の声が使えれば説明を読む
-        updatePick(); sfx('oshii'); say('えいごの こえが、ないよ。'); return;
+        updatePick(); sfx('oshii'); say(LN.FIXED.noEnglish); return;
       }
       startSession('english');
     });
@@ -1441,7 +1386,7 @@
     $('btn-trace-replay').addEventListener('click', function () {
       if (!trun || !tboard) return;
       if (trun.solo && trun.phase === 'write') { soloShowHint(); return; }   // 線なし: 札の書き順と、1 画目のヒント
-      if (tboard.replay()) say(tracePrompt(trun.chars[trun.idx], traceInfoAt(trun.idx)));   // 手本の書き足し中は効かない
+      if (tboard.replay()) { var ti = traceInfoAt(trun.idx); say(tracePrompt(trun.chars[trun.idx], ti), { alt: LN.tracePromptAlt(trun.chars[trun.idx], ti) }); }   // 手本の書き足し中は効かない
       kick();
     });
     doc.addEventListener('visibilitychange', function () { if (doc.hidden && tboard && tboard.active) tboard.cancelActive(); });   // 画面が隠れたら書きかけの線を捨てる
@@ -1468,7 +1413,7 @@
       if (q.kind === 'english') { sayPrompt(q); stage.bouncePic(now()); kick(); return; }   // スピーカーをタップ: もう一度きく
       var i = stage.hit(e.clientX - r.left, e.clientY - r.top);
       var n = stage.mark(i);
-      if (n) { stage.bounce(i, now()); sfx('pon', n); say(NUMK[n]); kick(); }
+      if (n) { stage.bounce(i, now()); sfx('pon', n); say(LN.number(n)); kick(); }
     });
     $('btn-r-garage').addEventListener('click', function () {
       sfx('tap');
@@ -1499,7 +1444,7 @@
     $('p-voice').addEventListener('change', function () { dev.sound.voice = this.checked; applySound(); save(); updateVoiceMark(); updatePick(); });
     $('p-test').addEventListener('click', function () {
       unlockOnce();
-      if (!say('こんにちは。はたらくまなびです。', { force: true })) $('p-voice-note').textContent = 'よみあげが つかえません（このたんまつは こえなしモードです）。';
+      if (!say(LN.FIXED.test, { force: true })) $('p-voice-note').textContent = 'よみあげが つかえません（このたんまつは こえなしモードです）。';
     });
     $('p-test-en').addEventListener('click', function () {
       unlockOnce();

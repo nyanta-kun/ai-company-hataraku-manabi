@@ -34,7 +34,7 @@ jobs:
       - name: 公開するファイルをまとめる
         run: |
           mkdir -p _site
-          cp -R index.html css src _site/
+          cp -R index.html css src voice _site/
           touch _site/.nojekyll
       - uses: actions/upload-pages-artifact@v3
         with:

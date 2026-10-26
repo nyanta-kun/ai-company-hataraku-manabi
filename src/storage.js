@@ -116,9 +116,11 @@
     return p;
   }
   function defaultProfile(id, name, icon, today) { return makeProfile(id, name, icon, today || '', defaultProgress()); }
+  // 声の選択（''=おまかせ、'device'=端末の声、それ以外=声のパックの id。小文字の英数字とハイフン 20 字まで）。形が違う値は ''。一覧に無い id かどうかは使う側が見る（保存は書き換えない）
+  function speakerId(v) { return typeof v === 'string' && /^[a-z0-9-]{1,20}$/.test(v) ? v : ''; }
   function normalizeSound(s) {
     s = isObj(s) ? s : {};
-    return { sfx: bool(s.sfx, true), voice: bool(s.voice, true) };
+    return { sfx: bool(s.sfx, true), voice: bool(s.voice, true), speaker: speakerId(s.speaker) };
   }
 
   // v2 の既定（こども1 が 1 人）。id・today は呼ぶ側が渡す
@@ -127,7 +129,7 @@
     today = (typeof today === 'string' && DATE_RE.test(today)) ? today : todayLocal();
     return {
       version: 2,
-      device: { sound: { sfx: true, voice: true }, lastProfileId: id, migratedV1: '' },
+      device: { sound: { sfx: true, voice: true, speaker: '' }, lastProfileId: id, migratedV1: '' },
       profiles: [defaultProfile(id, 'こども1', 'shoubousha', today)]
     };
   }
