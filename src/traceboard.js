@@ -12,12 +12,14 @@
   function reduced() { return !!(root.matchMedia && root.matchMedia('(prefers-reduced-motion: reduce)').matches); }
   function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
 
+  function isKanji(ch) { var k = S.SETS; return !!((k.k1 && k.k1.indexOf(ch) >= 0) || (k.k2 && k.k2.indexOf(ch) >= 0)); }
+
   function TraceBoard(wrap, cbs) {
     this.wrap = wrap; this.cbs = cbs || {};
     this.base = doc.createElement('canvas'); this.fing = doc.createElement('canvas');
     [this.base, this.fing].forEach(function (c) { c.style.cssText = 'position:absolute;left:0;top:0;width:100%;height:100%;touch-action:none'; wrap.appendChild(c); });
     this.bctx = this.base.getContext('2d'); this.fctx = this.fing.getContext('2d');
-    this.B = 300; this.dpr = 1; this.width = 'wide'; this.tol = T.tolerance(300, 'wide', 'hira');
+    this.B = 300; this.dpr = 1; this.width = 'wide'; this.script = 'hira'; this.tol = T.tolerance(300, 'wide', 'hira');
     this.ch = ''; this.polys = []; this.nums = []; this.cur = 0; this.doneS = []; this.recs = []; this.dirty = false;
     this.phase = 'idle'; this.active = null; this.anim = null; this.glow = 0; this.lastAct = now(); this.penUntil = 0; this.penDown = false;
     this.celebrate = 0; this.idleShown = false; this.pendingB = 0; this.auto = false; this.autoBusy = false; this.timers = [];
@@ -45,14 +47,16 @@
     this.wrap.style.width = B + 'px'; this.wrap.style.height = B + 'px';
     [this.base, this.fing].forEach(function (c) { c.width = Math.round(B * dpr); c.height = Math.round(B * dpr); });
     this.bctx.setTransform(dpr, 0, 0, dpr, 0, 0); this.fctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    this.tol = T.tolerance(B, this.width, 'hira');
+    this.tol = T.tolerance(B, this.width, this.script);
   };
-  P.setWidth = function (w) { this.width = w === 'normal' ? 'normal' : 'wide'; this.tol = T.tolerance(this.B, this.width, 'hira'); };
+  P.setWidth = function (w) { this.width = w === 'normal' ? 'normal' : 'wide'; this.tol = T.tolerance(this.B, this.width, this.script); };
 
   // ---- 字 ----
   P.setChar = function (ch, intro) {
     this.clearTimers();
     var d = S.STROKES[ch];
+    var sc = isKanji(ch) ? 'kanji' : 'hira';   // 漢字は許容幅を絞り（trace.tolerance）、お手本は 1.5 倍速（design 4.6）
+    if (sc !== this.script) { this.script = sc; this.tol = T.tolerance(this.B, this.width, sc); }
     this.ch = ch; this.polys = d.s.map(function (s) { return T.strokePolyline(s, 0.01); });
     this.nums = d.n.map(function (p) { return [p[0] / DATA, p[1] / DATA]; });
     this.cur = 0; this.doneS = this.polys.map(function () { return false; });
@@ -70,9 +74,10 @@
 
   // ---- お手本のアニメーション（番号が出て、筆の点が始点から終点へ橙で塗る）----
   P.startAnim = function (list, after) {
-    var durs = list.map(function (i) { return clamp(T.polyLength(this.polys[i]) * 1.6, 0.35, 1.2); }, this);
-    var total = 0; durs.forEach(function (d) { total += d + 0.25; });
-    this.anim = { list: list, durs: durs, t0: now(), total: total, after: after };
+    var sp = this.script === 'kanji' ? 1.5 : 1;   // 漢字の 1 字ぶんは 1.5 倍速
+    var durs = list.map(function (i) { return clamp(T.polyLength(this.polys[i]) * 1.6, 0.35, 1.2) / sp; }, this);
+    var gap = 0.25 / sp, total = 0; durs.forEach(function (d) { total += d + gap; });
+    this.anim = { list: list, durs: durs, gap: gap, t0: now(), total: total, after: after };
     this.phase = 'anim'; this.lastAct = now();
     this.fctx.clearRect(0, 0, this.B, this.B);
   };
@@ -268,7 +273,7 @@
           this.numDot(ctx, si, true, t);
           if (u < 1) { var q = poly[n - 1]; ctx.beginPath(); ctx.arc(q[0] * B, q[1] * B, 0.04 * B, 0, 7); ctx.fillStyle = '#ff7a00'; ctx.fill(); }
         }
-        acc += d + 0.25;
+        acc += d + a.gap;
       }
     } else if (ph !== 'done') {
       var cp = this.polys[this.cur], rec = this.recs[this.cur];

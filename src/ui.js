@@ -504,7 +504,18 @@
     tboard.layout(B);
     if (tstage) tstage.resize();
   }
-  function tracePrompt(ch) { var ex = exampleOf(ch); return (ex !== ch ? ex + 'の ' : '') + ch + '。なぞってね。'; }
+  // 漢字の字の読み上げ: 読み上げには漢字を渡さない（声が読めない・読みが揺れる）。K8・K9 の読み上げ文（ひらがなだけ。例「ひ。もえる ひ」）を使う
+  function kanjiWord(ch) {
+    var all = D.KANJI_WORDS.concat(D.KANJI_WORDS2);
+    for (var i = 0; i < all.length; i++) if (all[i].ch === ch) return all[i];
+    return null;
+  }
+  function tracePrompt(ch) {
+    var kw = kanjiWord(ch);
+    if (kw) return kw.speech + '。なぞってね。';
+    var ex = exampleOf(ch); return (ex !== ch ? ex + 'の ' : '') + ch + '。なぞってね。';
+  }
+  function traceDoneWord(ch) { var kw = kanjiWord(ch); return kw ? kw.yomi : ch; }
   function startTrace(opts) {
     opts = opts || {};
     clearTimers(); token++; run = null;
@@ -547,7 +558,7 @@
     data.stats.trace.chars++; if (info.clean) data.stats.trace.clean++;
     save();
     updateTraceLamps(done);
-    sfx('correct'); say('できた！ ' + ch + '！');
+    sfx('correct'); say('できた！ ' + traceDoneWord(ch) + '！');
     later(700, function () {
       sfx(trun && trun.scene === 'kaji' ? 'water' : trun && trun.scene === 'takai' ? 'ladder' : 'dig');
       sfx('horn');
@@ -816,9 +827,12 @@
   }
 
   function traceCount(set) { var cs = STR.SETS[set].split(''); return cs.filter(function (c) { return data.trace.done[c] > 0; }).length; }
-  // 保護者画面の「かいた じ」: ひらがな N/46・カタカナ M/46（解放済みのステージの集合だけ）
+  // 保護者画面の「かいた じ」: ひらがな N/46・カタカナ M/46（S1 から 1ねんの かんじ N/20、S2 から 2ねんの かんじ N/18。解放済みのステージの集合だけ）
   function traceProgressText() {
-    return [['ひらがな', 'hira'], ['カタカナ', 'kata']].map(function (a) { return a[0] + ' ' + traceCount(a[1]) + '/' + STR.SETS[a[1]].length; }).join('・');
+    var unl = D.stageIndex(data.stage.unlocked);
+    return [['ひらがな', 'hira', 0], ['カタカナ', 'kata', 0], ['1ねんの かんじ', 'k1', 1], ['2ねんの かんじ', 'k2', 2]]
+      .filter(function (a) { return unl >= a[2]; })
+      .map(function (a) { return a[0] + ' ' + traceCount(a[1]) + '/' + STR.SETS[a[1]].length; }).join('<br>');   // 1 つの集合ごとに改行（狭い画面で折り返すため）
   }
   function fillParent() {
     relockAsk = '';   // 「とじる」の確認は、ほかの操作で描き直したら消える
@@ -832,7 +846,7 @@
       '<div class="prow"><span>もじ：いまのレベル</span><b>' + data.levels.letter + '（1かいめで せいかい ' + pct('letter') + '）</b></div>' +
       '<div class="prow"><span>とけい：いまのレベル</span><b>' + data.levels.clock + '（1かいめで せいかい ' + pct('clock') + '）</b></div>' +
       '<div class="prow"><span>えいご：いまのレベル</span><b>' + data.levels.english + '（1かいめで せいかい ' + pct('english') + '）</b></div>' +
-      '<div class="prow"><span>かく：かいた じ</span><b>' + traceProgressText() + '（' + st.trace.sessions + 'かい）</b></div>' +
+      '<div class="prow"><span>かく：かいた じ</span><b style="text-align:right">' + traceProgressText() + '<br>（' + st.trace.sessions + 'かい）</b></div>' +
       '<div class="prow"><span>あつめた くるま</span><b>' + have + ' / ' + shelf.length + '（★ ' + stars + '）</b></div>';
     $('p-sfx').checked = dev.sound.sfx; $('p-voice').checked = dev.sound.voice;
     ['math', 'letter', 'clock', 'english'].forEach(function (g) {

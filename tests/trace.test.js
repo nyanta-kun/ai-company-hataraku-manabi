@@ -5,6 +5,7 @@ const T = require('../src/trace.js');
 const { STROKES, SETS } = require('../src/strokes.js');
 
 const KANA = SETS.hira + SETS.kata;   // ひらがな 104 画 + カタカナ 108 画
+const KANJI = SETS.k1 + SETS.k2;       // K8 112 画 + K9 18 字（13 画以上の 電・線 は外してある）
 const poly = (ch, i) => T.strokePolyline(STROKES[ch].s[i]);
 const TOL = T.tolerance(600, 'normal', 'kana');   // near .065 / off .15 / startR .10
 const dist = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1]);
@@ -329,9 +330,9 @@ test('13. normalizeTrace: 知らない字・負・文字列・100 以上・知�
 });
 
 // 14. 正しくなぞる子を止めない（W1 の合格条件）。normal/wide × m=0〜4 のすべてで done（off・short にならない）
-function expectDone(p, pts, tag, B) {
+function expectDone(p, pts, tag, B, script) {
   for (const width of ['normal', 'wide']) for (let m = 0; m <= 4; m++) {
-    const tol = T.helpTolerance(T.tolerance(B || 600, width, 'kana'), m);
+    const tol = T.helpTolerance(T.tolerance(B || 600, width, script || 'kana'), m);
     const r = run(p, pts, tol);
     assert.equal(r.begin, 'started', tag + ' ' + width + ' m' + m);
     assert.equal(r.move, 'ok', tag + ' ' + width + ' m' + m + ' ' + r.move);
@@ -339,7 +340,8 @@ function expectDone(p, pts, tag, B) {
   }
 }
 const allStrokes = [];
-for (const ch of KANA) STROKES[ch].s.forEach((s, i) => allStrokes.push([ch + i, T.strokePolyline(s)]));
+for (const ch of KANA) STROKES[ch].s.forEach((s, i) => allStrokes.push([ch + i, T.strokePolyline(s), 'kana']));
+for (const ch of KANJI) STROKES[ch].s.forEach((s, i) => allStrokes.push([ch + i, T.strokePolyline(s), 'kanji']));   // 漢字は許容幅 ×0.85（tolerance の script='kanji'）
 const smooth = (p, w) => p.map((_, i) => {
   const lo = Math.max(0, i - w), hi = Math.min(p.length - 1, i + w);
   let x = 0, y = 0; for (let k = lo; k <= hi; k++) { x += p[k][0]; y += p[k][1]; }
@@ -367,15 +369,18 @@ test('14a. の・ぬ・め・す を ±0.9·near ずらしてなぞっても don
   });
 });
 
-test('14b. ひらがな・カタカナ全 212 画を内側・外側に 0.03/0.04/0.05 ずらしても done', () => {
-  for (const [tag, p] of allStrokes) for (const d of [0.03, 0.04, 0.05, -0.03, -0.04, -0.05]) {
-    expectDone(p, [p[0]].concat(offsetPath(p, d).slice(1)), tag + ' ' + d);
+test('14b. ひらがな・カタカナ・漢字の全画（212 + K8 112 + K9 170 画）を内側・外側に 0.03/0.04/0.05 ずらしても done', () => {
+  for (const [tag, p, sc] of allStrokes) for (const d of [0.03, 0.04, 0.05, -0.03, -0.04, -0.05]) {
+    expectDone(p, [p[0]].concat(offsetPath(p, d).slice(1)), tag + ' ' + d, 600, sc);
   }
 });
 
-test('14c. 0.85 倍に縮めた字をなぞっても done', () => {
-  for (const [tag, p] of allStrokes) {
-    expectDone(p, p.map(q => [0.5 + (q[0] - 0.5) * 0.85, 0.5 + (q[1] - 0.5) * 0.85]), tag + ' x0.85');
+test('14c. 0.85 倍に縮めた かな と、0.9 倍に縮めた漢字をなぞっても done', () => {
+  // 漢字は許容幅を ×0.85 に絞っているので、0.85 倍に縮めた字は ふつうの幅・m=0 で 13 画が short になる（虫6・耳1・糸5・糸6・花7・池6・春9・馬7・夏1・鳥8・雪1・雲1・雲12。
+  // m=2 の助けで通る）。0.9 倍なら全画 done。設計 10章に記録（design-tracing）
+  for (const [tag, p, sc] of allStrokes) {
+    const k = sc === 'kanji' ? 0.9 : 0.85;
+    expectDone(p, p.map(q => [0.5 + (q[0] - 0.5) * k, 0.5 + (q[1] - 0.5) * k]), tag + ' x' + k, 600, sc);
   }
 });
 
@@ -386,7 +391,7 @@ test('14d. 角を丸めてなぞった そ（と ほかの字）も done', () =>
 });
 
 test('14e. 点の間が 0.25 の速い指でも done', () => {
-  for (const [tag, p] of allStrokes) expectDone(p, sparse(p, 0.25), tag + ' fast');
+  for (const [tag, p, sc] of allStrokes) expectDone(p, sparse(p, 0.25), tag + ' fast', 600, sc);
 });
 
 test('14f. 外側へ 0.9·near ずれた の を wide・m=3 でなぞっても done', () => {
@@ -416,4 +421,36 @@ test('15. charsOfSet: hira+kata は ひらがな → カタカナの順。ひら
   assert.deepEqual(T.pickTraceChars(T.charsOfSet('hira+kata'), done, 4, rngOf(3)).slice(1), ['フ', 'ヘ', 'レ']);
   // 知らない集合の名前は ひらがな+カタカナ（落ちない）
   assert.deepEqual(T.charsOfSet('zzz'), [...SETS.hira, ...SETS.kata]);
+});
+
+test('16. 点: 実データで点になる画（船4・雲6）はちょんと触れば done。0.08〜0.2 の短い画（火1・雨5〜8・犬4 など）は点ではなく、触れるだけでは short（off・miss にはならない）', () => {
+  const dots = [], shorts = [];
+  for (const ch of KANJI) STROKES[ch].s.forEach((s, i) => {
+    const p = T.strokePolyline(s), l = T.polyLength(p);
+    if (T.isDot(p)) dots.push(ch + (i + 1)); else if (l < 0.2) shorts.push([ch + (i + 1), p]);
+  });
+  assert.deepEqual(dots, ['船4', '雲6'], '0.08 未満の画');
+  assert.ok(shorts.length >= 40);
+  for (const script of ['kana', 'kanji']) for (const width of ['normal', 'wide']) {
+    const tol = T.tolerance(600, width, script);
+    for (const [tag, p] of [['船4', T.strokePolyline(STROKES['船'].s[3])], ['雲6', T.strokePolyline(STROKES['雲'].s[5])]]) {
+      // 画のどこを触っても started、動かさずに離せば done（点の向きは見ない）
+      [0, Math.floor(p.length / 2), p.length - 1].forEach(j => {
+        const b = T.beginStroke(p, p[j], tol);
+        assert.equal(b.result, 'started', tag);
+        assert.equal(T.endStroke(p, b.state, tol).result, 'done', tag);
+      });
+      assert.equal(T.beginStroke(p, [p[0][0], p[0][1] + tol.off * 1.5], tol).result, 'miss', tag + ' 遠く');
+    }
+    // 点でない短い画: 始点を触って離すだけなら、長さが 0.1 以下ほどの画（森8・雲5・雲8）は done、それより長い画は short（やり直し）。
+    // miss・off にはならず、画をなぞれば done
+    for (const [tag, p] of shorts) {
+      const b = T.beginStroke(p, p[0], tol);
+      assert.equal(b.result, 'started', tag);
+      const e = T.endStroke(p, b.state, tol).result;
+      assert.ok(e === 'short' || (e === 'done' && T.polyLength(p) < 0.1), tag + ' ちょん ' + e);
+      const r = run(p, p, tol);
+      assert.equal(r.end, 'done', tag + ' なぞる');
+    }
+  }
 });
