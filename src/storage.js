@@ -8,7 +8,12 @@
   var KEY = 'hataraku-manabi:v2', KEY_V1 = 'hataraku-manabi:v1', KEY_BROKEN = 'hataraku-manabi:v2:broken';
   var GAME_IDS = D.GAMES;
   var CAR_IDS = ['nekoguruma', 'forklift', 'gomi', 'shovel', 'bulldozer', 'dump', 'kyukyu', 'shoubousha', 'mizutank', 'hashigo', 'chodai',
-    'rescuework', 'rescuechem', 'rescuecmd', 'rescueheli'];   // 末尾 4 つは救助隊の車（data.js の RESCUE_CARS。tests/rescue.test.js で一致を確かめる）
+    'rescuework', 'rescuechem', 'rescuecmd', 'rescueheli',   // 15 種まで: CARS + 救助隊の車（data.js の RESCUE_CARS）
+    'patrol', 'bus', 'taxi', 'postcar', 'truck', 'motorbike', 'crane', 'roller',          // 以降は棚の乗り物 27 種（data.js の VEHICLES。SHELVES の順）
+    'train', 'shinkansen', 'steam', 'tram', 'monorail', 'freight', 'cablecar',
+    'airplane', 'heli', 'rocket', 'balloon', 'airship', 'propplane',
+    'ship', 'fishboat', 'yacht', 'tugboat', 'fireboat', 'cargoship'];   // data.js の ALL_VEHICLES と一致（tests/shelves.test.js）。firestore.rules の cards と同じ並び
+
 
   var MAX_PROFILES = 4;
   // 新しいプロフィールの既定アイコンの順番（profiles.js も同じものを使う）
@@ -219,7 +224,7 @@
   function isPersistent() { return persistent; }
 
   var api = {
-    KEY: KEY, KEY_V1: KEY_V1, KEY_BROKEN: KEY_BROKEN, MAX_PROFILES: MAX_PROFILES, ICON_ORDER: ICON_ORDER,
+    KEY: KEY, KEY_V1: KEY_V1, KEY_BROKEN: KEY_BROKEN, MAX_PROFILES: MAX_PROFILES, ICON_ORDER: ICON_ORDER, CAR_IDS: CAR_IDS,
     defaultProgress: defaultProgress, normalizeProfile: normalizeProfile, defaultProfile: defaultProfile, defaults: defaults,
     normalize: normalize, migrateV1: migrateV1, normalizeName: normalizeName, isId: isId, isDate: isDate, nextName: nextName, freeIconIn: freeIconIn, newId: newId,
     load: load, save: save, clear: clear, fresh: fresh, isPersistent: isPersistent

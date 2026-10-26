@@ -143,6 +143,12 @@ test('7 cards: 4 や \'3\'・0・知らない車は拒否。1〜3 は許可', as
   await assertFails(put('A', mutate((d) => { d.profiles[0].cards.ufo = 1; })));
   await assertFails(put('A', mutate((d) => { d.profiles[0].cards = { 'gomi,dump': 1 }; })));   // 「,」を含むキー 1 つが 2 つに見える抜け
   await assertSucceeds(put('A', mutate((d) => { d.profiles[0].cards = { shoubousha: 3, rescueheli: 1 }; })));
+  await assertSucceeds(put('A', mutate((d) => { d.profiles[0].cards = { train: 1, fireboat: 3, cargoship: 2 }; })));   // 棚の乗り物
+  await assertFails(put('A', mutate((d) => { d.profiles[0].cards = { train: 1, 'fire,boat': 3 }; })));
+  await assertFails(put('A', mutate((d) => { d.profiles[0].cards = { train: 4 }; })));
+  // 件数の上限は 42（43 個目の知らない id は拒否。42 種ぜんぶは許可）
+  await assertSucceeds(put('A', mutate((d) => { d.profiles[0].cards = Object.fromEntries(storage.CAR_IDS.map((k) => [k, 1])); })));
+  await assertFails(put('A', mutate((d) => { d.profiles[0].cards = Object.assign(Object.fromEntries(storage.CAR_IDS.map((k) => [k, 1])), { ufo: 1 }); })));
 });
 test('7b levels・locked・stage の形', async () => {
   await assertFails(put('A', mutate((d) => { d.profiles[0].levels.math = 'K1'; })));
@@ -335,7 +341,7 @@ test('14b 親と子を同じ batch で書いても通る（getAfter）。ほか�
 function fullRaw(i) {
   const all = Object.keys(strokes.SETS).map((k) => [...strokes.SETS[k]]).flat();
   const mk = () => { const o = {}; all.forEach((c) => { o[c] = 99; }); return o; };
-  const cards = {}; storage.normalize; ['nekoguruma', 'forklift', 'gomi', 'shovel', 'bulldozer', 'dump', 'kyukyu', 'shoubousha', 'mizutank', 'hashigo', 'chodai', 'rescuework', 'rescuechem', 'rescuecmd', 'rescueheli'].forEach((c) => { cards[c] = 3; });
+  const cards = {}; storage.CAR_IDS.forEach((c) => { cards[c] = 3; });   // 42 種すべて ★3
   const cleared = {}; data.gateLevels().forEach((l) => { cleared[l] = '2026-10-01'; });
   const g = { sessions: 999, questions: 9999, firstTry: 9999 };
   return {
@@ -353,7 +359,7 @@ test('13 4 人分で、すべての表を上限まで埋めた文書: 許可（�
   const p = st.profiles[0];
   assert.equal(Object.keys(p.trace.done).length, 46 + 46 + 20 + 18);
   assert.equal(Object.keys(p.trace.solo).length, 130);
-  assert.equal(Object.keys(p.cards).length, 15);
+  assert.equal(Object.keys(p.cards).length, 42);
   const deleted = {}; for (let i = 0; i < 16; i++) deleted['p_' + 'y'.repeat(20) + '_' + i.toString(36).padStart(3, '0')] = '2026-10-01';
   await assertSucceeds(put('A', toCloud(st, deleted)));
 });
@@ -424,7 +430,11 @@ test('ルールの一覧（車・字・ステージ）が、端末側（src/stor
   const src = fs.readFileSync(path.join(ROOT, 'src/storage.js'), 'utf8');
   const cardsInStorage = (src.match(/var CAR_IDS = \[([\s\S]*?)\];/)[1].match(/'([a-z]+)'/g) || []).map((x) => x.slice(1, -1));
   assert.deepEqual(cardsInRules, cardsInStorage);
-  assert.deepEqual(carsInRules, cardsInStorage);
+  assert.deepEqual(cardsInStorage, storage.CAR_IDS);
+  assert.equal(cardsInRules.length, 42);
+  assert.deepEqual(cardsInRules, data.ALL_VEHICLES.map((c) => c.id));
+  assert.deepEqual(carsInRules, data.ALL_CARS.map((c) => c.id));   // アイコンは今の 15 種のまま（棚の乗り物は使わない）
+  assert.ok(storage.ICON_ORDER.every((i) => carsInRules.includes(i)));
   const charsInRules = [...rules.match(/function traceCharPattern\(\) \{\s*return '\[([^\]]+)\]'/)[1]];
   const charsInSets = Object.keys(strokes.SETS).map((k) => [...strokes.SETS[k]]).flat();
   assert.deepEqual([...charsInRules].sort(), [...charsInSets].sort());
