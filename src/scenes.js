@@ -344,7 +344,7 @@
     drawBackground(ctx, this.scene, this.shown, fxT, now, H, hide, this.rank);
     // ボード
     var b = this.board();
-    fillRR(ctx, b.x, b.y, b.w, b.h, 28, 'rgba(255,255,255,0.84)', 'rgba(58,43,36,0.35)', 3);
+    if (!this.noBoard) fillRR(ctx, b.x, b.y, b.w, b.h, 28, 'rgba(255,255,255,0.84)', 'rgba(58,43,36,0.35)', 3);   // noBoard: 「かく」の現場の帯は答えの板を出さない
     var i, p = this.prob;
     if (p && p.kind === 'letter' && this.pic) {
       var pb = this.pic, bt = now - this.picBounceT0, k = bt >= 0 && bt < 0.6 ? 1 + 0.18 * Math.sin(bt / 0.6 * Math.PI) : 1;

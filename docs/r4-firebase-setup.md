@@ -156,7 +156,9 @@ families/{uid}            uid = Firebase Authentication の利用者 ID（保護
       levels:  { math: 'M3', letter: 'K2', clock: 'T1', english: 'E1' },
       locked:  { math: false, letter: false, clock: false, english: false },
       cards:   { shoubousha: 2, ... }, 車 → ★ 1〜3
-      stats:   { sessions: 12, math: { sessions, questions, firstTry }, letter: {...}, clock: {...}, english: {...} },
+      stats:   { sessions: 12, math: { sessions, questions, firstTry }, letter: {...}, clock: {...}, english: {...},
+               trace: { sessions, chars, clean } },   「かく」の回数・書いた字の数・やり直しなしの字の数
+      trace:   { done: { 'し': 2, ... }, set: 'auto', width: 'auto' },   字 → 書き終えた回数 1〜99。指の線は保存しない
       lastPlayed: 'YYYY-MM-DD' | '',
       stage:   { unlocked: 'S1', current: 'S0' },
       cleared: { M7: 'YYYY-MM-DD', ... },   関門レベル → 初めて 4/4 した日
@@ -241,7 +243,7 @@ service cloud.firestore {
       return ['S0', 'S1', 'S2', 'S3'];   // S2・S3 は先に入れておく（R3 でルールを直さずに済むように）
     }
     function profileKeys() {
-      return ['id', 'name', 'icon', 'created', 'levels', 'locked', 'cards', 'stats',
+      return ['id', 'name', 'icon', 'created', 'levels', 'locked', 'cards', 'stats', 'trace',
               'lastPlayed', 'stage', 'cleared', 'promoted', 'updatedAt', 'ladderAt'];
     }
 
@@ -270,13 +272,28 @@ service cloud.firestore {
         && g.keys().hasAll(['sessions', 'questions', 'firstTry'])
         && isCount(g.sessions) && isCount(g.questions) && isCount(g.firstTry);
     }
+    function isTraceStats(t) {
+      return t is map
+        && t.keys().hasOnly(['sessions', 'chars', 'clean']) && t.keys().hasAll(['sessions', 'chars', 'clean'])
+        && isCount(t.sessions) && isCount(t.chars) && isCount(t.clean);
+    }
     function isStats(s) {
       return s is map
-        && s.keys().hasOnly(['sessions', 'math', 'letter', 'clock', 'english'])
-        && s.keys().hasAll(['sessions', 'math', 'letter', 'clock', 'english'])
+        && s.keys().hasOnly(['sessions', 'math', 'letter', 'clock', 'english', 'trace'])
+        && s.keys().hasAll(['sessions', 'math', 'letter', 'clock', 'english', 'trace'])
         && isCount(s.sessions)
         && isGameStats(s.math) && isGameStats(s.letter)
-        && isGameStats(s.clock) && isGameStats(s.english);
+        && isGameStats(s.clock) && isGameStats(s.english)
+        && isTraceStats(s.trace);
+    }
+    // 「かく」: done のキーは書ける字（traceChars() = src/strokes.js の SETS の字。W2 はひらがな 46 字。W3 以降で増える）、値は 1〜99
+    function isTrace(t) {
+      return t is map
+        && t.keys().hasOnly(['done', 'set', 'width']) && t.keys().hasAll(['done', 'set', 'width'])
+        && t.done is map && t.done.keys().hasOnly(traceChars())
+        && t.done.values().hasOnly(range1to99())
+        && t.set in ['auto', 'hira', 'kata', 'k1', 'k2']
+        && t.width in ['auto', 'wide', 'normal'];
     }
     function isStage(g) {
       return g is map
@@ -294,6 +311,7 @@ service cloud.firestore {
         && isFlags(p.locked)
         && isCards(p.cards)
         && isStats(p.stats)
+        && isTrace(p.trace)
         && isDateOrEmpty(p.lastPlayed)
         && isStage(p.stage)
         && isDateMap(p.cleared, '[MKTE][0-9]{1,2}', 12)
@@ -356,6 +374,7 @@ service cloud.firestore {
 | 6 | `name` を 7 文字・漢字・英字にする | 拒否（「こども1」は許可） |
 | 7 | `cards.shoubousha` を 4 や `'3'` にする | 拒否 |
 | 8 | `stats.math.questions` を -1 や 1.5 にする | 拒否 |
+| 8b | `trace.done` に知らない字・0・100 を入れる／`stats.trace` の項目を欠く | 拒否 |
 | 9 | `updatedAt` を端末の時刻にする | 拒否 |
 | 10 | `deleted` を 17 件にする | 拒否 |
 | 11 | uid A で `families/A` を消す | 許可 |

@@ -166,7 +166,6 @@
     if (name === 'garage') buildGarage();
     if (name === 'parent') fillParent();
     if (name === 'play' && stage) { stage.resize(); stage.draw(now()); }
-    if (name === 'trace') { drawIcon($('btn-trace-replay').querySelector('canvas'), 'speaker'); }
     if (name === 'reward') startRewardAnim();
     if (name === 'promote') startPromoteAnim();
   }
@@ -500,7 +499,9 @@
   function updateTraceLamps(n) { [].forEach.call($('trace-lamps').children, function (e, i) { e.classList.toggle('on', i < n); }); }
   function layoutTrace() {
     if (!tboard) return;
-    var a = $('trace-boardarea'), B = Math.min(a.clientWidth - 32, a.clientHeight - 24, 640);
+    var a = $('trace-boardarea'), cs = root.getComputedStyle(a);   // 余白は CSS の padding（下は safe-area 込み）を引く
+    var padX = (parseFloat(cs.paddingLeft) || 0) + (parseFloat(cs.paddingRight) || 0), padY = (parseFloat(cs.paddingTop) || 0) + (parseFloat(cs.paddingBottom) || 0);
+    var B = Math.min(a.clientWidth - padX, a.clientHeight - padY, 640);
     tboard.layout(B);
     if (tstage) tstage.resize();
   }
@@ -523,7 +524,7 @@
     });
     show('trace');
     if (!tstage) tstage = new SC.Stage($('traceField'));
-    tstage.setScene(trun.scene); tstage.setRank(stageIdx()); tstage.setProgress(0); tstage.setProblem(null);
+    tstage.noBoard = true; tstage.setScene(trun.scene); tstage.setRank(stageIdx()); tstage.setProgress(0); tstage.setProblem(null);
     updateTraceLamps(0);
     tboard.setWidth(TR.traceWidth(data.trace, LD.currentStage(data)));
     tboard.stop(); layoutTrace(); tstage.resize(); tstage.draw(now());
@@ -956,8 +957,10 @@
     holdButton($('btn-trace-quit'), 2000, quitTrace);
     $('btn-trace-replay').addEventListener('click', function () {
       if (!trun || !tboard) return;
-      tboard.replay(); say(tracePrompt(trun.chars[trun.idx])); kick();
+      if (tboard.replay()) say(tracePrompt(trun.chars[trun.idx]));   // 手本の書き足し中は効かない
+      kick();
     });
+    doc.addEventListener('visibilitychange', function () { if (doc.hidden && tboard && tboard.active) tboard.cancelActive(); });   // 画面が隠れたら書きかけの線を捨てる
     // 「かく」の間だけ: iOS の 2 本指の拡大・スクロールを止める（design-tracing 4.4）
     ['gesturestart', 'gesturechange', 'gestureend'].forEach(function (n) { doc.addEventListener(n, function (e) { if (screen === 'trace') e.preventDefault(); }, { passive: false }); });
     $('s-trace').addEventListener('touchmove', function (e) { e.preventDefault(); }, { passive: false });

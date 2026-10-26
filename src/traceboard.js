@@ -20,7 +20,7 @@
     this.B = 300; this.dpr = 1; this.width = 'wide'; this.tol = T.tolerance(300, 'wide', 'hira');
     this.ch = ''; this.polys = []; this.nums = []; this.cur = 0; this.doneS = []; this.recs = []; this.dirty = false;
     this.phase = 'idle'; this.active = null; this.anim = null; this.glow = 0; this.lastAct = now(); this.penUntil = 0; this.penDown = false;
-    this.celebrate = 0; this.pendingB = 0; this.auto = false; this.autoBusy = false; this.timers = [];
+    this.celebrate = 0; this.idleShown = false; this.pendingB = 0; this.auto = false; this.autoBusy = false; this.timers = [];
     this.bind();
   }
   var P = TraceBoard.prototype;
@@ -58,7 +58,7 @@
     this.cur = 0; this.doneS = this.polys.map(function () { return false; });
     this.recs = this.polys.map(function () { return { m: 0, misses: 0 }; });
     this.dirty = false; this.active = null; this.anim = null; this.glow = 0; this.celebrate = 0;
-    this.phase = 'ready'; this.lastAct = now();
+    this.phase = 'ready'; this.lastAct = now(); this.idleShown = false;
     this.fctx.clearRect(0, 0, this.B, this.B);
     if (this.pendingB) this.layout(this.pendingB);
     if (intro) this.startAnim(this.polys.map(function (_, i) { return i; }), null);
@@ -81,9 +81,11 @@
     if (a && a.after) a.after.call(this);
   };
   P.replay = function () {
-    if (this.phase === 'done' || !this.ch) return;
+    if (this.phase === 'done' || !this.ch) return false;
+    if (this.anim && this.anim.after) return false;   // 手本の書き足し中は止めない
     if (this.active) this.cancelActive();
     this.startAnim(this.polys.map(function (_, i) { return i; }).filter(function (i) { return !this.doneS[i]; }, this), null);
+    return true;
   };
 
   // ---- pointer events ----
@@ -95,7 +97,10 @@
 
   P.onDown = function (e) {
     e.preventDefault();
-    if (this.phase === 'anim') { if (this.anim) this.endAnim(); return; }   // 流れている間のタップは最後まで飛ばす
+    if (this.phase === 'anim') {   // 流れている間のタップは最後まで飛ばし、そのまま書き始める。手本の書き足し（after あり）は飛ばさない
+      if (!this.anim || this.anim.after) return;
+      this.endAnim();
+    }
     if (this.phase !== 'ready') return;
     var type = e.pointerType || 'mouse', t = now();
     if (type === 'touch' && (this.penDown || t < this.penUntil)) return;   // ペンの間・直後の手のひら
@@ -175,7 +180,7 @@
       this.completeStroke(false);
     } else {
       this.dirty = true;
-      a.off = true; this.drawFinger(true);
+      a.off = true; this.drawFinger(true, 0, a);   // active は先に null にしたので a を渡す
       var self = this;
       this.later(350, function () { if (!self.active) self.fctx.clearRect(0, 0, self.B, self.B); });
       if (this.cbs.onBad) this.cbs.onBad(r.result, nr.m, this.cur);
@@ -195,7 +200,7 @@
   };
   P.completeStroke = function (auto) {
     var i = this.cur;
-    this.doneS[i] = true; this.cur++; this.glow = 0; this.phase = 'ready'; this.lastAct = now();
+    this.doneS[i] = true; this.cur++; this.glow = 0; this.phase = 'ready'; this.lastAct = now(); this.idleShown = false;
     if (this.cur >= this.polys.length) {
       this.cur = this.polys.length - 1; this.phase = 'done'; this.celebrate = now();
       if (this.cbs.onStrokeDone) this.cbs.onStrokeDone(i, auto, true);
@@ -237,7 +242,7 @@
     if (this.phase === 'idle' || !this.polys.length) { this.bctx.clearRect(0, 0, this.B, this.B); return; }
     var ctx = this.bctx, B = this.B, k = this.width === 'wide' ? 1.3 : 1, i;
     if (this.anim && t - this.anim.t0 >= this.anim.total) this.endAnim();
-    if (this.phase === 'ready' && !this.active && t - this.lastAct > IDLE_ANIM) { this.lastAct = t; this.startAnim([this.cur], null); }
+    if (this.phase === 'ready' && !this.active && !this.idleShown && t - this.lastAct > IDLE_ANIM) { this.idleShown = true; this.startAnim([this.cur], null); }   // 画ごとに 1 回だけ
     if (this.auto && !this.autoBusy && this.phase === 'ready' && !this.active) this.autoStroke();
     ctx.clearRect(0, 0, B, B);
     ctx.fillStyle = '#fffaf0'; ctx.fillRect(0, 0, B, B);
@@ -291,8 +296,8 @@
   };
 
   // 指の線（青。受け取った点をそのままつなぐ）。full: 全部描き直す（薄くする・始点だけ）
-  P.drawFinger = function (full, last) {
-    var a = this.active, ctx = this.fctx, B = this.B;
+  P.drawFinger = function (full, last, aa) {
+    var a = aa || this.active, ctx = this.fctx, B = this.B;
     if (!a) return;
     var pts = a.pts;
     ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.lineWidth = 0.05 * B;

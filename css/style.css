@@ -294,9 +294,29 @@ ruby rt { font-size: .5em; font-weight: bold; line-height: 1; }
 #trace-main { flex: 1; min-height: 0; display: flex; flex-direction: column; }
 #trace-fieldwrap { flex: none; height: clamp(90px, 16vh, 160px); position: relative; }
 #traceField { position: absolute; inset: 0; width: 100%; height: 100%; }
-#trace-boardarea { flex: 1; min-height: 0; min-width: 0; display: flex; align-items: center; justify-content: center; padding: 8px 16px calc(12px + env(safe-area-inset-bottom)); }
+#trace-boardarea { box-sizing: border-box; flex: 1; min-height: 0; min-width: 0; display: flex; align-items: center; justify-content: center; padding: 8px 16px calc(12px + env(safe-area-inset-bottom)); }
 #trace-board { position: relative; width: 300px; height: 300px; border-radius: 18px; overflow: hidden; touch-action: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; box-shadow: 0 4px 14px rgba(0,0,0,.2); }
 @media (orientation: landscape) {
   #trace-main { flex-direction: row-reverse; }
   #trace-fieldwrap { height: auto; width: 30%; }
+}
+
+/* 出動えらび: 縦で高さが小さい画面（iPhone SE など）でも 5 つめ・札・一行を足して収める */
+@media (orientation: portrait) and (max-height: 700px) {
+  .pick-box { padding: 8px 16px; }
+  .pick-box h2 { margin-bottom: 8px; font-size: 24px; }
+  #pick-badge { margin-bottom: 4px; }
+  .pick-box .row { gap: 10px; }
+  .pick-box .big { min-height: 84px; border-bottom-width: 6px; gap: 0; }
+  .pick-box .big canvas:not(.xmark) { width: 40px; height: 40px; }
+  .pick-box #btn-trace { min-height: 64px; }
+  .pick-box .kid-sub { line-height: 1.6; margin: -4px 0 6px; font-size: 16px; }
+  #stage-tabs { margin-bottom: 8px; }
+  .stage-tab { min-height: 44px; }
+}
+@media (orientation: portrait) and (max-height: 580px) {
+  .pick-box .big { min-height: 68px; }
+  .pick-box .big canvas:not(.xmark) { width: 32px; height: 32px; }
+  .pick-box #btn-trace { min-height: 56px; }
+  .pick-box h2 { font-size: 20px; }
 }
