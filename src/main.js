@@ -64,6 +64,9 @@
     });
   }
 
+  // #debug:play-solo の字（集合の最初の 4 字。資格・名前は見ない）
+  function soloDebugChars(set) { return Array.from(M.strokes.SETS[set] || M.strokes.SETS.hira).slice(0, 4); }
+
   function debugPanel(goto) {
     var box = doc.getElementById('debug'); box.hidden = false;
     var err = doc.createElement('pre'); err.id = 'errlog'; err.textContent = '';
@@ -98,6 +101,9 @@
     btn('えいちらん', togglePicGrid);
     btn('かく', function () { ui.startTrace({ fast: true }); });
     btn('かく: じどうで かく', function () { ui.startTrace({ fast: true }); ui.traceAuto(true); });
+    btn('ひとりで かく', function () { ui.startSolo({ fast: true, chars: soloDebugChars('') }); });
+    btn('ひとりで: じどうで 手本どおり', function () { ui.startSolo({ fast: true, chars: soloDebugChars(''), auto: 'good' }); });
+    btn('ひとりで: じどうで 逆向き', function () { ui.startSolo({ fast: true, chars: soloDebugChars(''), auto: 'bad' }); });
     btn('書き順一覧', function () { toggleTraceSheet(); });
     btn('かく: たすけ を つける', function () { log('たすけ: ' + ui.traceAddHelp()); });
     btn('かく: つぎの 4じ', function () { showTracePlan(); });
@@ -120,6 +126,13 @@
         ui.startTrace(topts); if (g[4] === 'auto') ui.traceAuto(true);
         return log;
       }
+      if (g[1] === 'solo') {   // #debug:play-solo / play-solo-auto / play-solo-auto-bad（ひとりで かく）
+        // #debug:play-solo-kata / -k1 / -k2 でカタカナ・漢字（k1 は S1、k2 は S2 の札にしてから）。-auto / -auto-bad は続けて
+        var ss = M.strokes.SETS[g[2]] ? g[2] : '', rest = ss ? g.slice(3) : g.slice(2);
+        if (ss === 'k1' || ss === 'k2') { var sid = ss === 'k1' ? 'S1' : 'S2'; if (D.stageIndex(sid) > D.stageIndex(ui.data.stage.unlocked)) ui.data.stage.unlocked = sid; ui.data.stage.current = sid; }
+        ui.startSolo({ fast: true, chars: soloDebugChars(ss), auto: rest[0] === 'auto' ? (rest[1] === 'bad' ? 'bad' : 'good') : '' });
+        return log;
+      }
       var game = g[1] === 'letter' ? 'letter' : g[1] === 'clock' ? 'clock' : g[1] === 'english' ? 'english' : 'math';
       if (g[2]) {
         ui.data.levels[game] = g[2];
@@ -128,7 +141,8 @@
       }
       ui.startSession(game, { fast: true, scene: g[3] || undefined });
       if (g[4]) root.setTimeout(function () { ui.debugProgress(+g[4]); }, 50);
-    } else if (g[0] === 'trace' && g[1] === 'sheet') toggleTraceSheet(g[2]);
+    } else if (g[0] === 'solo' && g[1] === 'judge') { ui.soloDebug(true); ui.startSolo({ fast: true, chars: soloDebugChars('') }); }   // #debug:solo-judge（判定の中身を画面に出す。保存しない）
+    else if (g[0] === 'trace' && g[1] === 'sheet') toggleTraceSheet(g[2]);
     else if (g[0] === 'trace' && g[1] === 'plan') showTracePlan();
     else if (g[0] === 'trace' && g[1] === 'table') ui.previewMoji(g[2]);   // #debug:trace-table（-kata など集合も指定できる）
     else if (g[0] === 'trace') { ui.startTrace({ fast: true }); if (g[1] === 'auto') ui.traceAuto(true); }

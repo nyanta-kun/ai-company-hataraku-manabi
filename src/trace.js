@@ -451,9 +451,19 @@
       if (v < 1) return;
       help[c] = Math.min(99, v, done[c]);
     });
+    var solo = {};   // ひとりで かく（W6）で書けた回数。done に無い字は捨て、done まで下げる（solo ≤ done）
+    var so = src.solo && typeof src.solo === 'object' ? src.solo : {};
+    Object.keys(so).forEach(function (c) {
+      var v = so[c];
+      if (!known[c] || !(c in done) || typeof v !== 'number' || !isFinite(v)) return;
+      v = Math.floor(v);
+      if (v < 1) return;
+      solo[c] = Math.min(99, v, done[c]);
+    });
     return {
       done: done,
       help: help,
+      solo: solo,
       set: SET_NAMES.indexOf(src.set) >= 0 ? src.set : 'auto',
       width: WIDTH_NAMES.indexOf(src.width) >= 0 ? src.width : 'auto'
     };

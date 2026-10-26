@@ -310,9 +310,9 @@ test('12. traceSet: S0 はひらがなが残っていれば hira、全部書い�
 });
 
 test('13. normalizeTrace: 知らない字・負・文字列・100 以上・知らない set/width を直す。旧データは既定値', () => {
-  assert.deepEqual(T.normalizeTrace(undefined), { done: {}, help: {}, set: 'auto', width: 'auto' });
-  assert.deepEqual(T.normalizeTrace(null), { done: {}, help: {}, set: 'auto', width: 'auto' });
-  assert.deepEqual(T.normalizeTrace({}), { done: {}, help: {}, set: 'auto', width: 'auto' });
+  assert.deepEqual(T.normalizeTrace(undefined), { done: {}, help: {}, solo: {}, set: 'auto', width: 'auto' });
+  assert.deepEqual(T.normalizeTrace(null), { done: {}, help: {}, solo: {}, set: 'auto', width: 'auto' });
+  assert.deepEqual(T.normalizeTrace({}), { done: {}, help: {}, solo: {}, set: 'auto', width: 'auto' });
   const raw = { done: { あ: 3, い: -1, う: '2', え: 100, お: 250, か: 0, き: 2.7, X: 4, ゐ: 1, く: NaN, け: null }, set: 'zzz', width: 'huge' };
   const before = JSON.stringify(raw);
   const n = T.normalizeTrace(raw);
@@ -320,7 +320,7 @@ test('13. normalizeTrace: 知らない字・負・文字列・100 以上・知�
   assert.equal(n.set, 'auto');
   assert.equal(n.width, 'auto');
   assert.equal(JSON.stringify(raw), before);
-  assert.deepEqual(T.normalizeTrace({ done: 'x', set: 'hira', width: 'wide' }), { done: {}, help: {}, set: 'hira', width: 'wide' });
+  assert.deepEqual(T.normalizeTrace({ done: 'x', set: 'hira', width: 'wide' }), { done: {}, help: {}, solo: {}, set: 'hira', width: 'wide' });
   assert.deepEqual(T.normalizeTrace({ done: [1, 2], set: 'k1', width: 'normal' }).done, {});
   // Object のもとからある名前は字として拾わない
   const proto = T.normalizeTrace({ done: { constructor: 3, toString: 2, __proto__: 5, hasOwnProperty: 1, し: 2 } });
@@ -684,10 +684,10 @@ test('W5-12. traceGrid: hira・kata は 46 字の集合と同じ、cols は rows
 });
 
 test('W5-13. normalizeTrace の help（done・set・width は今のまま）', () => {
-  assert.deepEqual(T.normalizeTrace(undefined), { done: {}, help: {}, set: 'auto', width: 'auto' });
+  assert.deepEqual(T.normalizeTrace(undefined), { done: {}, help: {}, solo: {}, set: 'auto', width: 'auto' });
   assert.deepEqual(T.normalizeTrace({ done: { し: 2 } }).help, {});
   assert.deepEqual(T.normalizeTrace({ done: { し: 2, つ: 1 }, help: { し: 5, つ: 1, く: 1, x: 1, へ: -2 }, set: 'kata', width: 'wide' }),
-    { done: { し: 2, つ: 1 }, help: { し: 2, つ: 1 }, set: 'kata', width: 'wide' });
+    { done: { し: 2, つ: 1 }, help: { し: 2, つ: 1 }, solo: {}, set: 'kata', width: 'wide' });
   assert.deepEqual(T.normalizeTrace({ done: { し: 2 }, help: 'abc' }).help, {});
   assert.deepEqual(T.normalizeTrace({ done: { し: 2 }, help: { し: '1' } }).help, {});
 });

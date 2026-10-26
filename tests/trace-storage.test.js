@@ -7,7 +7,7 @@ const S = require('../src/storage.js');
 
 test('既定の進み具合に trace と stats.trace が入る', () => {
   const d = S.defaultProgress();
-  assert.deepEqual(d.trace, { done: {}, help: {}, set: 'auto', width: 'auto' });
+  assert.deepEqual(d.trace, { done: {}, help: {}, solo: {}, set: 'auto', width: 'auto' });
   assert.deepEqual(d.stats.trace, { sessions: 0, chars: 0, clean: 0 });
 });
 
@@ -15,7 +15,7 @@ test('旧データ（trace なし）は既定で補われ、ほかの項目は�
   const old = { levels: { math: 'M3', letter: 'K2', clock: 'T1', english: 'E1' }, cards: { dump: 2 }, stats: { sessions: 5, math: { sessions: 2, questions: 8, firstTry: 6 } }, lastPlayed: '2026-10-01' };
   const d = S.normalizeProfile(old);
   assert.equal(d.levels.math, 'M3'); assert.equal(d.cards.dump, 2); assert.equal(d.stats.sessions, 5); assert.equal(d.stats.math.firstTry, 6);
-  assert.deepEqual(d.trace, { done: {}, help: {}, set: 'auto', width: 'auto' });
+  assert.deepEqual(d.trace, { done: {}, help: {}, solo: {}, set: 'auto', width: 'auto' });
   assert.deepEqual(d.stats.trace, { sessions: 0, chars: 0, clean: 0 });
 });
 
@@ -30,9 +30,9 @@ test('trace は保存して読み戻しても同じ。指の線は保存しな�
   const st = S.defaults('p_aaa_0001', '2026-10-26');
   st.profiles[0].trace.done['し'] = 3; st.profiles[0].stats.trace.chars = 4;
   const back = S.normalize(JSON.parse(JSON.stringify(st)), 'p_aaa_0001', '2026-10-26');
-  assert.deepEqual(back.profiles[0].trace, { done: { し: 3 }, help: {}, set: 'auto', width: 'auto' });
+  assert.deepEqual(back.profiles[0].trace, { done: { し: 3 }, help: {}, solo: {}, set: 'auto', width: 'auto' });
   assert.equal(back.profiles[0].stats.trace.chars, 4);
-  assert.deepEqual(Object.keys(back.profiles[0].trace).sort(), ['done', 'help', 'set', 'width']);
+  assert.deepEqual(Object.keys(back.profiles[0].trace).sort(), ['done', 'help', 'set', 'solo', 'width']);
 });
 
 test('index.html は strokes.js・trace.js を storage.js より前に、traceboard.js を ui.js より前に読む', () => {
@@ -62,4 +62,27 @@ test('W5: index.html に しゃこの「もじ」・名札・保護者の表の�
   const ui = fs.readFileSync(path.join(__dirname, '..', 'src', 'ui.js'), 'utf8');
   const m = /var SET_LABEL = (\{[^}]*\});/.exec(ui);
   assert.ok(m && !/[一-龥ァ-ヶ]/.test(m[1]), '子ども向けの集合の名前は ひらがな・数字だけ');
+});
+
+test('W6 F13: solo の補正（旧データは {}、done より大きければ下げる、done に無い字・知らない字・不正な値は捨てる、constructor を拾わない）', () => {
+  assert.deepEqual(S.normalizeProfile({ trace: { done: { し: 2 } } }).trace.solo, {});
+  const d = S.normalizeProfile({ trace: { done: { し: 2, つ: 5, く: 1, へ: 3, て: 4 }, help: { つ: 2 },
+    solo: { し: 9, つ: 3, く: 'a', へ: -1, て: 0.5, の: 2, x: 1, constructor: 1, toString: 2, __proto__: 1 }, set: 'kata', width: 'wide' } });
+  assert.deepEqual(d.trace.solo, { し: 2, つ: 3 });
+  assert.deepEqual(d.trace.done, { し: 2, つ: 5, く: 1, へ: 3, て: 4 });
+  assert.deepEqual(d.trace.help, { つ: 2 });
+  assert.equal(d.trace.set, 'kata'); assert.equal(d.trace.width, 'wide');
+  assert.deepEqual(S.normalizeProfile({ trace: { done: { し: 99 }, solo: { し: 500 } } }).trace.solo, { し: 99 });
+  assert.deepEqual(S.normalizeProfile({ trace: { done: { し: 3 }, solo: 'x' } }).trace.solo, {});
+  assert.deepEqual(S.defaults('p_aaa_0001', '2026-10-26').profiles[0].trace.solo, {});
+  const back = S.normalize(JSON.parse(JSON.stringify(S.defaults('p_aaa_0001', '2026-10-26'))), 'p_aaa_0001', '2026-10-26');
+  assert.deepEqual(back.profiles[0].trace.solo, {});
+  // 書いた線の項目は無い
+  assert.deepEqual(Object.keys(back.profiles[0].trace).sort(), ['done', 'help', 'set', 'solo', 'width']);
+});
+
+test('W6: index.html は freewrite.js を trace.js の後・traceboard.js の前に読む', () => {
+  const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
+  const at = (n) => html.indexOf('src/' + n + '"');
+  assert.ok(at('trace.js') < at('freewrite.js') && at('freewrite.js') < at('traceboard.js'));
 });

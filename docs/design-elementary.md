@@ -695,7 +695,7 @@ R4 で足す項目: プロフィールごとに `updatedAt`（名前・絵・固
 | `levels` | ゲームごとに**レベルが高い方** |
 | `cards` | 車ごとに**★が多い方** |
 | `stats` | 項目ごとに**大きい方**（足し算はしない＝二重に数えない） |
-| `trace.done`・`trace.help` | 字ごとに**大きい方**（W5。両方とも大きい方を取るので `help ≤ done` は保たれる。念のためマージ後に `normalizeTrace` を通す） |
+| `trace.done`・`trace.help`・`trace.solo` | 字ごとに**大きい方**（W5・W6。どれも大きい方を取るので `help ≤ done`・`solo ≤ done` は保たれる。念のためマージ後に `normalizeTrace` を通す） |
 | `trace.set`・`trace.width` | `updatedAt` が新しい方（保護者の設定なので、`updatedAt` を進める操作に含める） |
 | `cleared`・`promoted` | 和集合。日付は早い方 |
 | `stage` | `ladderAt` が新しい方（保護者の再ロックを、古い端末の記録で取り消さないため） |

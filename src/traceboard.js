@@ -1,12 +1,13 @@
 // なぞりがきの板（design-tracing 4章）。DOM と canvas と pointer events。判定は trace.js の純粋関数だけを使う。
 // 手本の canvas（下。毎フレーム描き直す）と、指の canvas（上。線を足すだけ）の 2 枚。字形データは strokes.js（別ライセンス）。
-// 依存: strokes.js, trace.js, vehicles.js（任意: 助けの「しょうぼうしゃ」）。window.Manabi.TraceBoard
+// 依存: strokes.js, trace.js, freewrite.js（線なしの書き方の重ね）, vehicles.js（任意: 助けの「しょうぼうしゃ」・スタンプの車）。window.Manabi.TraceBoard
 (function (root) {
   'use strict';
-  var M = root.Manabi, doc = root.document, S = M.strokes, T = M.trace, V = M.vehicles;
+  var M = root.Manabi, doc = root.document, S = M.strokes, T = M.trace, FW = M.freewrite, V = M.vehicles;
   var DATA = 1090;
   var PEN_QUIET = 0.6;     // ペンを離してから、指を無視する秒数（手のひら）
   var IDLE_ANIM = 8;       // 指を置いたまま進まないときにお手本を流すまでの秒数
+  var MAX_INK = 60;        // 線なしの書き方で残せる画の数（落書きでの重さ対策）
 
   function now() { return root.performance.now() / 1000; }
   function reduced() { return !!(root.matchMedia && root.matchMedia('(prefers-reduced-motion: reduce)').matches); }
@@ -23,6 +24,7 @@
     this.ch = ''; this.polys = []; this.nums = []; this.cur = 0; this.doneS = []; this.recs = []; this.dirty = false; this.maxM = 0;
     this.phase = 'idle'; this.active = null; this.anim = null; this.glow = 0; this.lastAct = now(); this.penUntil = 0; this.penDown = false;
     this.celebrate = 0; this.idleShown = false; this.pendingB = 0; this.auto = false; this.autoBusy = false; this.timers = [];
+    this.mode = 'trace'; this.ink = []; this.review = null; this.hint = null; this.hinted = false; this.nudged = false;   // 線なしの書き方（ひとりで かく。design 13.9）
     this.bind();
   }
   var P = TraceBoard.prototype;
@@ -48,12 +50,14 @@
     [this.base, this.fing].forEach(function (c) { c.width = Math.round(B * dpr); c.height = Math.round(B * dpr); });
     this.bctx.setTransform(dpr, 0, 0, dpr, 0, 0); this.fctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     this.tol = T.tolerance(B, this.width, this.script);
+    if (this.mode === 'free' && this.phase !== 'idle') this.redrawInk();
   };
   P.setWidth = function (w) { this.width = w === 'normal' ? 'normal' : 'wide'; this.tol = T.tolerance(this.B, this.width, this.script); };
 
   // ---- 字 ----
   P.setChar = function (ch, intro) {
     this.clearTimers();
+    this.mode = 'trace'; this.ink = []; this.review = null; this.hint = null;
     var d = S.STROKES[ch];
     var sc = isKanji(ch) ? 'kanji' : 'hira';   // 漢字は許容幅を絞り（trace.tolerance）、お手本は 1.5 倍速（design 4.6）
     if (sc !== this.script) { this.script = sc; this.tol = T.tolerance(this.B, this.width, sc); }
@@ -86,7 +90,7 @@
     if (a && a.after) a.after.call(this);
   };
   P.replay = function () {
-    if (this.phase === 'done' || !this.ch) return false;
+    if (this.phase === 'done' || !this.ch || this.mode === 'free') return false;
     if (this.anim && this.anim.after) return false;   // 手本の書き足し中は止めない
     if (this.active) this.cancelActive();
     this.startAnim(this.polys.map(function (_, i) { return i; }).filter(function (i) { return !this.doneS[i]; }, this), null);
@@ -98,7 +102,7 @@
     var r = this.rect, s = r.width || this.B;
     return [(e.clientX - r.left) / s, (e.clientY - r.top) / s];
   };
-  P.cancelActive = function () { this.active = null; this.fctx.clearRect(0, 0, this.B, this.B); };
+  P.cancelActive = function () { this.active = null; if (this.mode === 'free') this.redrawInk(); else this.fctx.clearRect(0, 0, this.B, this.B); };
 
   P.onDown = function (e) {
     e.preventDefault();
@@ -138,6 +142,13 @@
 
   // ---- 1 画の流れ（イベントから独立。自動プレイもここを通る）----
   P.begin = function (p, id, type) {
+    if (this.mode === 'free') {   // 線なし: 判定せず、書いた線を残すだけ
+      if (this.ink.length >= MAX_INK) return;
+      this.hint = null; this.lastAct = now();
+      this.active = { id: id, type: type, pts: [p], free: true, w: type === 'pen' ? 0.025 : 0.035 };
+      this.strokeInk(this.fctx, this.active, 0);
+      return;
+    }
     var poly = this.polys[this.cur], rec = this.recs[this.cur];
     var r = T.beginStroke(poly, p, this.tolFor());
     this.lastAct = now();
@@ -159,6 +170,15 @@
   };
   P.move = function (pts) {
     var a = this.active; if (!a) return;
+    if (a.free) {
+      var last0 = a.pts[a.pts.length - 1], from = a.pts.length - 1, B0 = this.B;
+      pts.forEach(function (p) {
+        if (Math.abs(p[0] - last0[0]) * B0 < 1 && Math.abs(p[1] - last0[1]) * B0 < 1) return;
+        a.pts.push(p); last0 = p;
+      });
+      if (a.pts.length - 1 > from) { this.lastAct = now(); this.strokeInk(this.fctx, a, from); }
+      return;
+    }
     var poly = this.polys[this.cur];
     var keep = [], last = a.pts[a.pts.length - 1], px = this.B;
     pts.forEach(function (p) {
@@ -176,6 +196,14 @@
   P.up = function (cancelled) {
     var a = this.active; if (!a) return;
     this.active = null;
+    if (a.free) {   // 取り消された線（pointercancel）も残す: 子どものせいではないので、書いた分を消さない。ただし短いもの（手のひらのふれ）は残さない
+      if (cancelled && T.polyLength(a.pts) < 4 * FW.DEFAULTS.TINY) { this.redrawInk(); if (this.pendingB) this.layout(this.pendingB); return; }
+      this.ink.push({ pts: a.pts, w: a.w }); this.lastAct = now();
+      this.redrawInk();
+      if (this.cbs.onInk) this.cbs.onInk(this.ink.length);
+      if (this.pendingB) this.layout(this.pendingB);
+      return;
+    }
     var poly = this.polys[this.cur], r = T.endStroke(poly, a.state, this.tolFor());
     this.lastAct = now();
     if (cancelled && r.result === 'short') { this.fctx.clearRect(0, 0, this.B, this.B); if (this.pendingB) this.layout(this.pendingB); return; }   // 端末に取り消された: 子どものせいではない
@@ -245,17 +273,24 @@
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(String(i + 1), n[0] * B, n[1] * B + r * 0.05);
   };
 
+  // 地の色・十字の点線・枠（なぞりと線なしで共通）
+  P.drawGrid = function (ctx) {
+    var B = this.B;
+    ctx.fillStyle = '#fffaf0'; ctx.fillRect(0, 0, B, B);
+    ctx.strokeStyle = '#e4d8c0'; ctx.lineWidth = 2; ctx.setLineDash([6, 8]);
+    ctx.beginPath(); ctx.moveTo(B / 2, 0); ctx.lineTo(B / 2, B); ctx.moveTo(0, B / 2); ctx.lineTo(B, B / 2); ctx.stroke(); ctx.setLineDash([]);
+    ctx.strokeStyle = '#d9cdb4'; ctx.lineWidth = 4; ctx.strokeRect(2, 2, B - 4, B - 4);
+  };
+
   P.draw = function (t) {
     if (this.phase === 'idle' || !this.polys.length) { this.bctx.clearRect(0, 0, this.B, this.B); return; }
+    if (this.mode === 'free') { this.drawFree(t); return; }
     var ctx = this.bctx, B = this.B, k = this.width === 'wide' ? 1.3 : 1, i;
     if (this.anim && t - this.anim.t0 >= this.anim.total) this.endAnim();
     if (this.phase === 'ready' && !this.active && !this.idleShown && t - this.lastAct > IDLE_ANIM) { this.idleShown = true; this.startAnim([this.cur], null); }   // 画ごとに 1 回だけ
     if (this.auto && !this.autoBusy && this.phase === 'ready' && !this.active) this.autoStroke();
     ctx.clearRect(0, 0, B, B);
-    ctx.fillStyle = '#fffaf0'; ctx.fillRect(0, 0, B, B);
-    ctx.strokeStyle = '#e4d8c0'; ctx.lineWidth = 2; ctx.setLineDash([6, 8]);
-    ctx.beginPath(); ctx.moveTo(B / 2, 0); ctx.lineTo(B / 2, B); ctx.moveTo(0, B / 2); ctx.lineTo(B, B / 2); ctx.stroke(); ctx.setLineDash([]);
-    ctx.strokeStyle = '#d9cdb4'; ctx.lineWidth = 4; ctx.strokeRect(2, 2, B - 4, B - 4);
+    this.drawGrid(ctx);
     var ph = this.phase, pw = 0.10 * k * B;
     // 道（まだの画）
     for (i = 0; i < this.polys.length; i++) {
@@ -322,6 +357,114 @@
     ctx.stroke();
   };
 
+
+  // ---- 線なしの書き方（ひとりで かく。design 13.9）----
+  P.setFree = function (ch) {
+    this.setChar(ch, false);   // 手本の点列は作るが、描かない（ヒントと重ねにだけ使う）
+    this.mode = 'free'; this.ink = []; this.review = null; this.hint = null; this.hinted = false; this.nudged = false;
+    this.phase = 'ready'; this.lastAct = now();
+    this.fctx.clearRect(0, 0, this.B, this.B);
+  };
+  P.strokeInk = function (ctx, st, from) {
+    var B = this.B, pts = st.pts;
+    ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.lineWidth = st.w * B; ctx.strokeStyle = ctx.fillStyle = '#1e6fe0';
+    if (pts.length === 1) { ctx.beginPath(); ctx.arc(pts[0][0] * B, pts[0][1] * B, st.w * B / 2, 0, 7); ctx.fill(); return; }
+    var f = Math.max(0, from || 0);
+    ctx.beginPath(); ctx.moveTo(pts[f][0] * B, pts[f][1] * B);
+    for (var i = f + 1; i < pts.length; i++) ctx.lineTo(pts[i][0] * B, pts[i][1] * B);
+    ctx.stroke();
+  };
+  P.redrawInk = function () {
+    this.fctx.clearRect(0, 0, this.B, this.B);
+    if (this.review) return;
+    for (var i = 0; i < this.ink.length; i++) this.strokeInk(this.fctx, this.ink[i], 0);
+    if (this.active && this.active.free) this.strokeInk(this.fctx, this.active, 0);
+  };
+  P.inkStrokes = function () { return this.ink.map(function (st) { return st.pts.map(function (p) { return [p[0], p[1]]; }); }); };
+  P.setInk = function (strokes) {   // 確認用の自動の書き手
+    this.ink = strokes.map(function (pts) { return { pts: pts, w: 0.035 }; }); this.redrawInk();
+    if (this.cbs.onInk) this.cbs.onInk(this.ink.length);
+  };
+  P.undoInk = function () {
+    if (this.mode !== 'free' || this.phase !== 'ready' || !this.ink.length) return false;
+    this.ink.pop(); this.redrawInk(); this.lastAct = now();
+    if (this.cbs.onInk) this.cbs.onInk(this.ink.length);
+    return true;
+  };
+  P.clearInk = function () { this.ink = []; this.redrawInk(); if (this.cbs.onInk) this.cbs.onInk(0); };
+  // 最初の 1 画を真ん中に 2 秒だけ薄く出す。1 字に 1 回。出したら true
+  P.hintFirst = function () {
+    if (this.mode !== 'free' || this.phase !== 'ready' || this.ink.length || this.active || this.hinted || !this.polys.length) return false;
+    this.hinted = true; this.hint = { t0: now() };
+    return true;
+  };
+  // 手本を子どもの字の大きさと位置に重ねて、1 画ずつ赤く薄く描く。result が ok ならスタンプ、そうでなければ focus の画を橙で光らせる
+  P.showFit = function (fit, result, focus) {
+    var n = this.polys.length;
+    this.review = {
+      t0: now(), result: result, focus: focus, fit: fit, per: Math.min(0.25, 1.6 / Math.max(1, n)),
+      mapped: this.polys.map(function (poly) { return poly.map(function (q) { return FW.fitPoint(fit, q); }); }),
+      nums: this.nums.map(function (q) { return FW.fitPoint(fit, q); })
+    };
+    this.phase = 'review'; this.active = null; this.hint = null;
+    this.fctx.clearRect(0, 0, this.B, this.B);
+  };
+  P.drawFree = function (t) {
+    var ctx = this.bctx, B = this.B, i, rv = this.review;
+    ctx.clearRect(0, 0, B, B);
+    this.drawGrid(ctx);
+    if (rv) {   // 見直し: 書いた線（青）の上に手本（赤）
+      for (i = 0; i < this.ink.length; i++) this.strokeInk(ctx, this.ink[i], 0);
+      var el = t - rv.t0, kk = 1 / Math.max(0.3, rv.fit.k), n = this.polys.length;
+      for (i = 0; i < n; i++) {
+        var u = clamp((el - i * rv.per) / rv.per, 0, 1);
+        if (u <= 0) continue;
+        var pts = rv.mapped[i], cnt = Math.max(2, Math.round(u * (pts.length - 1)) + 1);
+        var focus = rv.result !== 'ok' && i === rv.focus;
+        ctx.globalAlpha = focus ? 0.5 + 0.5 * Math.sin(t * 8) * 0.5 + 0.25 : 0.45;
+        this.line(ctx, pts, cnt, (focus ? 0.065 : 0.05) * B * kk, focus ? '#ff9f1c' : '#e53935');
+        ctx.globalAlpha = 1;
+      }
+      var tail = n * rv.per;
+      if (rv.result !== 'ok' && rv.focus >= 0 && el > tail) {   // どの画かを番号の丸で
+        var q = rv.nums[rv.focus], r = 0.05 * B;
+        ctx.beginPath(); ctx.arc(q[0] * B, q[1] * B, r * (1 + 0.1 * Math.sin(t * 6)), 0, 7); ctx.fillStyle = '#ff7a00'; ctx.fill();
+        ctx.fillStyle = '#fff'; ctx.font = 'bold ' + Math.round(r * 1.25) + 'px "Hiragino Maru Gothic ProN", sans-serif';
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(String(rv.focus + 1), q[0] * B, q[1] * B + r * 0.05);
+      }
+      if (rv.result === 'ok' && el > tail + 0.1) this.drawStamp(ctx, clamp((el - tail - 0.1) / 0.3, 0, 1), t);
+      return;
+    }
+    if (this.hint) {   // 1 画目の始点の丸・矢印・線を 2 秒だけ薄く
+      var h = t - this.hint.t0;
+      if (h > 2) this.hint = null;
+      else {
+        var poly = this.polys[0], a = Math.min(1, h * 3, (2 - h) * 3) * 0.55;
+        ctx.globalAlpha = a;
+        this.line(ctx, poly, null, 0.06 * B, '#2e9d5d');
+        this.arrow(ctx, poly, 12, '#1f6f40');
+        ctx.beginPath(); ctx.arc(poly[0][0] * B, poly[0][1] * B, 0.035 * B, 0, 7); ctx.fillStyle = '#2e9d5d'; ctx.fill();
+        ctx.globalAlpha = 1;
+      }
+    }
+    if (this.phase === 'ready' && !this.ink.length && !this.active && !this.nudged && t - this.lastAct > IDLE_ANIM) {
+      this.nudged = true;
+      if (this.cbs.onIdle) this.cbs.onIdle();   // 8 秒たったら札を軽く揺らす（板には何も出さない）
+    }
+  };
+  // 「ひとりで かけた」のスタンプ（車の絵の入った赤い丸）
+  P.drawStamp = function (ctx, u, t) {
+    var B = this.B, x = 0.74 * B, y = 0.74 * B, r = 0.19 * B * (0.6 + 0.4 * u) * (1 + 0.04 * Math.sin(t * 5));
+    ctx.save(); ctx.translate(x, y); ctx.rotate(-0.2); ctx.globalAlpha = u;
+    ctx.beginPath(); ctx.arc(0, 0, r, 0, 7); ctx.fillStyle = 'rgba(255,255,255,.92)'; ctx.fill();
+    ctx.lineWidth = r * 0.1; ctx.strokeStyle = '#e53935'; ctx.stroke();
+    ctx.beginPath(); ctx.arc(0, 0, r * 0.84, 0, 7); ctx.lineWidth = r * 0.03; ctx.stroke();
+    if (V && V.drawVehicle) V.drawVehicle(ctx, 8, 0, -r * 0.22, r * 0.95);
+    ctx.fillStyle = '#e53935'; ctx.font = 'bold ' + Math.round(r * 0.22) + 'px "Hiragino Maru Gothic ProN", sans-serif';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('ひとりで', 0, r * 0.47); ctx.fillText('かけた！', 0, r * 0.71);
+    ctx.restore();
+  };
+
   // ---- 自動プレイ（確認用。手本の点列を指の代わりに流す）----
   P.autoStroke = function () {
     var self = this, poly = this.polys[this.cur], i = 0;
@@ -361,6 +504,36 @@
       }
     });
     ctx.restore();
+  };
+
+
+  // ひとりで かく のお題の札。手本の字を番号なしで黒く描く。el（秒）を渡すと書き順のアニメーション（番号つき。1 画 0.6 秒）。戻り値: アニメーションが続くなら true
+  TraceBoard.drawCard = function (ctx, ch, size, el) {
+    var d = S.STROKES[ch]; if (!d) return false;
+    var n = d.s.length, per = 0.6, anim = typeof el === 'number' && el >= 0 && el < n * per + 0.3;
+    ctx.save();
+    ctx.fillStyle = '#fffaf0'; ctx.fillRect(0, 0, size, size);
+    ctx.strokeStyle = '#d9cdb4'; ctx.lineWidth = 3; ctx.strokeRect(1.5, 1.5, size - 3, size - 3);
+    var pad = size * 0.1, box = size - pad * 2, w = Math.max(3, size * 0.07);
+    ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    d.s.forEach(function (st, i) {
+      var poly = T.strokePolyline(st, 0.01), u = anim ? clamp((el - i * per) / per, 0, 1) : 1;
+      if (u <= 0) return;
+      var cnt = Math.max(2, Math.round(u * (poly.length - 1)) + 1);
+      ctx.beginPath(); ctx.moveTo(pad + poly[0][0] * box, pad + poly[0][1] * box);
+      for (var j = 1; j < cnt; j++) ctx.lineTo(pad + poly[j][0] * box, pad + poly[j][1] * box);
+      ctx.lineWidth = w; ctx.strokeStyle = anim && u < 1 ? '#ff9f1c' : '#3a2b24'; ctx.stroke();
+      if (anim) {
+        var q = d.n[i], r = size * 0.06;
+        if (q) {
+          ctx.beginPath(); ctx.arc(pad + q[0] / DATA * box, pad + q[1] / DATA * box, r, 0, 7); ctx.fillStyle = '#2e9d5d'; ctx.fill();
+          ctx.fillStyle = '#fff'; ctx.font = 'bold ' + Math.round(r * 1.3) + 'px "Hiragino Maru Gothic ProN", sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+          ctx.fillText(String(i + 1), pad + q[0] / DATA * box, pad + q[1] / DATA * box + 1);
+        }
+      }
+    });
+    ctx.restore();
+    return anim;
   };
 
   M.TraceBoard = TraceBoard;

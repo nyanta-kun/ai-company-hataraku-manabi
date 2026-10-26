@@ -79,8 +79,12 @@
       </div>
     </header>
     <div id="trace-main">
-      <div id="trace-fieldwrap"><canvas id="traceField"></canvas><div id="trace-nametag" hidden></div></div>
+      <div id="trace-fieldwrap"><canvas id="traceField"></canvas><div id="trace-nametag" hidden></div><canvas id="solo-card" aria-label="おだいの じ"></canvas></div>
       <div id="trace-boardarea"><div id="trace-board"></div></div>
+      <div id="solo-tools">
+        <button id="btn-solo-undo" class="solo-undo" type="button" aria-label="もどす"><canvas width="64" height="64" data-icon="undo"></canvas></button>
+        <button id="btn-solo-done" class="solo-done" type="button" disabled><canvas width="64" height="64" data-icon="check"></canvas><span>できた</span></button>
+      </div>
     </div>
   </section>
 
@@ -91,6 +95,7 @@
       <div id="reward-side">
         <div id="reward-text"></div>
         <div id="reward-sub"></div>
+        <button id="btn-r-solo" class="big solo" type="button" hidden><canvas width="96" height="96" data-icon="solo"></canvas><span>ひとりで かく</span></button>
         <div class="row">
           <button id="btn-r-garage" class="big alt" type="button"><canvas width="96" height="96" data-icon="garage"></canvas><span>しゃこへ</span></button>
           <button id="btn-r-again" class="big" type="button"><canvas width="96" height="96" data-icon="truck"></canvas><span>もういちど</span></button>
@@ -128,6 +133,7 @@
     </header>
     <div id="garage-grid"></div>
     <div id="moji-view" hidden>
+      <div id="moji-top"><div id="moji-license"></div><button id="moji-solo-top" type="button" class="big solo" hidden><canvas width="96" height="96" data-icon="solo"></canvas><span>ひとりで かく</span></button></div>
       <div id="moji-sets"></div>
       <div id="moji-grid"></div>
     </div>
@@ -136,6 +142,7 @@
         <canvas id="moji-canvas"></canvas>
         <div class="moji-btns">
           <button id="moji-go" type="button" class="big trace"><canvas width="96" height="96" data-icon="pencil"></canvas><span>かく</span></button>
+          <button id="moji-solo" type="button" class="big solo" hidden><canvas width="96" height="96" data-icon="solo"></canvas><span>ひとりで</span></button>
           <button id="moji-close" type="button" class="mini" aria-label="やめる"><canvas width="48" height="48" data-icon="x"></canvas></button>
         </div>
       </div>
@@ -204,6 +211,7 @@
 <script src="src/data.js"></script>
 <script src="src/strokes.js"></script>
 <script src="src/trace.js"></script>
+<script src="src/freewrite.js"></script>
 <script src="src/problems.js"></script>
 <script src="src/ladder.js"></script>
 <script src="src/rewards.js"></script>
