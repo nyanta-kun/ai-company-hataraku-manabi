@@ -6,7 +6,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const { initializeTestEnvironment, assertFails, assertSucceeds } = require('@firebase/rules-unit-testing');
-const { doc, getDoc, setDoc, deleteDoc, getDocs, collection, serverTimestamp, writeBatch } = require('firebase/firestore');
+const { doc, getDoc, setDoc, deleteDoc, getDocs, collection, serverTimestamp, writeBatch, collectionGroup, query } = require('firebase/firestore');
 
 const ROOT = path.join(__dirname, '..');
 const storage = require(path.join(ROOT, 'src/storage.js'));
@@ -174,7 +174,7 @@ for (const key of ['done', 'help', 'solo']) {
     for (const [ch, v] of [['x', 1], ['A', 1], ['し', 0], ['し', 100], ['し', -1], ['し', 1.5], ['しつ', 1], ['鬱', 1], ['し,つ', 1], ['し;つ', 1]])
       await assertFails(put('A', m(ch, v)), `${key} ${ch}=${v}`);
     for (const [ch, v] of [['し', 1], ['山', 99], ['ノ', 5], ['ぬ', 5]]) {
-      if (key === 'done' || v <= 5 || true) await assertSucceeds(put('A', m(ch, v)), `${key} ${ch}=${v}`);
+      await assertSucceeds(put('A', m(ch, v)), `${key} ${ch}=${v}`);
     }
   });
 }
@@ -273,6 +273,25 @@ test('12b プロフィールの文書: id がパスと違う・id の形が違�
   await assertSucceeds(setDoc(profRef(google('A'), 'A', p.id), p));
   await assertSucceeds(deleteDoc(profRef(google('A'), 'A', p.id)));
 });
+test('12d 一覧: collectionGroup（profiles）は拒否', async () => {
+  await put('A', withTs(basic()));
+  await assertFails(getDocs(collectionGroup(google('A'), 'profiles')));
+  await assertFails(getDocs(query(collectionGroup(google('A'), 'profiles'))));
+});
+test('10c 値に「,」を入れて大きさの上限を抜けられない（cleared・promoted・deleted・done・help・solo）', async () => {
+  const D = '2026-10-01';
+  const many = Array(40).fill(D).join(',');
+  await assertFails(put('A', mutate((d) => { d.profiles[0].cleared = { M7: D + ',' + D }; })));
+  await assertFails(put('A', mutate((d) => { d.profiles[0].cleared = { M7: many }; })));
+  await assertFails(put('A', mutate((d) => { d.profiles[0].cleared = { M7: many, K6: D }; })));
+  await assertFails(put('A', mutate((d) => { d.profiles[0].promoted = { S1: many }; })));
+  await assertFails(put('A', mutate((d) => { d.deleted = { p_abc_0003: many }; })));
+  await assertFails(put('A', mutate((d) => { d.deleted = { p_abc_0003: D + ',' + D }; })));
+  for (const key of ['done', 'help', 'solo']) {
+    await assertFails(put('A', mutate((d) => { const t = d.profiles[0].trace; t.done = { し: 5 }; t[key] = { し: '1,2' }; })), key);
+    await assertFails(put('A', mutate((d) => { const t = d.profiles[0].trace; t.done = { し: 5 }; t[key] = { し: Array(100).fill('9').join(',') }; })), key);
+  }
+});
 test('12c 親の ids: 4 件は許可、5 件・形が違う・文字でないものは拒否', async () => {
   const idsOf = (n) => Array.from({ length: n }, (_, i) => 'p_abc_000' + i);
   await assertSucceeds(put('A', mutate((d) => { d.ids = idsOf(4); d.profiles = []; })));
@@ -337,6 +356,18 @@ test('13 4 人分で、すべての表を上限まで埋めた文書: 許可（�
   assert.equal(Object.keys(p.cards).length, 15);
   const deleted = {}; for (let i = 0; i < 16; i++) deleted['p_' + 'y'.repeat(20) + '_' + i.toString(36).padStart(3, '0')] = '2026-10-01';
   await assertSucceeds(put('A', toCloud(st, deleted)));
+});
+
+test('13b 親＋上限まで埋めた 4 人を 1 つの batch で書く（5 書き込み）: 許可', async () => {
+  const st = storage.normalize({ profiles: [1, 2, 3, 4].map(fullRaw) });
+  const c = toCloud(st, { p_del_1: '2026-10-01' });
+  const a = google('A');
+  const b = writeBatch(a);
+  b.set(famRef(a, 'A'), { v: 1, ids: c.profiles.map((p) => p.id), deleted: c.deleted, updatedAt: serverTimestamp() });
+  c.profiles.forEach((p) => b.set(profRef(a, 'A', p.id), p));
+  await assertSucceeds(b.commit());
+  const l = await getDocs(collection(a, 'families', 'A', 'profiles'));
+  assert.equal(l.size, 4);
 });
 
 // ---- 端末の実際のプロフィールが拒否されないこと ----
