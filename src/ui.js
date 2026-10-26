@@ -59,12 +59,14 @@
       for (var i = 1; i < 4; i++) ln(.22, .5 + i * .1, .78, .5 + i * .1, .03, dark);
       return;
     }
-    if (kind === 'station') {   // 消防署（タイトルの署の絵を小さく）: 赤い屋根・壁・シャッター
-      ctx.fillStyle = '#fff'; ctx.strokeStyle = dark; ctx.lineWidth = w * 0.04;
-      ctx.fillRect(w * .1, h * .38, w * .8, h * .52); ctx.strokeRect(w * .1, h * .38, w * .8, h * .52);
-      ctx.fillStyle = '#e8453c'; ctx.beginPath(); ctx.moveTo(w * .04, h * .4); ctx.lineTo(w * .12, h * .16); ctx.lineTo(w * .88, h * .16); ctx.lineTo(w * .96, h * .4); ctx.closePath(); ctx.fill(); ctx.stroke();
-      ctx.fillStyle = '#9fb4c7'; ctx.fillRect(w * .25, h * .5, w * .5, h * .4); ctx.strokeRect(w * .25, h * .5, w * .5, h * .4);
-      for (var j = 1; j < 4; j++) ln(.25, .5 + j * .1, .75, .5 + j * .1, .03, dark);
+    if (kind === 'station') {   // 消防署（タイトルの署を小さく）: ベージュの 2 階建て・窓が並ぶ・赤い屋根の帯。シャッターは描かない
+      ctx.fillStyle = '#e8d9c3'; ctx.strokeStyle = dark; ctx.lineWidth = w * 0.045; ctx.lineJoin = 'round';
+      ctx.fillRect(w * .12, h * .26, w * .76, h * .66); ctx.strokeRect(w * .12, h * .26, w * .76, h * .66);
+      ctx.fillStyle = '#e53935'; ctx.fillRect(w * .05, h * .1, w * .9, h * .18); ctx.strokeRect(w * .05, h * .1, w * .9, h * .18);
+      for (var r = 0; r < 2; r++) for (var c = 0; c < 3; c++) {
+        ctx.fillStyle = r === 0 ? '#ffe680' : '#8fb4c9';
+        ctx.fillRect(w * (.2 + c * .22), h * (.38 + r * .26), w * .16, h * .17); ctx.strokeRect(w * (.2 + c * .22), h * (.38 + r * .26), w * .16, h * .17);
+      }
       return;
     }
     if (kind === 'kazu') {   // ● ● ●
