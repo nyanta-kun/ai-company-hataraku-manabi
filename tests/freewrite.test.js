@@ -412,8 +412,8 @@ test('W6-b: index.html に ひとりで かく の札・ボタン・ごほうび
   ['solo-card', 'solo-tools', 'btn-solo-undo', 'btn-solo-done', 'btn-r-solo'].forEach((id) => assert.ok(html.includes('id="' + id + '"'), id));
   const kid = [html.match(/id="solo-tools"[\s\S]*?<\/div>/)[0], html.match(/id="btn-r-solo"[^>]*>[\s\S]*?<\/button>/)[0]].join('');
   assert.ok(!/テスト|しけん|試験|点数/.test(kid));
-  const ui = fs.readFileSync(path.join(__dirname, '..', 'src', 'ui.js'), 'utf8');
-  const say = [...ui.matchAll(/say\('([^']*)'/g)].map((m) => m[1]).filter((t) => /ひとりで|おてほん|つづき/.test(t));
+  const ui = fs.readFileSync(path.join(__dirname, '..', 'src', 'lines.js'), 'utf8');   // 読み上げ文は lines.js にある
+  const say = [...ui.matchAll(/'([^']*)'/g)].map((m) => m[1]).filter((t) => /ひとりで|おてほん|つづき/.test(t));
   assert.ok(say.length >= 2);
   say.forEach((t) => assert.ok(!/テスト|しけん|ごうかく|まちがい|ちがう/.test(t), t));
 });
