@@ -178,3 +178,46 @@ test('storage: days は補正を通って残り、読み直しても同じ。dev
   assert.match(odd.device.deviceId, /^d_[0-9a-z]{8}$/); assert.notEqual(odd.device.deviceId, 'D_X');
   assert.deepEqual(odd.device.daysDirty, [T, '2026-10-27']); assert.equal(odd.device.daysPrunedOn, '');
 });
+
+// ---- weekSummary ----
+function sample() {
+  let d = {};
+  d = DL.recordSession(d, '2026-10-20', { game: 'clock', questions: 4, firstTry: 1 });   // 前の週
+  d = DL.recordSession(d, '2026-10-26', { game: 'math', questions: 4, firstTry: 3, up: 'M3', reward: { id: 'bus', isNew: true } });
+  d = DL.addTime(d, '2026-10-26', 120);
+  d = DL.recordSession(d, '2026-10-26', { game: 'math', questions: 4, firstTry: 4, up: 'M4' });
+  d = DL.recordChar(d, '2026-10-27', { game: 'trace', ch: 'し', firstDone: true });   // 字だけ（出動は終えていない）
+  d = DL.recordSession(d, '2026-10-28', { game: 'solo', license: 'hira' });
+  d = DL.recordChar(d, '2026-10-28', { game: 'solo', ch: 'つ', firstDone: true, firstSolo: true });
+  d = DL.addTime(d, '2026-10-28', 300);
+  return d;
+}
+test('weekSummary: 7 行・合計が一致・あそんだ日は出動を終えた日だけ', () => {
+  const w = DL.weekSummary(sample(), '2026-10-26', T, { cleared: { M5: '2026-10-27', M3: '2026-10-01' }, promoted: { S1: '2026-10-28' } });
+  assert.equal(w.rows.length, 7);
+  assert.deepEqual(w.rows.map(r => r.key), DL.weekKeys('2026-10-26'));
+  assert.deepEqual(w.rows.map(r => r.kind), ['day', 'day', 'day', 'future', 'future', 'future', 'future']);
+  assert.equal(w.rows.reduce((a, r) => a + r.total, 0), w.sum.sessions);
+  assert.equal(w.sum.sessions, 3); assert.equal(w.sum.sec, 420); assert.equal(w.sum.playedDays, 2);   // 10/27 は字だけ
+  assert.equal(w.sum.byGame.math, 2); assert.equal(w.sum.byGame.solo, 1); assert.equal(w.rows[1].total, 0);
+  assert.deepEqual(w.got.up, { math: 'M4' });
+  assert.deepEqual(w.got.gates, [{ level: 'M5', date: '2026-10-27' }]);   // その週の日付だけ
+  assert.deepEqual(w.got.stages, [{ stage: 'S1', date: '2026-10-28' }]);
+  assert.equal(w.got.newChars, 'しつ'); assert.equal(w.got.newSolo, 'つ');
+  assert.deepEqual(w.got.license, ['hira']); assert.deepEqual(w.got.newCars, ['bus']);
+  assert.equal(w.got.any, true); assert.equal(w.any, true);
+});
+test('weekSummary: 前の週・範囲の前は old・今日より先は future・hasPrev / hasNext の境', () => {
+  const d = sample();
+  const prev = DL.weekSummary(d, '2026-10-19', T, {});
+  assert.equal(prev.sum.sessions, 1); assert.equal(prev.hasNext, true); assert.equal(prev.hasPrev, true);
+  assert.equal(DL.weekSummary(d, '2026-10-26', T, {}).hasNext, false);
+  // 今日 2026-10-28 → 35 日の最初は 2026-09-24（木）。月曜 09-21 の週は先頭の 3 日が old
+  const first = DL.weekSummary(d, '2026-09-21', T, {});
+  assert.deepEqual(first.rows.slice(0, 4).map(r => r.kind), ['old', 'old', 'old', 'none']);
+  assert.equal(first.hasPrev, false);   // 前の週の日曜（09-20）は範囲の外
+  assert.equal(DL.weekSummary(d, '2026-09-28', T, {}).hasPrev, true);   // 前の週の日曜 09-27 は範囲の中
+  const empty = DL.weekSummary({}, '2026-10-26', T, {});
+  assert.equal(empty.any, false); assert.equal(empty.got.any, false);
+  assert.equal(DL.weekSummary(null, '2026-10-26', T, null).sum.sessions, 0);
+});

@@ -47,7 +47,7 @@
   function save() { S.save(state); }
   // PR の関数は新しい state を返すので、呼んだ後は必ず付け直す（古いプロフィールに書かないため）
   function rebind() { dev = state.device; data = PR.currentProfile(state); }
-  function useProfile(id) { state = PR.selectProfile(state, id); rebind(); relockAsk = ''; save(); }
+  function useProfile(id) { state = PR.selectProfile(state, id); rebind(); relockAsk = ''; dlWeek = ''; dlOpen = ''; save(); }
 
   // ---- ふりがな（design-elementary 3.7）。S1 以降の子ども向け画面（出動えらび・現場・ごほうび・昇格）だけ。S0 は全部ひらがな ----
   function esc(t) { return String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
@@ -207,7 +207,7 @@
     if (name === 'title') { updateBadges(); drawTitle(); kick(); }
     if (name === 'pick') { updateBadges(); updatePick(); later(300, function () { say(LN.FIXED.pick); }); }
     if (name === 'garage') buildGarage();
-    if (name === 'parent') fillParent();
+    if (name === 'parent') { dlWeek = ''; dlOpen = ''; fillParent(); }
     if (name === 'play' && stage) { stage.resize(); stage.draw(now()); }
     if (name === 'reward') startRewardAnim();
     if (name === 'promote') startPromoteAnim();
@@ -1283,8 +1283,90 @@
     $('p-restored').hidden = !restoredShown;
     $('p-storage-note').hidden = S.isPersistent();
     clearStep = 0; $('p-clear').textContent = 'ぜんぶの こどもの きろくを けす'; $('p-clear-note').textContent = '';
+    fillDays();
     updateBadges(); fillKids(); fillTraceTable();
   }
+  // ---- 保護者画面: まいにちの きろく（docs/design-daily-log.md 8 章。今えらんでいる子だけ） ----
+  var dlWeek = '', dlOpen = '';   // 見ている週の月曜・内訳を開いている日。保護者画面を開いたとき・子を切り替えたとき今の週に戻す
+  var DL_NAME = { math: 'かず', letter: 'もじ', clock: 'とけい', english: 'えいご', trace: 'かく', solo: 'ひとりで かく' };
+  var DL_WD = ['にち', 'げつ', 'か', 'すい', 'もく', 'きん', 'ど'];
+  function dlMin(sec) { return 'やく ' + Math.max(1, Math.round(sec / 60)) + 'ふん'; }
+  function dlGameOfLevel(lv) { for (var i = 0; i < D.GAMES.length; i++) if (D.LEVELS[D.GAMES[i]].indexOf(lv) >= 0) return D.GAMES[i]; return ''; }
+  function dlLines(box, lines) { lines.forEach(function (t) { box.appendChild(el('div', '', t)); }); }
+  function dlDetail(row, w, today) {
+    var d = row.day, box = el('div', 'dl-detail'), lines = [];
+    ['math', 'letter', 'clock', 'english'].forEach(function (g) {
+      var x = d[g]; if (!x) return;
+      lines.push(DL_NAME[g] + '　' + x.sessions + 'かい（もんだい ' + x.questions + '・1かいめで せいかい ' + x.firstTry + '）');
+    });
+    ['trace', 'solo'].forEach(function (g) { var x = d[g]; if (x) lines.push(DL_NAME[g] + '　' + x.sessions + 'かい（' + x.chars + 'じ）'); });
+    if (d.wrote) lines.push('かいた じ：' + Array.from(d.wrote).join('・'));
+    var got = [];
+    if (d.up) ['math', 'letter', 'clock', 'english'].forEach(function (g) { if (d.up[g]) got.push(DL_NAME[g] + ' ' + d.up[g] + ' まで'); });
+    w.got.gates.forEach(function (x) { if (x.date === row.key) got.push((DL_NAME[dlGameOfLevel(x.level)] || '') + ' ' + x.level + ' の かんもん'); });
+    w.got.stages.forEach(function (x) { if (x.date === row.key) { var i = D.stageIndex(x.stage); got.push('ステージ ' + (i >= 0 ? D.STAGES[i].rank : x.stage) + ' が ひらいた'); } });
+    if (d.newChars) got.push('はじめて かいた じ ' + Array.from(d.newChars).join('・'));
+    if (d.newSolo) got.push('ひとりで かけた じ ' + Array.from(d.newSolo).join('・'));
+    (d.license || []).forEach(function (x) { got.push(SET_LABEL_PARENT[x] + 'の めんきょ'); });
+    if (got.length) lines.push('できるように なったこと：' + got.join('・'));
+    if (d.cards) {
+      var names = (d.newCars || []).map(function (id) { var c = carById(id); return c ? c.name : ''; }).filter(Boolean);
+      lines.push('ごほうび ' + d.cards + 'まい' + (names.length ? '（あたらしい のりもの：' + names.join('・') + '）' : ''));
+    }
+    if (d.sec) lines.push('あそんだ じかん：' + dlMin(d.sec));
+    dlLines(box, lines);
+    return box;
+  }
+  function fillDays() {
+    var today = todayStr();
+    if (!dlWeek) dlWeek = DL.weekStart(today);
+    var w = DL.weekSummary(data.days, dlWeek, today, data);
+    $('dl-range').textContent = mdOf(w.start) + '〜' + mdOf(w.end);
+    $('dl-prev').disabled = !w.hasPrev; $('dl-next').disabled = !w.hasNext;
+    $('dl-sum').textContent = w.any && (w.sum.sessions || w.sum.sec)
+      ? 'この しゅうは しゅつどう ' + w.sum.sessions + 'かい・' + (w.sum.sec ? dlMin(w.sum.sec) + '・' : '') + 'あそんだ ひ ' + w.sum.playedDays + 'にち'
+      : 'この しゅうは まだ きろくが ありません';
+    var scale = 4;
+    w.rows.forEach(function (r) { if (r.total > scale) scale = r.total; });   // 目盛りは max(4, その週のいちばん多い日)。満タンの線は描かない
+    var rows = $('dl-rows'); rows.textContent = '';
+    w.rows.forEach(function (r) {
+      var tap = r.kind === 'day', row = el(tap ? 'button' : 'div', 'dl-row ' + r.kind + (tap && dlOpen === r.key ? ' open' : ''));
+      if (tap) { row.type = 'button'; row.setAttribute('data-key', r.key); row.setAttribute('aria-expanded', dlOpen === r.key ? 'true' : 'false'); }
+      var name = el('span', 'dl-day', DL_WD[DL.dayOfWeek(r.key)]);
+      name.appendChild(el('small', '', mdOf(r.key)));
+      if (r.key === today) name.appendChild(el('span', 'today', 'きょう'));
+      var bar = el('span', 'dl-bar');
+      if (r.kind === 'day') DL.GAMES.forEach(function (g) {
+        if (!r.byGame[g]) return;
+        var i = el('i', 'g-' + g); i.style.width = (r.byGame[g] / scale * 100) + '%'; bar.appendChild(i);
+      });
+      var val = el('span', 'dl-val');
+      if (r.kind === 'day') { val.textContent = r.total + 'かい'; if (r.sec) val.appendChild(el('small', '', dlMin(r.sec))); }
+      else if (r.kind === 'none') val.textContent = 'ー';
+      else if (r.kind === 'old') { bar.textContent = 'きろく なし'; bar.style.cssText = 'font-size:13px;align-items:center'; }
+      row.appendChild(name); row.appendChild(bar); row.appendChild(val);
+      rows.appendChild(row);
+      if (tap && dlOpen === r.key) rows.appendChild(dlDetail(r, w, today));
+    });
+    var lg = $('dl-legend'); lg.textContent = '';
+    DL.GAMES.forEach(function (g) { var s = el('span'); s.appendChild(el('i', 'g-' + g)); s.appendChild(doc.createTextNode(DL_NAME[g])); lg.appendChild(s); });
+    var gb = $('dl-got'); gb.textContent = '';
+    if (w.got.any) {
+      gb.appendChild(el('h4', '', 'この しゅうに できるように なったこと'));
+      var g = w.got, lines = [];
+      ['math', 'letter', 'clock', 'english'].forEach(function (k) { if (g.up[k]) lines.push(DL_NAME[k] + ' ' + g.up[k] + ' まで'); });
+      g.gates.forEach(function (x) { lines.push((DL_NAME[dlGameOfLevel(x.level)] || '') + ' ' + x.level + ' の かんもんを とおった'); });
+      g.stages.forEach(function (x) { var i = D.stageIndex(x.stage); lines.push('ステージ ' + (i >= 0 ? D.STAGES[i].rank : x.stage) + ' が ひらいた'); });
+      if (g.newChars) lines.push('はじめて かいた じ：' + Array.from(g.newChars).join('・'));
+      if (g.newSolo) lines.push('ひとりで かけた じ：' + Array.from(g.newSolo).join('・'));
+      g.license.forEach(function (x) { lines.push(SET_LABEL_PARENT[x] + 'の めんきょ'); });
+      if (g.newCars.length) lines.push('あたらしい のりもの：' + g.newCars.map(function (id) { var c = carById(id); return c ? c.name : ''; }).filter(Boolean).join('・'));
+      dlLines(gb, lines);
+    }
+    $('dl-note').textContent = 'この たんまつで あそんだ ぶん だけ です。35にちより まえの きろくは きえます。じかんは しゅつどうの がめんに いた じかんの めやすです。かいすうより、たのしく つづける ことを たいせつに して ください。';
+  }
+  function dlMove(n) { dlWeek = DL.addDays(dlWeek || DL.weekStart(todayStr()), 7 * n); dlOpen = ''; fillDays(); }
+
   // 保護者画面: ステージ（手動の解放・再ロック。design-elementary 3.6）
   var relockAsk = ''; // 「とじる」を 1 回押したステージの id（2 段階の確認）
   var GATE_LABEL = { math: 'かず', letter: 'もじ', clock: 'とけい' };
@@ -1491,6 +1573,13 @@
     });
     $('btn-pr-later').addEventListener('click', function () { sfx('tap'); promo = null; show('title'); });
     $('btn-g-back').addEventListener('click', function () { sfx('tap'); show('title'); });
+    $('dl-prev').addEventListener('click', function () { dlMove(-1); });
+    $('dl-next').addEventListener('click', function () { dlMove(1); });
+    $('dl-rows').addEventListener('click', function (e) {   // 行をタップ → その日の内訳（もう一度で閉じる）
+      var b = e.target.closest ? e.target.closest('button.dl-row') : null;
+      if (!b) return;
+      var k = b.getAttribute('data-key'); dlOpen = dlOpen === k ? '' : k; fillDays();
+    });
     $('btn-p-back').addEventListener('click', function () { kidEdit = null; relockAsk = ''; restoredShown = false; show('title'); });
     $('btn-who').addEventListener('click', function () { sfx('tap'); if (state.profiles.length > 1) show('who'); });
     $('p-kid-add').addEventListener('click', addKid);

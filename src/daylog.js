@@ -193,11 +193,59 @@
     return finish(next, today, today, d);
   }
 
+  // ---- 保護者画面の 1 週間（8.4） ----
+  function sessionsOf(day, g) { return day && isObj(day[g]) ? num(day[g].sessions, CAP.sessions) : 0; }
+  function unionStr(a, b) { var out = a; Array.from(b || '').forEach(function (c) { if (out.indexOf(c) < 0) out += c; }); return out; }
+  // start = 月曜の鍵、today = 今日。profile は cleared・promoted（日付つき）を読む。days は表示に使う値（自分の端末＋ほかの端末）
+  // → { start, end, rows: [{ key, kind: 'day'|'none'|'old'|'future', total, byGame, sec, day }], sum: { sessions, sec, playedDays, byGame }, got: {...}, any, hasPrev, hasNext }
+  function weekSummary(days, start, today, profile) {
+    days = isObj(days) ? days : {};
+    profile = isObj(profile) ? profile : {};
+    var keys = weekKeys(start), oldest = addDays(today, -(KEEP_DAYS - 1));
+    var sum = { sessions: 0, sec: 0, playedDays: 0, byGame: {} };
+    GAMES.forEach(function (g) { sum.byGame[g] = 0; });
+    var got = { up: {}, gates: [], stages: [], newChars: '', newSolo: '', license: [], newCars: [] };
+    var any = false;
+    var rows = keys.map(function (k) {
+      var day = has(days, k) ? days[k] : null, row = { key: k, kind: 'none', total: 0, byGame: {}, sec: 0, day: null };
+      GAMES.forEach(function (g) { row.byGame[g] = 0; });
+      if (k > today) { row.kind = 'future'; return row; }
+      if (k < oldest) { row.kind = 'old'; return row; }
+      if (!day) return row;
+      row.kind = 'day'; row.day = day; row.sec = num(day.sec, CAP.sec);
+      GAMES.forEach(function (g) { row.byGame[g] = sessionsOf(day, g); row.total += row.byGame[g]; sum.byGame[g] += row.byGame[g]; });
+      sum.sessions += row.total; sum.sec += row.sec;
+      if (row.total > 0) sum.playedDays++;
+      any = true;
+      if (isObj(day.up)) Q_GAMES.forEach(function (g) {
+        if (has(day.up, g) && (!has(got.up, g) || levelIdx(g, day.up[g]) > levelIdx(g, got.up[g]))) got.up[g] = day.up[g];
+      });
+      got.newChars = unionStr(got.newChars, day.newChars); got.newSolo = unionStr(got.newSolo, day.newSolo);
+      (day.license || []).forEach(function (x) { if (got.license.indexOf(x) < 0) got.license.push(x); });
+      (day.newCars || []).forEach(function (x) { if (got.newCars.indexOf(x) < 0) got.newCars.push(x); });
+      return row;
+    });
+    var inWeek = function (d) { return typeof d === 'string' && d >= start && d <= keys[6]; };
+    if (isObj(profile.cleared)) Object.keys(profile.cleared).forEach(function (lv) {
+      if (inWeek(profile.cleared[lv])) got.gates.push({ level: lv, date: profile.cleared[lv] });
+    });
+    if (isObj(profile.promoted)) Object.keys(profile.promoted).forEach(function (st) {
+      if (inWeek(profile.promoted[st])) got.stages.push({ stage: st, date: profile.promoted[st] });
+    });
+    got.gates.sort(function (a, b) { return a.date < b.date ? -1 : a.date > b.date ? 1 : (a.level < b.level ? -1 : 1); });
+    got.stages.sort(function (a, b) { return a.date < b.date ? -1 : a.date > b.date ? 1 : (a.stage < b.stage ? -1 : 1); });
+    got.any = Object.keys(got.up).length > 0 || got.gates.length > 0 || got.stages.length > 0 || got.newChars !== '' || got.newSolo !== '' || got.license.length > 0 || got.newCars.length > 0;
+    return {
+      start: start, end: keys[6], rows: rows, sum: sum, got: got, any: any || got.gates.length > 0 || got.stages.length > 0,
+      hasPrev: addDays(start, -1) >= oldest, hasNext: weekStart(today) > start
+    };
+  }
+
   var api = {
     KEEP_DAYS: KEEP_DAYS, MAX_KEYS: MAX_KEYS, SEC_CAP: SEC_CAP, GAMES: GAMES, KID_GAMES: KID_GAMES, CAP: CAP, LICENSES: LICENSES,
     isDayKey: isDayKey, addDays: addDays, dayOfWeek: dayOfWeek, weekStart: weekStart, weekKeys: weekKeys,
     normalizeDay: normalizeDay, normalizeDays: normalizeDays, prune: prune,
-    recordSession: recordSession, recordChar: recordChar, addTime: addTime
+    weekSummary: weekSummary, recordSession: recordSession, recordChar: recordChar, addTime: addTime
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else { root.Manabi = root.Manabi || {}; root.Manabi.daylog = api; }
