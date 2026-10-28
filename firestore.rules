@@ -166,9 +166,9 @@ service cloud.firestore {
 
         match /days/{did} {
           allow get, list: if isOwner(uid);   // 自分の子の日ごとの記録だけ。list は「date >= 35 日前」「date < 35 日前」の問い合わせに使う
-          // 親の ids に pid があるときだけ書ける（消した子・5 人目の子の記録は書けない）。読み取り 1 回分（get）の課金対象
+          // 親の ids に pid があるときだけ書ける（消した子・5 人目の子の記録は書けない）。読み取り 1 回分（getAfter）の課金対象
           allow create, update: if isOwner(uid) && isDay(request.resource.data, did)
-            && pid in get(/databases/$(database)/documents/families/$(uid)).data.ids;
+            && pid in getAfter(/databases/$(database)/documents/families/$(uid)).data.ids;
           allow delete: if isOwner(uid);
         }
       }

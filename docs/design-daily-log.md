@@ -431,9 +431,9 @@ families/{uid}/profiles/{pid}/days/{date}_{dev}
 
         match /days/{did} {
           allow get, list: if isOwner(uid);   // 自分の子の日ごとの記録だけ。list は「date >= 35 日前」「date < 35 日前」の問い合わせに使う
-          // 親の ids に pid があるときだけ書ける（消した子・5 人目の子の記録は書けない）。読み取り 1 回分（get）の課金対象
+          // 親の ids に pid があるときだけ書ける（消した子・5 人目の子の記録は書けない）。読み取り 1 回分（getAfter）の課金対象
           allow create, update: if isOwner(uid) && isDay(request.resource.data, did)
-            && pid in get(/databases/$(database)/documents/families/$(uid)).data.ids;
+            && pid in getAfter(/databases/$(database)/documents/families/$(uid)).data.ids;
           allow delete: if isOwner(uid);
         }
       }
@@ -443,7 +443,7 @@ families/{uid}/profiles/{pid}/days/{date}_{dev}
 - `collectionGroup('days')` の問い合わせが拒否されるのは、`days` の `match` が `families/{uid}/profiles/{pid}` の下に閉じていて `uid` が本人のときだけ許すことと、最後の `match /{document=**}` が `false` のため（今の `profiles` と同じ。試験 15c）。`list` は問い合わせの中身（`date` の条件）を縛らないが、本人の子の記録の中だけなので縛らなくてよい。
 - 実在する日付か（2 月 30 日）・遠い未来でないかは確かめない（端末の `normalizeDays` が捨てる。書けるのは本人だけで、古い文書は 10.5 で消える）。
 - `n` は「0 以上の数字だけの並び」で確かめる（今の `stats` と同じ方法。整数型かどうかまでは見ない。`docs/r4-firebase-setup.md` 4.3）。上限は「けた数」で決める（端末は 6.2 の上限で止める）。`firstTry ≤ questions` は確かめない（位置どうしの大小は式が増える。端末が守る）。
-- 式の数の見込みは 1 書き込み約 40（正規表現 1 回が数式ずつ。`isOwner` と `get` を含む）。DL-5 の試験で実測する。プロフィールの文書と**同じ batch に入れない**（batch 全体で式を数えるかは本番で未確認。`docs/r4-firebase-setup.md` 5.3）。
+- 式の数の見込みは 1 書き込み約 40（正規表現 1 回が数式ずつ。`isOwner` と `getAfter` を含む）。DL-5 の試験で実測した（約 170〜200。14 章）。親の `ids` の更新と同じ batch で書ける（`getAfter`。試験 15m）。プロフィールの文書と同じ batch に入れるかは、batch 全体で式を数えるかが本番で未確認なので、cloud.js は分けて書く（`docs/r4-firebase-setup.md` 5.3）。
 
 ### 10.5 端末とクラウドのまとめ方
 
@@ -481,7 +481,7 @@ families/{uid}/profiles/{pid}/days/{date}_{dev}
 ### 10.7 R4 の文書に足すもの（DL-5 で入れる。保護者向けの文面・ポリシーの**公開は承認事項**）
 
 **`docs/r4-firebase-setup.md`**
-- 4 章の文書の形に `families/{uid}/profiles/{pid}/days/{date}_{dev}` を足す（10.3 の形と大きさ）。4.2 に「プロフィールを消すときは `days` も消す」「`days` はプロフィールと同じ batch に入れない」。
+- 4 章の文書の形に `families/{uid}/profiles/{pid}/days/{date}_{dev}` を足す（10.3 の形と大きさ）。4.2 に「プロフィールを消すときは `days` も消す」「`days` は `getAfter` なので親の `ids` 更新と同じ batch で書ける（プロフィールとは batch を分ける）」。
 - 5.1 のルールの全文を 10.4 の形に直す。5.2 に「日ごとの記録は別の文書なので、プロフィールの式の数は変わらない（試験 13 で確かめ直す）」と、ルールが強くない点（実在する日付・`firstTry ≤ questions`・字の重なり・`newChars ⊆ wrote` は端末が守る）。
 - 5.3 の表に 10.8 の試験を足す。公開前の「ルール プレイグラウンド」の確認に、上限まで埋めた `days` の文書 1 つを足す。
 - 8 章の無料枠の表に、日ごとの記録の書き込み（出動ごとに 1）・ルールの読み取り（書き込みごとに 1）・保護者画面の読み取り（35 × 端末の数）・削除（1 日 1〜2）を足し、家族の数の見込みを約 300 に直す。
@@ -594,3 +594,4 @@ families/{uid}/profiles/{pid}/days/{date}_{dev}
 - **DL-3**: 内訳の「書いた字」は `かく`・`ひとりで かく` の行にではなく、別の 1 行「かいた じ：…」にした（書いた字は 2 つのゲームで共通のため）。週の見出しの左の「まえの しゅう」は 320 幅で `.dl-nav` を折り返して、期間を 1 行目にした。注意の文は、ログインの仕組みがまだ無いので「この たんまつで あそんだ ぶん だけ です」の方だけ（ログイン中の文は `cloud.js` と一緒に入れる）。`weekSummary` は設計の戻り値に `start`・`end`・`any`・`got.any` を足した。
 - **DL-4**: `kidToday` の `opts` に `cleared`（`profile.cleared`）を足した（王冠の 2 番目の決め手に必要）。`enOn` を渡さないときは「使える」として扱う。`all` は、えいごの声が使えないときは えいご を除いた 4 つが遊んだかで決める。スタンプは絵の右下ではなく**右上の角**、王冠は左上の角（右下だと名前の字に重なったため）。王冠・誘いの文は `lines.js` の `todayCrown`・`todayInvite`（ゲームごと）と `FIXED.todayAll`・`todayNone`。音声は 12 本（`list.js` では王冠・誘いの 10 本が `why: today`、あとの 2 本は `fixed`）を四国めたんで書き出した（作った音声 12 個・声のパックは 1,088 文・5.23 MB）。抑揚の直しは入れていない（`build.js` の確認表では「〜ね！」が要確認になっている。**耳で聞いての確認は未**）。
 - **DL-5**: `toCloudDay`・`fromCloudDay`・`sumDays` のほかに `foldOthers`（ほかの端末の文書を端末の番号の順に足し合わせる。何度読んでも同じ）と、ルールと同じ正規表現 `RE` を足した。`fromCloudDay` は `{ date, dev, day }`（形が違えば `null`、中身が空なら `day: null`）を返す。画面の `viewDays()` は `sumDays(data.days, data.daysOther)` を通す（`daysOther` が空なら今までと同じ）。ルールの式の数は、`isDay` を足す方法の試験 15l で実測し、**1 文書で約 170〜200 式（5 回まで通り 6 回で上限）**だった（見込みの約 40 よりかなり多いが、上限 1,000 に対して余裕は約 4〜5 倍。プロフィールの式の数は変わらず、試験 13・13b・15j が通る）。エミュレーターの試験は 46 → 58 件。
+- **レビュー後の直し**: 日ごとの記録のルールの親の確認を `get()` から `getAfter()` に揃えた（親の `ids` 更新と同じ batch で書ける。試験 15m を足し、エミュレーターの試験は 59 件）。分の表示は MIN_KANA に揃えた（1・3・4・6・8・10 は「ぷん」）。タイトルの列から開いた「きょうの しゅつどう」のボタンは「もどる」。

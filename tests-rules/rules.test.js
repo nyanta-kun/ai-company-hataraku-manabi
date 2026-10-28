@@ -625,3 +625,17 @@ test('15l 1 文書を上限まで埋めたときの式の数: isDay をもう 1 
   console.log('# 15l: isDay を ' + ok + ' 回まで足しても通る（1 回 + ' + (ok - 1) + ' 回分の余裕 → 1 文書の式の数は 1,000 の約 1/' + ok + '）');
   assert.ok(ok >= 3, 'isDay を 3 回足しても通ること（余裕が 3 倍以上）: ' + ok);
 });
+
+test('15m 親の ids 更新と days を同じ batch で書く（getAfter）: 許可。ids に無い子の days を含む batch は拒否', async () => {
+  const a = google('A'), d = dayDoc(sampleDay()), e = dayDoc(sampleDay(), '2026-10-27', DEV_B);
+  const b = writeBatch(a);
+  b.set(famRef(a, 'A'), { v: 1, ids: [PID], deleted: {}, updatedAt: serverTimestamp() });
+  b.set(dayRef(a, 'A', PID, didOf(d)), d); b.set(dayRef(a, 'A', PID, didOf(e)), e);
+  await assertSucceeds(b.commit());
+  const l = await getDocs(collection(a, 'families', 'A', 'profiles', PID, 'days'));
+  assert.equal(l.size, 2);
+  const c = writeBatch(a);   // ids から外す更新と同じ batch の days は拒否
+  c.set(famRef(a, 'A'), { v: 1, ids: [], deleted: {}, updatedAt: serverTimestamp() });
+  c.set(dayRef(a, 'A', PID, didOf(d)), d);
+  await assertFails(c.commit());
+});

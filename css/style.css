@@ -258,7 +258,7 @@ div.dl-row.none, div.dl-row.old, div.dl-row.future { color: #9a8f7c; }
 .tcell img.stamp.pop { animation: stampPop .45s ease-out; }
 .tcell canvas.crown { position: absolute; left: -6px; top: -24px; width: clamp(38px, 9vmin, 60px); height: clamp(30px, 7vmin, 48px); rotate: -14deg; }
 .tcell canvas.crown.pop { animation: stampPop .5s ease-out; }
-#today-msg { text-wrap: balance; font-size: clamp(18px, 4.2vmin, 28px); font-weight: bold; margin: 8px auto 16px; max-width: 520px; line-height: 1.5; min-height: 3em; }
+#today-msg { text-wrap: balance; word-break: keep-all; font-size: clamp(18px, 4.2vmin, 28px); font-weight: bold; margin: 8px auto 16px; max-width: 520px; line-height: 1.5; min-height: 3em; }
 .today-box .big.end { margin: 0 auto; min-height: 96px; }
 @media (orientation: landscape) { #today-row { grid-template-columns: repeat(5, minmax(0, 1fr)); max-width: 760px; } .today-box h2 { margin-bottom: 26px; } }
 @media (orientation: landscape) and (max-height: 520px) { .today-box h2 { font-size: 24px; margin-bottom: 20px; } #today-msg { margin: 4px auto 6px; min-height: 0; font-size: 18px; } .today-box .big.end { min-height: 64px; flex-direction: row; } .today-box .big.end canvas { width: 44px; height: 44px; } .tcell canvas.ico { width: 56px; height: 56px; } }

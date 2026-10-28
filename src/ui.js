@@ -1322,7 +1322,12 @@
     s.hidden = k.none;
     if (!k.none) buildTodayCells(s, k, true);
   }
+  var todayFromStrip = false;   // タイトルの列から開いたときは「もどる」、おしまい の後は「おしまい」
   function startToday() {
+    var fromStrip = todayFromStrip; todayFromStrip = false;
+    var ok = $('btn-today-ok'), lab = ok.querySelector('span');
+    lab.textContent = fromStrip ? 'もどる' : 'おしまい'; ok.setAttribute('aria-label', lab.textContent);
+    ok.querySelector('canvas').setAttribute('data-icon', fromStrip ? 'back' : 'station'); drawIcon(ok.querySelector('canvas'), fromStrip ? 'back' : 'station');
     var k = kidNow(), cells = buildTodayCells($('today-row'), k, false), calm = reducedMotion();
     var crownLine = k.crown ? LN.todayCrown(k.crown) : '', msg = $('today-msg'), items = [];
     var names = {}; TODAY_GAMES.forEach(function (g) { names[g[0]] = g[2]; });
@@ -1357,7 +1362,11 @@
   var dlWeek = '', dlOpen = '';   // 見ている週の月曜・内訳を開いている日。保護者画面を開いたとき・子を切り替えたとき今の週に戻す
   var DL_NAME = { math: 'かず', letter: 'もじ', clock: 'とけい', english: 'えいご', trace: 'かく', solo: 'ひとりで かく' };
   var DL_WD = ['にち', 'げつ', 'か', 'すい', 'もく', 'きん', 'ど'];
-  function dlMin(sec) { return 'やく ' + Math.max(1, Math.round(sec / 60)) + 'ふん'; }
+  // 分の読みは MIN_KANA に揃える（1・3・4・6・8・10 は「ぷん」、2・5・7・9 は「ふん」。60 以上は下 1 けたで決める）
+  function dlMin(sec) {
+    var m = Math.max(1, Math.round(sec / 60)), pun = m <= 59 ? /ぷん$/.test(D.MIN_KANA[m]) : [0, 1, 3, 4, 6, 8].indexOf(m % 10) >= 0;
+    return 'やく ' + m + (pun ? 'ぷん' : 'ふん');
+  }
   function dlGameOfLevel(lv) { for (var i = 0; i < D.GAMES.length; i++) if (D.LEVELS[D.GAMES[i]].indexOf(lv) >= 0) return D.GAMES[i]; return ''; }
   function dlLines(box, lines) { lines.forEach(function (t) { box.appendChild(el('div', '', t)); }); }
   function dlDetail(row, w, today) {
@@ -1640,7 +1649,7 @@
     });
     $('btn-pr-later').addEventListener('click', function () { sfx('tap'); var nx = promo && promo.next || 'title'; promo = null; show(nx); });
     $('btn-today-ok').addEventListener('click', function () { sfx('tap'); show('title'); });
-    $('today-strip').addEventListener('click', function () { sfx('tap'); show('today'); });
+    $('today-strip').addEventListener('click', function () { sfx('tap'); todayFromStrip = true; show('today'); });
     $('btn-g-back').addEventListener('click', function () { sfx('tap'); show('title'); });
     $('dl-prev').addEventListener('click', function () { dlMove(-1); });
     $('dl-next').addEventListener('click', function () { dlMove(1); });

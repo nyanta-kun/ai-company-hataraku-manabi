@@ -194,7 +194,7 @@ families/{uid}/profiles/{id}      プロフィール 1 人 1 文書。端末内�
 - **「4 人まで」の強制**: ルールは `profiles` の文書の数を数えられないが、プロフィールの作成・更新を「親の `ids` にその id があるときだけ」に絞っている（`getAfter`）。親の `ids` は 4 件までなので、5 人目は書けない。**書き込みごとに読み取り 1 回の課金対象**（家族の利用なら無料枠の中。8 章）。
 - **cloud.js の約束（書く順番）**: ①**親を先に書く**（新しい子の id を `ids` に入れる）。②そのあとでプロフィールを書く。最初の保存（親がまだ無いとき）も同じ順番。親が無い・`ids` に無い id のプロフィールの書き込みは拒否される。同じ batch／トランザクションで親と子を一緒に書くのも通る（`getAfter` は同じ書き込みの後の状態を見る）。子を消すときは、親の `ids` から外す書き込みと子の削除を順番を問わず行える（削除はルールが `ids` を見ない）。
 - **ids から外した子の文書は、cloud.js が必ず消す（強調）**: ルールは、`ids` に入っている id のプロフィールだけを書けるようにしている。ただし `ids` の中身は何度でも入れ替えられるので、入れ替えるたびに古い子の文書が残ると、4 件より多くの文書を作れてしまう（本人の領域の中だけで、他人には見えず、無料枠の中。リスクとして受け入れる。7 章）。そこで **cloud.js は、プロフィールを `ids` から外す（消す・入れ替える）ときは、その子の文書を同じ batch で消す**。起動時の `list` で `ids` にない子の文書を見つけたら、消す。
-- **日ごとの記録（4.4）**: プロフィールを消す・`ids` から外すときは、その子の `days` も消す（Firestore はプロフィールの文書を消しても下の文書を消さない。途中で通信が切れたら、次の同期で `ids` に無い子の `days` も消す）。`days` はプロフィールと同じ batch に入れない（ルールが `get()` を使うため）。
+- **日ごとの記録（4.4）**: プロフィールを消す・`ids` から外すときは、その子の `days` も消す（Firestore はプロフィールの文書を消しても下の文書を消さない。途中で通信が切れたら、次の同期で `ids` に無い子の `days` も消す）。`days` は親の `ids` の更新と同じ batch で書ける（ルールが `getAfter()` を使うため。試験 15m）。プロフィールとは、batch 全体の式の数が本番で未確認なので分けて書く。
 - **アカウントの削除**: 親と、`profiles` の下の各文書（各プロフィールの `days` を先に）を、それぞれ消す（クライアントが `ids` と `list` で集めて消す）。（`docs/r4-data-and-privacy.md` の手順 3 と `docs/design-elementary.md` 7 章は、この形に合わせてある。）
 
 ### 4.3 回数の型の検査について（試験で分かったこと）
@@ -217,7 +217,7 @@ families/{uid}/profiles/{pid}/days/{date}_{dev}      date = 'YYYY-MM-DD'、dev =
 
 - 項目は 11 個でいつも全部ある（遊ばなかったゲームは 0・空の文字列）。1 文書 約 0.2〜0.5 KB。端末の形（2.3）との行き来は `src/daylog.js` の `toCloudDay`・`fromCloudDay`、足し合わせは `sumDays`・`foldOthers`（回数は足す・`up` は高い方・字と乗り物は和集合）。
 - 保存しないもの: 何時に遊んだか・1 問ごとの答え。35 日より古い文書は**アプリが消す**（TTL ポリシーは使わない）。
-- `allow get, list`・`delete` は本人だけ。`create, update` は本人で、形（`isDay`）に合い、**親の `ids` にその子がある**ときだけ（`get()` を使うので、プロフィールと同じ batch には入れない）。
+- `allow get, list`・`delete` は本人だけ。`create, update` は本人で、形（`isDay`）に合い、**親の `ids` にその子がある**ときだけ（`getAfter()`。親の `ids` 更新と同じ batch で書ける）。
 - ルールが確かめないこと（端末が守る）: 実在する日付（2 月 30 日）・遠い未来でないか・`firstTry ≤ questions`・字の重なり・`newChars ⊆ wrote`・`n` が整数型か（0 以上の数字だけの並びで確かめる。4.3 と同じ）。
 
 ---
@@ -397,9 +397,9 @@ service cloud.firestore {
 
         match /days/{did} {
           allow get, list: if isOwner(uid);   // 自分の子の日ごとの記録だけ。list は「date >= 35 日前」「date < 35 日前」の問い合わせに使う
-          // 親の ids に pid があるときだけ書ける（消した子・5 人目の子の記録は書けない）。読み取り 1 回分（get）の課金対象
+          // 親の ids に pid があるときだけ書ける（消した子・5 人目の子の記録は書けない）。読み取り 1 回分（getAfter）の課金対象
           allow create, update: if isOwner(uid) && isDay(request.resource.data, did)
-            && pid in get(/databases/$(database)/documents/families/$(uid)).data.ids;
+            && pid in getAfter(/databases/$(database)/documents/families/$(uid)).data.ids;
           allow delete: if isOwner(uid);
         }
       }
@@ -435,7 +435,7 @@ firebase emulators:exec --only firestore --project demo-hataraku "npm --prefix t
 ```
 
 - `firebase.json` はエミュレーターの Firestore だけを設定している（デプロイ先の設定は入れていない）。初回はエミュレーターの jar がダウンロードされる（無料）。
-- 試験は `tests-rules/rules.test.js`（58 件。2026-10-29 に全部通った。うち 46 件は 2026-10-26 から、日ごとの記録の 15〜15l の 12 件を足した）。既存の `bash scripts/test.sh` と CI には含まれない（別の `package.json`）。ルールを直したときと、`src/storage.js` の形・`src/strokes.js` の字を変えたときに回す。
+- 試験は `tests-rules/rules.test.js`（59 件。2026-10-29 に全部通った。うち 46 件は 2026-10-26 から、日ごとの記録の 15〜15m の 13 件を足した）。既存の `bash scripts/test.sh` と CI には含まれない（別の `package.json`）。ルールを直したときと、`src/storage.js` の形・`src/strokes.js` の字を変えたときに回す。
 - 端末の実際のプロフィール（`src/storage.js` の `normalize` が作る S0・S1・S2、「かく」の記録あり、v1 からの移行、壊れた入力を直した後）をクラウドの形に直したものが**拒否されない**ことも、同じ試験で確かめている（正しいデータの拒否が最も困るため）。
 
 | # | 操作 | 期待 | 試験 |
@@ -462,7 +462,9 @@ firebase emulators:exec --only firestore --project demo-hataraku "npm --prefix t
 | 15g・15h | `n` の個数・負・小数・けた。`up`・`license`・`newCars`・`wrote`・`last` の形 | 拒否 | 15g・15h |
 | 15i | uid A で自分の `days` を消す | 許可 | 15i |
 | 15j | 2 人 × 35 日 × 2 台の `days` の後で、試験 13 と同じ書き込み | 許可（プロフィールの式の数が変わらない） | 15j |
-| 15k・15l | `dayCarPattern` が `isCards`・端末の `CAR_IDS` と一致。1 文書を上限まで埋めたときの式の数 | 一致・余裕を記録 | 15k・15l |
+| 15m | 親の `ids` 更新と `days` を同じ batch で書く（`getAfter`）。`ids` に無い子の `days` を含む batch は拒否 | 許可・拒否 | 15m |
+| 15k・15l | `dayCarPattern` が `isCards`・端末の `CAR_IDS` と一致。1 文書を上限まで埋めたときの式の数 | 一致・余裕を記録 | 15m | 親の `ids` 更新と `days` を同じ batch で書く（`getAfter`）。`ids` に無い子の `days` を含む batch は拒否 | 許可・拒否 | 15m |
+| 15k・15l |
 
 **公開前の手順（本番で batch を試す）**: 本番が batch 全体で式の数を数えるかは未確認。公開の前に、テスト用の Google アカウント（実在の家族のものではない）で、親の文書と上限まで埋めた 4 人（試験 13b と同じ）を 1 つの batch で書き、通ることを確かめて、すぐ消す。拒否されたら、cloud.js は親→子を別々の書き込みにする（4.2 の順番で、`getAfter` は前の書き込みを見るので通る）。
 
