@@ -101,6 +101,8 @@
     btn('もじの ひょう', function () { ui.previewMoji(); });
     btn('おうちのひと', function () { ui.show('parent'); });
     btn('こども+', function () { ui.addDummyProfile(); });
+    btn('きろく: 35にちの みほん', function () { log('みほん ' + ui.debugDaysSample() + ' にち'); });   // 今の子の days をつくり直して保存（確認用の端末だけ）
+    btn('きろく: きょうの days', function () { log('days ' + ui.debugDays()); });
     btn('だれ', function () { ui.show('who'); });
     btn('タイトル', function () { ui.show('title'); });
     btn('えいちらん', togglePicGrid);

@@ -2,7 +2,7 @@
 (function (root) {
   'use strict';
   var M = root.Manabi, D = M.data, P = M.problems, R = M.rewards, S = M.storage, PR = M.profiles, LD = M.ladder;
-  var LN = M.lines, A = M.audio, SP = M.speech, V = M.vehicles, SC = M.scenes, CF = M.clockface, TR = M.trace, STR = M.strokes, FW = M.freewrite;
+  var LN = M.lines, DL = M.daylog, A = M.audio, SP = M.speech, V = M.vehicles, SC = M.scenes, CF = M.clockface, TR = M.trace, STR = M.strokes, FW = M.freewrite;
   var doc = root.document;
 
   function $(id) { return doc.getElementById(id); }
@@ -28,6 +28,18 @@
   var debugMode = false;
 
   // 現場ごとに出動する車の stage（scenes.js の drawKaji=8, drawTakai=10, drawMichi=4）
+  // ---- 日ごとの記録（docs/design-daily-log.md 4・5 章）。記録は data.days に足して今と同じ save() で保存する ----
+  var tm = null;   // 出動の画面にいた時間の計測 { t0, hid（隠れていた秒）, hiddenAt }。performance.now() の秒（端末の時計を合わせ直しても飛ばない）
+  function timeStart() { tm = { t0: now(), hid: 0, hiddenAt: null }; }
+  function timeTake() {   // 終えた・やめたときに 1 回だけ呼ぶ → 秒（隠れていた間を引く。1 回の上限は DL.addTime が決める）
+    if (!tm) return 0;
+    var t = now(), hid = tm.hid + (tm.hiddenAt === null ? 0 : t - tm.hiddenAt), sec = t - tm.t0 - hid;
+    tm = null;
+    return sec > 0 ? sec : 0;
+  }
+  function logTime() { var sec = timeTake(); if (sec > 0) data.days = DL.addTime(data.days, todayStr(), sec); }
+  function logChar(game, ch, firstDone, firstSolo) { data.days = DL.recordChar(data.days, todayStr(), { game: game, ch: ch, firstDone: firstDone, firstSolo: firstSolo }); }
+
   var DISPATCH_STAGE = { kaji: 8, takai: 10, michi: 4 };
 
   function later(ms, fn) { var id = root.setTimeout(function () { fn(); }, ms); timers.push(id); return id; }
@@ -311,6 +323,7 @@
     var pl = LD.playLevel(data, game), level = pl.level;   // 下のステージで遊ぶとき（復習）は進み具合を変えない
     var qs = P.generateSession(game, level, Math.random, game === 'letter' ? seenLetter() : undefined);
     if (game === 'letter' && !P.LETTER[level].form) rememberLetter(qs);   // K7・K8 の絵は「直近の絵」に入れない（K1〜K6 の出方を変えない）
+    timeStart();
     run = {
       game: game, level: level, review: pl.review, scene: opts.scene || pickScene(), qs: qs,
       idx: 0, firstTry: 0, wrong: 0, off: [], busy: true, token: token
@@ -535,6 +548,7 @@
   // なぞり・ひとりで かく の出動の始まり（solo: 線なしで書く）
   function launchTrace(plan, names, opts, solo) {
     clearTimers(); token++; run = null;
+    timeStart();
     var chars = plan.map(function (o) { return o.ch; });
     trun = { chars: chars, plan: plan, names: names, idx: 0, scene: opts.scene || pickScene(), token: token, helpSaid: false, wrote: [], pid: data.id, solo: !!solo, told: false, nazori: false, phase: 'write', auto: opts.auto || '' };
     if (!tboard) tboard = new M.TraceBoard($('trace-board'), {
@@ -578,6 +592,7 @@
     if (!trun) return;
     var ch = info.ch;
     trun.wrote.push(ch);
+    logChar(trun.solo ? 'solo' : 'trace', ch, !(data.trace.done[ch] > 0), false);   // recordTraceChar の前に「初めて」を見る
     data.trace = TR.recordTraceChar(data.trace, ch, info);   // 途中でやめても、書けた字は数える。maxM >= 2 なら たすけの回数も足す
     data.stats.trace.chars++; if (info.clean) data.stats.trace.clean++;
     save();
@@ -689,6 +704,7 @@
     if (j.result === 'ok') {
       trun.wrote.push(ch);
       var setId = setOfChar(ch), had = FW.soloLicense(data.trace, setId);
+      logChar('solo', ch, !(data.trace.done[ch] > 0), !(data.trace.solo[ch] > 0));   // recordSolo の前に「初めて」を見る
       data.trace = FW.recordSolo(data.trace, ch);   // done と solo をどちらも +1
       if (!had && FW.soloLicense(data.trace, setId)) trun.license = setId;   // 集合を全部ひとりで書けた: めんきょ（ごほうびのあとに知らせる。ステージは変わらない）
       data.stats.trace.chars++; data.stats.trace.clean++;
@@ -733,6 +749,8 @@
     st.sessions++; st.trace.sessions++;
     var r = grantReward(trun.scene, stageIdx(), 'trace');   // 階段（afterSession）は呼ばない。かく の棚は うみ
     data.lastPlayed = todayStr();
+    data.days = DL.recordSession(data.days, todayStr(), { game: trun.solo ? 'solo' : 'trace', reward: r, license: trun.license || '' });
+    logTime();
     save();
     reward = { r: r, t0: 0, game: 'trace', played: 'trace', solo: !!trun.solo, license: trun.license || '', wrote: trun.wrote.slice(), firstNew: (trun.plan.filter(function (o) { return o.why === 'new'; })[0] || {}).ch || '' };
     rememberTrace();
@@ -743,6 +761,7 @@
   function rememberTrace() { if (trun && trun.wrote.length) (trun.solo ? prevSolo : prevTrace)[trun.pid] = trun.wrote.slice(); }
   function quitTrace() {
     rememberTrace();
+    logTime(); save();
     clearTimers(); token++; trun = null; if (tboard) tboard.stop(); SP.cancel();
     show('title');
   }
@@ -760,10 +779,14 @@
     var game = run.game, st = data.stats;
     st.sessions++; st[game].sessions++;
     st[game].questions += P.QUESTIONS_PER_SESSION; st[game].firstTry += run.firstTry;
+    var lvBefore = data.levels[game];
     var res = LD.afterSession(data, game, run.level, run.firstTry, run.review, todayStr());
     replaceData(res.profile);
     var r = grantReward(run.scene, D.stageIndex(D.stageOf(run.level)), game);
     data.lastPlayed = todayStr();
+    var lvs = D.LEVELS[game];   // 自動で上がったときだけ記録する（下がったことは記録しない）
+    data.days = DL.recordSession(data.days, todayStr(), { game: game, questions: P.QUESTIONS_PER_SESSION, firstTry: run.firstTry, up: lvs.indexOf(data.levels[game]) > lvs.indexOf(lvBefore) ? data.levels[game] : '', reward: r });
+    logTime();
     save();
     reward = { r: r, t0: 0, played: game, promo: res.promotedTo };   // 昇格したら、ごほうびの次に しょうかく の画面を出す
     run = null;
@@ -771,6 +794,7 @@
   }
 
   function quitSession() {
+    logTime(); save();
     clearTimers(); token++; run = null; SP.cancel();
     show('title');
   }
@@ -1415,7 +1439,13 @@
       if (tboard.replay()) { var ti = traceInfoAt(trun.idx); say(tracePrompt(trun.chars[trun.idx], ti), { alt: LN.tracePromptAlt(trun.chars[trun.idx], ti) }); }   // 手本の書き足し中は効かない
       kick();
     });
-    doc.addEventListener('visibilitychange', function () { if (doc.hidden && tboard && tboard.active) tboard.cancelActive(); });   // 画面が隠れたら書きかけの線を捨てる
+    doc.addEventListener('visibilitychange', function () {
+      if (tm) {   // 隠れていた間は出動の時間に数えない
+        if (doc.hidden) { if (tm.hiddenAt === null) tm.hiddenAt = now(); }
+        else if (tm.hiddenAt !== null) { tm.hid += now() - tm.hiddenAt; tm.hiddenAt = null; }
+      }
+      if (doc.hidden && tboard && tboard.active) tboard.cancelActive();
+    });   // 画面が隠れたら書きかけの線を捨てる
     // 「かく」の間だけ: iOS の 2 本指の拡大・スクロールを止める（design-tracing 4.4）
     ['gesturestart', 'gesturechange', 'gestureend'].forEach(function (n) { doc.addEventListener(n, function (e) { if (screen === 'trace') e.preventDefault(); }, { passive: false }); });
     $('s-trace').addEventListener('touchmove', function (e) { e.preventDefault(); }, { passive: false });
@@ -1538,6 +1568,39 @@
       show('garage');
     },
     current: function () { return run ? run.qs[run.idx] : null; },
+    // 確認用: 日ごとの記録（今の子の days）。見本は 35 日分をつくり直す（保存する。確認用の端末だけで使う）
+    debugDays: function () { return JSON.stringify(data.days || {}); },
+    debugDaysSample: function () {
+      var today = todayStr(), seed = 7, rnd = function () { seed = (seed * 1103515245 + 12345) % 2147483648; return seed / 2147483648; };
+      var days = {}, chars = Array.from(STR.SETS.hira), ci = 0;
+      for (var i = 34; i >= 0; i--) {
+        var day = DL.addDays(today, -i), wd = DL.dayOfWeek(day);
+        var play = i === 0 || rnd() < (wd === 0 || wd === 6 ? 0.8 : 0.6);   // 今日は必ず遊んだ日にする
+        if (!play) continue;
+        var kinds = [];
+        DL.GAMES.forEach(function (g) { if (rnd() < 0.45) kinds.push(g); });
+        if (i === 0 && !kinds.length) kinds.push('math');
+        kinds.forEach(function (g) {
+          var n = 1 + Math.floor(rnd() * 3);
+          for (var k = 0; k < n; k++) {
+            if (g === 'trace' || g === 'solo') {
+              for (var c = 0; c < 4; c++) { var ch = chars[ci++ % chars.length]; days = DL.recordChar(days, day, { game: g, ch: ch, firstDone: ci <= chars.length, firstSolo: g === 'solo' && ci <= chars.length }); }
+              days = DL.recordSession(days, day, { game: g, reward: { id: 'bus', isNew: false }, license: g === 'solo' && ci === 46 ? 'hira' : '' });
+            } else {
+              var lv = D.LEVELS[g];
+              days = DL.recordSession(days, day, { game: g, questions: 4, firstTry: 2 + Math.floor(rnd() * 3), up: rnd() < 0.15 ? lv[Math.min(lv.length - 1, 1 + Math.floor(i / 8))] : '', reward: rnd() < 0.5 ? { id: 'taxi', isNew: rnd() < 0.3 } : { sticker: true } });
+            }
+            days = DL.addTime(days, day, 90 + Math.floor(rnd() * 150));
+          }
+        });
+      }
+      data.days = days;
+      var gate = D.gateLevels()[0];
+      if (gate && !data.cleared[gate]) data.cleared[gate] = DL.addDays(today, -2);   // 「できるように なったこと」の見本
+      save();
+      if (screen === 'parent') fillParent();
+      return Object.keys(days).length;
+    },
     debugProgress: function (n) { if (stage) { stage.setProgress(n); updateLamps(n); stage.draw(now()); } },
     refresh: function () { updateVoiceMark(); if (screen === 'parent') fillParent(); }
   };
