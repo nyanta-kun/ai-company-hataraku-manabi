@@ -15,20 +15,21 @@ function sound(rate, lead, body, tail) {   // 頭・おしりに無音がある�
 }
 function setup(o) {
   o = o || {};
-  const timers = [], loads = [], fetched = [], starts = [], ctx = {
+  const timers = [], loads = [], fetched = [], starts = [], held = [], ctx = {
+    decodes: 0,
     state: 'running', currentTime: 10, destination: {}, sources: [],
     createGain() { return { gain: { value: 1 }, connect() {} }; },
     createBufferSource() { const s = { connect() {}, start: (t, off, dur) => { s.args = [t, off, dur]; starts.push(s); }, stop() { s.stopped = true; } }; ctx.sources.push(s); return s; },
-    decodeAudioData(ab, ok, ng) { if (o.badDecode) return ng(new Error('bad')); ok({ sampleRate: 24000, getChannelData: () => sound(24000, 2400, 12000, 2400) }); }
+    decodeAudioData(ab, ok, ng) { this.decodes++; if (o.badDecode) return ng(new Error('bad')); ok({ sampleRate: 24000, getChannelData: () => sound(24000, 2400, 12000, 2400) }); }
   };
   const env = {
     context: () => (o.noCtx ? null : ctx), protocol: o.protocol || 'https:', setTimeout: (f, ms) => { timers.push({ f, ms }); },
-    fetch: (u) => { fetched.push(u); return o.hang ? new Promise(() => {}) : (o.fail ? Promise.reject(new Error('net')) : Promise.resolve({ ok: true, arrayBuffer: () => Promise.resolve(new ArrayBuffer(8)) })); },
-    loadScript: (src, cb) => { loads.push(src); setImmediate(() => { if (!o.noPack) vp.register(PACK); cb(!o.noPack); }); },
+    fetch: (u) => { fetched.push(u); return o.hang ? new Promise(r => held.push(() => r({ ok: true, arrayBuffer: () => Promise.resolve(new ArrayBuffer(8)) }))) : (o.fail ? Promise.reject(new Error('net')) : Promise.resolve({ ok: true, arrayBuffer: () => Promise.resolve(new ArrayBuffer(8)) })); },
+    loadScript: (src, cb) => { loads.push(src); setImmediate(() => { if (!o.noPack) (o.packs || [PACK]).forEach(pk => { if (src === 'voice/' + pk.id + '/index.js') vp.register(pk); }); cb(!o.noPack); }); },
     warm: () => []
   };
   const vp = V.create(env);
-  return { vp, ctx, timers, loads, fetched, starts };
+  return { vp, ctx, timers, loads, fetched, starts, o, held };
 }
 
 test('silenceRange: 頭とおしりの無音を測る（全部無音なら全体）', () => {
@@ -95,6 +96,11 @@ test('鳴らす: 0.8 秒で来なければ onerror(late)。あとで届いても
   late.f();
   assert.deepEqual(log, ['late']);
   assert.equal(t.starts.length, 0);
+  t.held.forEach(r => r());   // 本当にあとから届く
+  await flush(); await flush(); await flush();
+  assert.equal(t.starts.length, 0, 'あとで届いても鳴らさない');
+  assert.deepEqual(log, ['late']);
+  assert.equal(t.vp.state(), 'ready', 'late は失敗に数えない');
 });
 
 test('stop: 鳴っている音を止め、取り消したあとの late・end は来ない', async () => {
@@ -122,6 +128,62 @@ test('失敗が 3 回続いたらその起動の間は端末の声だけ。成�
   const u = setup({ badDecode: true }); u.vp.select('metan'); await flush();
   for (let i = 0; i < V.FAIL_MAX; i++) { u.vp.play(u.vp.plan('出動！'), {}); await flush(); await flush(); }
   assert.equal(u.vp.state(), 'failed');
+  // 成功すると数え直す: 2 回失敗 → 成功 → 2 回失敗でも まだ使える
+  const w = setup({ fail: true }); w.vp.select('metan'); await flush();
+  const go = async () => { w.vp.play(w.vp.plan('出動！'), {}); await flush(); await flush(); await flush(); };
+  await go(); await go(); assert.equal(w.vp.state(), 'ready');
+  w.o.fail = false; await go(); assert.equal(w.starts.length, 1);
+  w.o.fail = true; await go(); await go();   // 出動！は復号済みで成功する。別の文で失敗させる
+  const bad = () => { w.vp.play(w.vp.plan('おしい！もう一回。'), {}); return flush().then(flush).then(flush); };
+  await bad(); await bad(); assert.equal(w.vp.state(), 'ready', '成功のあと数え直したので 2 回では failed にならない');
+  await bad(); assert.equal(w.vp.state(), 'failed');
+});
+
+test('失敗は 1 回の読み込み（1 文・1 回の prefetch）ごとに数える。部品がいくつあっても 1 回', async () => {
+  const t = setup({ fail: true }); t.vp.select('metan'); await flush();
+  const two = V.resolve('くじごふん。', { 'くじ': ['ccc', 300], 'ごふん。': ['ddd', 500] });
+  for (let i = 0; i < 2; i++) { t.vp.play(two, {}); await flush(); await flush(); await flush(); }
+  assert.equal(t.vp.state(), 'ready', '2 部品 × 2 回でも 2 回と数える');
+  t.vp.prefetch(['出動！', 'おしい！もう一回。', 'くじ']); await flush(); await flush(); await flush();
+  assert.equal(t.vp.state(), 'failed', '3 つ目（prefetch 1 回で 3 ファイルが失敗）');
+});
+
+test('読み終えたとき AudioContext が止まっていても失敗に数えない', async () => {
+  const t = setup(); t.vp.select('metan'); await flush();
+  for (let i = 0; i < V.FAIL_MAX + 1; i++) {
+    const log = [];
+    t.ctx.state = 'running';
+    t.vp.play(t.vp.plan('出動！'), { onerror: w => log.push(w) });
+    t.ctx.state = 'suspended';
+    await flush(); await flush(); await flush();
+    assert.deepEqual(log, ['noctx']);
+  }
+  t.ctx.state = 'running';
+  assert.equal(t.vp.state(), 'ready'); assert.equal(t.vp.ready(), true);
+});
+
+test('声を切り替えても前の声の音が鳴らない（同じファイル名でも別の声は別に読む）', async () => {
+  const P2 = { id: 'zunda', label: 'ずんだ', credit: 'VOICEVOX:ずんだもん', ext: 'aac', clips: { '出動！': ['aaa', 700] } };
+  const t = setup({ packs: [PACK, P2] }); t.vp.select('metan'); await flush();
+  t.vp.prefetch(['出動！']); await flush(); await flush(); await flush();
+  assert.deepEqual(t.fetched, ['voice/metan/aaa.aac']);
+  t.vp.select('zunda'); await flush();
+  t.vp.play(t.vp.plan('出動！'), {}); await flush(); await flush(); await flush();
+  assert.deepEqual(t.fetched, ['voice/metan/aaa.aac', 'voice/zunda/aaa.aac']);
+  assert.equal(t.starts.length, 1);
+});
+
+test('DECODED_MAX: 復号済みは新しい順に DECODED_MAX 個まで。古いものは復号し直す', async () => {
+  const clips = {}, texts = [];
+  for (let i = 0; i < V.DECODED_MAX + 5; i++) { const k = '文' + i + '。'; clips[k] = ['f' + i, 500]; texts.push(k); }
+  const t = setup({ packs: [Object.assign({}, PACK, { clips })] }); t.vp.select('metan'); await flush();
+  t.vp.prefetch(texts); for (let i = 0; i < 6; i++) await flush();
+  assert.equal(t.ctx.decodes, V.DECODED_MAX + 5);
+  t.vp.prefetch([texts[V.DECODED_MAX + 4]]); await flush();
+  assert.equal(t.ctx.decodes, V.DECODED_MAX + 5, '新しい方は持っている');
+  t.vp.prefetch([texts[0]]); for (let i = 0; i < 4; i++) await flush();
+  assert.equal(t.ctx.decodes, V.DECODED_MAX + 6, '一番古いものは捨てられていて、復号し直す');
+  assert.equal(t.fetched.length, V.DECODED_MAX + 5, '生のファイルは持っているので読み直さない');
 });
 
 test('prefetch: 声が使えるときは復号まで、使えないときは読むだけ。同じファイルは 1 回', async () => {
@@ -168,4 +230,21 @@ test('index.html の読み込み順（lines.js は problems.js の後、voice.js
   assert.ok(at('voice/voices.js') > 0 && at('src/audio.js') < at('src/voice.js') && at('src/lines.js') < at('src/voice.js') && at('src/voice.js') < at('src/speech.js'));
   const ci = fs.readFileSync(path.join(__dirname, '..', '.github', 'workflows', 'ci.yml'), 'utf8');
   assert.match(ci, /cp -R index\.html css src voice _site\//);
+});
+
+test('T8 クレジット: voices.js の全 credit が index.html にあり、各声の README に規約の URL と確認日がある。パックは list.js の全文を持つ', () => {
+  const dir = path.join(__dirname, '..', 'voice');
+  const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
+  const root = { Manabi: {} };
+  new Function('window', 'globalThis', fs.readFileSync(path.join(dir, 'voices.js'), 'utf8')).call(root, root, root);
+  const { units } = require('../scripts/voice/list.js');
+  root.Manabi.voiceList.forEach(v => {
+    assert.ok(html.includes(v.credit), v.credit + ' が index.html に無い');
+    const readme = fs.readFileSync(path.join(dir, v.id, 'README.md'), 'utf8');
+    assert.match(readme, /https:\/\/\S+/);
+    assert.match(readme, /確認日 \d{4}-\d{2}-\d{2}/);
+    let clips = null;
+    new Function('Manabi', fs.readFileSync(path.join(dir, v.id, 'index.js'), 'utf8'))({ voicePack: p => { clips = p.clips; } });
+    units().forEach(u => assert.ok(clips[u.text], v.id + ' に無い文: ' + u.text));
+  });
 });

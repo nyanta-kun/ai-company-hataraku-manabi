@@ -2,6 +2,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { create } = require('../src/speech.js');
+const V = require('../src/voice.js');
 
 function fake(voices) {
   const timers = [];
@@ -182,4 +183,23 @@ test('T4: 再生器の変化（読み込み・失敗）は onChange で画面に
   let n = 0; sp.onChange(() => n++);
   clips.listeners.forEach(f => f());
   assert.equal(n, 1);
+});
+
+test('T4: 音声ファイルが 3 回失敗したら端末の声だけになる（実際の再生器）', async () => {
+  const flush = () => new Promise(r => setImmediate(r));
+  const PACK = { id: 'metan', label: 'めたん', credit: 'x', ext: 'aac', clips: { '出動！': ['aaa', 800], 'こっちかな？': ['bbb', 800] } };
+  let vp;
+  const ctx = { state: 'running', currentTime: 0, destination: {}, createGain() { return { gain: {}, connect() {} }; }, decodeAudioData() {} };
+  vp = V.create({ context: () => ctx, protocol: 'https:', setTimeout: () => {}, fetch: () => Promise.reject(new Error('net')), warm: () => [],
+    loadScript: (src, cb) => setImmediate(() => { vp.register(PACK); cb(true); }) });
+  const f = fake([{ lang: 'ja-JP', localService: true }]);
+  const sp = create({ speechSynthesis: f.synth, SpeechSynthesisUtterance: f.Utter, setTimeout: (fn, ms) => { f.timers.push({ f: fn, ms }); }, clips: vp, voices: () => [{ id: 'metan' }] });
+  sp.init(); f.run(); sp.setSpeaker('metan'); await flush();
+  assert.equal(sp.available(), true);
+  for (let i = 0; i < V.FAIL_MAX; i++) { assert.equal(sp.speak('出動！'), true); for (let j = 0; j < 4; j++) await flush(); f.synth.pending.forEach(u => { u.onstart && u.onstart(); u.onend && u.onend(); }); f.run(); }
+  assert.equal(vp.state(), 'failed');
+  f.synth.pending = [];
+  assert.equal(sp.speak('こっちかな？'), true);
+  assert.equal(f.synth.pending.length, 1, '端末の声で読む');
+  assert.equal(f.synth.pending[0].text, 'こっちかな？');
 });

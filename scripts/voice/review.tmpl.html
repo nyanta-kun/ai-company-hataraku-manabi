@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>声の確かめ（四国めたん）</title>
+<style>
+body{font-family:-apple-system,"Hiragino Sans",sans-serif;margin:0;padding:12px 16px 80px;background:#f6f7fb;color:#222}
+h1{font-size:18px;margin:4px 0}
+.how{background:#fff;border-radius:8px;padding:8px 14px;margin:8px 0}
+.how li{margin:2px 0}
+.bar{position:sticky;top:0;background:#f6f7fb;padding:6px 0;z-index:2;display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+button{font-size:15px;padding:6px 12px;border-radius:6px;border:1px solid #888;background:#fff;cursor:pointer}
+button.on-ok{background:#2e9e5b;color:#fff;border-color:#2e9e5b}
+button.on-ng{background:#d9534f;color:#fff;border-color:#d9534f}
+h2{font-size:16px;margin:18px 0 6px;border-bottom:2px solid #99a}
+.row{background:#fff;border-radius:8px;padding:8px 12px;margin:6px 0;display:grid;grid-template-columns:56px 1fr;gap:4px 10px}
+.row.ng{box-shadow:inset 4px 0 #d9534f}.row.ok{box-shadow:inset 4px 0 #2e9e5b}
+.play{height:48px;font-size:22px}
+.t{font-size:18px}.s{color:#555;font-size:14px}.a{font:13px ui-monospace,Menlo,monospace;color:#036}
+.why{color:#a50;font-size:12px}
+.ctl{display:flex;gap:6px;align-items:center;flex-wrap:wrap;grid-column:2}
+input.memo{flex:1;min-width:160px;font-size:14px;padding:4px}
+textarea{width:100%;height:160px}
+</style></head><body>
+<h1>声の確かめ（四国めたん ノーマル・設定C）</h1>
+<ul class="how">
+<li>文の左の ▶ で音を聞く。画面の文・VOICEVOX に渡した文・抑揚（句ごとのカナ[accent]。0 は平板）が並ぶ。</li>
+<li>自然なら「よい」、直したいなら「なおしたい」を押し、あれば一言メモ（どこがどう変か）を書く。押し直すと消える。結果はこのブラウザに自動で残る。</li>
+<li>終わったら「けっかを書き出す」で JSON をダウンロード（画面にも出るのでコピーも可）。並びは「よく出る文」→「怪しい文」→「そのほか」。</li>
+</ul>
+<div class="bar"><span id="cnt"></span><button id="exp">けっかを書き出す</button><button id="onlyng">なおしたいだけ表示</button><button id="clr">けっかを消す</button></div>
+<textarea id="out" hidden readonly></textarea>
+<div id="list"></div>
+<script>
+var ROWS=/*ROWS*/[];
+var KEY='hataraku-voice-review-metan',st={};
+try{st=JSON.parse(localStorage.getItem(KEY)||'{}')}catch(e){}
+function save(){try{localStorage.setItem(KEY,JSON.stringify(st))}catch(e){}count()}
+var list=document.getElementById('list'),cur=null,only=false,rowEls=[];
+function esc(s){return String(s).replace(/[&<>"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})}
+function count(){var ok=0,ng=0;Object.keys(st).forEach(function(k){if(st[k].r==='ok')ok++;else if(st[k].r==='ng')ng++});document.getElementById('cnt').textContent='よい '+ok+' ／ なおしたい '+ng+' ／ 全部 '+ROWS.length}
+function paint(i){var r=ROWS[i],s=st[r.text]||{},el=rowEls[i];el.className='row'+(s.r?' '+s.r:'');el.querySelector('.bok').className='bok'+(s.r==='ok'?' on-ok':'');el.querySelector('.bng').className='bng'+(s.r==='ng'?' on-ng':'');el.style.display=only&&s.r!=='ng'?'none':''}
+var lastGrp='';
+ROWS.forEach(function(r,i){
+  if(r.grp!==lastGrp){lastGrp=r.grp;var h=document.createElement('h2');h.textContent=r.grp;list.appendChild(h)}
+  var el=document.createElement('div');el.className='row';
+  var ph=r.phrases.map(function(p){return p.kana+'['+p.accent+']'}).join(' / ');
+  el.innerHTML='<button class="play">▶</button><div><div class="t">'+esc(r.text)+' <span class="why">'+esc(r.why)+' '+(r.ms/1000).toFixed(2)+'s'+(r.score?' 怪しさ'+r.score:'')+'</span></div>'+
+    '<div class="s">VOICEVOX へ: '+esc(r.spoken)+'</div><div class="a">'+esc(ph)+(r.fixed?' （直し: '+esc(r.fixed)+'）':'')+(r.reasons.length?'　← '+esc(r.reasons.join('・')):'')+'</div></div>'+
+    '<div class="ctl"><button class="bok">よい</button><button class="bng">なおしたい</button><input class="memo" placeholder="一言メモ"></div>';
+  var a=new Audio('voice/'+r.file);a.preload='none';
+  el.querySelector('.play').onclick=function(){if(cur&&cur!==a){cur.pause();cur.currentTime=0}cur=a;a.currentTime=0;a.play()};
+  var memo=el.querySelector('.memo');memo.value=(st[r.text]||{}).m||'';
+  function set(v){var s=st[r.text]=st[r.text]||{};s.r=s.r===v?'':v;save();paint(i)}
+  el.querySelector('.bok').onclick=function(){set('ok')};el.querySelector('.bng').onclick=function(){set('ng')};
+  memo.oninput=function(){var s=st[r.text]=st[r.text]||{};s.m=memo.value;save()};
+  list.appendChild(el);rowEls.push(el);paint(i)});
+count();
+document.getElementById('onlyng').onclick=function(){only=!only;this.textContent=only?'ぜんぶ表示':'なおしたいだけ表示';ROWS.forEach(function(_,i){paint(i)})};
+document.getElementById('clr').onclick=function(){if(confirm('けっかを全部消す？')){st={};save();location.reload()}};
+document.getElementById('exp').onclick=function(){
+  var res=ROWS.filter(function(r){var s=st[r.text];return s&&(s.r||s.m)}).map(function(r){var s=st[r.text];return{text:r.text,spoken:r.spoken,accent:r.phrases.map(function(p){return p.kana+'['+p.accent+']'}).join(' / '),result:s.r||'',memo:s.m||''}});
+  var json=JSON.stringify({voice:'metan',date:new Date().toISOString(),results:res},null,1);
+  var o=document.getElementById('out');o.hidden=false;o.value=json;o.select();
+  var a=document.createElement('a');a.href=URL.createObjectURL(new Blob([json],{type:'application/json'}));a.download='voice-review-metan.json';a.click()};
+</script></body></html>
