@@ -56,6 +56,8 @@ function units() {
   D.STAGES.slice(1).forEach(stg => add(L.promote(stg), 'reward'));
   D.SHELVES.forEach(sh => add(sh.name, 'shelf'));
   Object.keys(L.GAME_NAME).forEach(g => add(L.shelfHow(g), 'shelf'));
+  // きょうの しゅつどう（王冠・誘いの文。ぜんぶ・0 回の文は FIXED に入っている）
+  Object.keys(L.GAME_NAME).forEach(g => { add(L.todayCrown(g), 'today'); add(L.todayInvite(g), 'today'); });
   return out;
 }
 

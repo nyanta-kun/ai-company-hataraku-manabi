@@ -2,7 +2,7 @@
 (function (root) {
   'use strict';
   var M = root.Manabi, D = M.data, P = M.problems, R = M.rewards, S = M.storage, PR = M.profiles, LD = M.ladder;
-  var LN = M.lines, A = M.audio, SP = M.speech, V = M.vehicles, SC = M.scenes, CF = M.clockface, TR = M.trace, STR = M.strokes, FW = M.freewrite;
+  var LN = M.lines, DL = M.daylog, A = M.audio, SP = M.speech, V = M.vehicles, SC = M.scenes, CF = M.clockface, TR = M.trace, STR = M.strokes, FW = M.freewrite;
   var doc = root.document;
 
   function $(id) { return doc.getElementById(id); }
@@ -28,6 +28,18 @@
   var debugMode = false;
 
   // 現場ごとに出動する車の stage（scenes.js の drawKaji=8, drawTakai=10, drawMichi=4）
+  // ---- 日ごとの記録（docs/design-daily-log.md 4・5 章）。記録は data.days に足して今と同じ save() で保存する ----
+  var tm = null;   // 出動の画面にいた時間の計測 { t0, hid（隠れていた秒）, hiddenAt }。performance.now() の秒（端末の時計を合わせ直しても飛ばない）
+  function timeStart() { tm = { t0: now(), hid: 0, hiddenAt: null }; }
+  function timeTake() {   // 終えた・やめたときに 1 回だけ呼ぶ → 秒（隠れていた間を引く。1 回の上限は DL.addTime が決める）
+    if (!tm) return 0;
+    var t = now(), hid = tm.hid + (tm.hiddenAt === null ? 0 : t - tm.hiddenAt), sec = t - tm.t0 - hid;
+    tm = null;
+    return sec > 0 ? sec : 0;
+  }
+  function logTime() { var sec = timeTake(); if (sec > 0) data.days = DL.addTime(data.days, todayStr(), sec); }
+  function logChar(game, ch, firstDone, firstSolo) { data.days = DL.recordChar(data.days, todayStr(), { game: game, ch: ch, firstDone: firstDone, firstSolo: firstSolo }); }
+
   var DISPATCH_STAGE = { kaji: 8, takai: 10, michi: 4 };
 
   function later(ms, fn) { var id = root.setTimeout(function () { fn(); }, ms); timers.push(id); return id; }
@@ -35,7 +47,7 @@
   function save() { S.save(state); }
   // PR の関数は新しい state を返すので、呼んだ後は必ず付け直す（古いプロフィールに書かないため）
   function rebind() { dev = state.device; data = PR.currentProfile(state); }
-  function useProfile(id) { state = PR.selectProfile(state, id); rebind(); relockAsk = ''; save(); }
+  function useProfile(id) { state = PR.selectProfile(state, id); rebind(); relockAsk = ''; dlWeek = ''; dlOpen = ''; save(); }
 
   // ---- ふりがな（design-elementary 3.7）。S1 以降の子ども向け画面（出動えらび・現場・ごほうび・昇格）だけ。S0 は全部ひらがな ----
   function esc(t) { return String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
@@ -140,6 +152,12 @@
       ctx.closePath(); ctx.fill();
       return;
     }
+    if (kind === 'crown') {   // 金の王冠（きょうの しゅつどう。とくに がんばった 1 つだけ）
+      ctx.beginPath(); ctx.moveTo(w * .1, h * .82); ctx.lineTo(w * .06, h * .26); ctx.lineTo(w * .3, h * .5); ctx.lineTo(w * .5, h * .14); ctx.lineTo(w * .7, h * .5); ctx.lineTo(w * .94, h * .26); ctx.lineTo(w * .9, h * .82); ctx.closePath();
+      ctx.fillStyle = '#ffd23f'; ctx.fill(); ctx.lineWidth = w * .06; ctx.strokeStyle = '#b87a00'; ctx.stroke();
+      ctx.fillStyle = '#e53935'; ctx.beginPath(); ctx.arc(w * .5, h * .64, w * .07, 0, 7); ctx.fill();
+      return;
+    }
     if (kind === 'back') { ln(.62, .2, .3, .5, .12); ln(.3, .5, .62, .8, .12); return; }
     if (kind === 'x') { ln(.25, .25, .75, .75, .12); ln(.75, .25, .25, .75, .12); }
   }
@@ -192,10 +210,11 @@
     [].forEach.call(doc.querySelectorAll('.screen'), function (s) { s.classList.toggle('active', s.id === 's-' + name); });
     updateVoiceMark();
     if (name === 'who') { buildWho(); later(300, function () { say(LN.FIXED.who); }); }
-    if (name === 'title') { updateBadges(); drawTitle(); kick(); }
+    if (name === 'title') { updateBadges(); drawTitle(); updateTodayStrip(); kick(); }
+    if (name === 'today') startToday();
     if (name === 'pick') { updateBadges(); updatePick(); later(300, function () { say(LN.FIXED.pick); }); }
     if (name === 'garage') buildGarage();
-    if (name === 'parent') fillParent();
+    if (name === 'parent') { dlWeek = ''; dlOpen = ''; fillParent(); }
     if (name === 'play' && stage) { stage.resize(); stage.draw(now()); }
     if (name === 'reward') startRewardAnim();
     if (name === 'promote') startPromoteAnim();
@@ -311,6 +330,7 @@
     var pl = LD.playLevel(data, game), level = pl.level;   // 下のステージで遊ぶとき（復習）は進み具合を変えない
     var qs = P.generateSession(game, level, Math.random, game === 'letter' ? seenLetter() : undefined);
     if (game === 'letter' && !P.LETTER[level].form) rememberLetter(qs);   // K7・K8 の絵は「直近の絵」に入れない（K1〜K6 の出方を変えない）
+    timeStart();
     run = {
       game: game, level: level, review: pl.review, scene: opts.scene || pickScene(), qs: qs,
       idx: 0, firstTry: 0, wrong: 0, off: [], busy: true, token: token
@@ -535,6 +555,7 @@
   // なぞり・ひとりで かく の出動の始まり（solo: 線なしで書く）
   function launchTrace(plan, names, opts, solo) {
     clearTimers(); token++; run = null;
+    timeStart();
     var chars = plan.map(function (o) { return o.ch; });
     trun = { chars: chars, plan: plan, names: names, idx: 0, scene: opts.scene || pickScene(), token: token, helpSaid: false, wrote: [], pid: data.id, solo: !!solo, told: false, nazori: false, phase: 'write', auto: opts.auto || '' };
     if (!tboard) tboard = new M.TraceBoard($('trace-board'), {
@@ -578,6 +599,7 @@
     if (!trun) return;
     var ch = info.ch;
     trun.wrote.push(ch);
+    logChar(trun.solo ? 'solo' : 'trace', ch, !(data.trace.done[ch] > 0), false);   // recordTraceChar の前に「初めて」を見る
     data.trace = TR.recordTraceChar(data.trace, ch, info);   // 途中でやめても、書けた字は数える。maxM >= 2 なら たすけの回数も足す
     data.stats.trace.chars++; if (info.clean) data.stats.trace.clean++;
     save();
@@ -689,6 +711,7 @@
     if (j.result === 'ok') {
       trun.wrote.push(ch);
       var setId = setOfChar(ch), had = FW.soloLicense(data.trace, setId);
+      logChar('solo', ch, !(data.trace.done[ch] > 0), !(data.trace.solo[ch] > 0));   // recordSolo の前に「初めて」を見る
       data.trace = FW.recordSolo(data.trace, ch);   // done と solo をどちらも +1
       if (!had && FW.soloLicense(data.trace, setId)) trun.license = setId;   // 集合を全部ひとりで書けた: めんきょ（ごほうびのあとに知らせる。ステージは変わらない）
       data.stats.trace.chars++; data.stats.trace.clean++;
@@ -733,6 +756,8 @@
     st.sessions++; st.trace.sessions++;
     var r = grantReward(trun.scene, stageIdx(), 'trace');   // 階段（afterSession）は呼ばない。かく の棚は うみ
     data.lastPlayed = todayStr();
+    data.days = DL.recordSession(data.days, todayStr(), { game: trun.solo ? 'solo' : 'trace', reward: r, license: trun.license || '' });
+    logTime();
     save();
     reward = { r: r, t0: 0, game: 'trace', played: 'trace', solo: !!trun.solo, license: trun.license || '', wrote: trun.wrote.slice(), firstNew: (trun.plan.filter(function (o) { return o.why === 'new'; })[0] || {}).ch || '' };
     rememberTrace();
@@ -743,6 +768,7 @@
   function rememberTrace() { if (trun && trun.wrote.length) (trun.solo ? prevSolo : prevTrace)[trun.pid] = trun.wrote.slice(); }
   function quitTrace() {
     rememberTrace();
+    logTime(); save();
     clearTimers(); token++; trun = null; if (tboard) tboard.stop(); SP.cancel();
     show('title');
   }
@@ -760,10 +786,14 @@
     var game = run.game, st = data.stats;
     st.sessions++; st[game].sessions++;
     st[game].questions += P.QUESTIONS_PER_SESSION; st[game].firstTry += run.firstTry;
+    var lvBefore = data.levels[game];
     var res = LD.afterSession(data, game, run.level, run.firstTry, run.review, todayStr());
     replaceData(res.profile);
     var r = grantReward(run.scene, D.stageIndex(D.stageOf(run.level)), game);
     data.lastPlayed = todayStr();
+    var lvs = D.LEVELS[game];   // 自動で上がったときだけ記録する（下がったことは記録しない）
+    data.days = DL.recordSession(data.days, todayStr(), { game: game, questions: P.QUESTIONS_PER_SESSION, firstTry: run.firstTry, up: lvs.indexOf(data.levels[game]) > lvs.indexOf(lvBefore) ? data.levels[game] : '', reward: r });
+    logTime();
     save();
     reward = { r: r, t0: 0, played: game, promo: res.promotedTo };   // 昇格したら、ごほうびの次に しょうかく の画面を出す
     run = null;
@@ -771,6 +801,7 @@
   }
 
   function quitSession() {
+    logTime(); save();
     clearTimers(); token++; run = null; SP.cancel();
     show('title');
   }
@@ -839,7 +870,7 @@
   // ごほうびの次: 昇格していたら しょうかく の画面（そのあとはタイトル）、なければ行き先へ
   var promo = null;   // { stage, t0 }
   function leaveReward(next) {
-    if (reward && reward.promo) { promo = { stage: reward.promo, t0: 0 }; reward.promo = null; show('promote'); }
+    if (reward && reward.promo) { promo = { stage: reward.promo, t0: 0, next: next === 'today' ? 'today' : 'title' }; reward.promo = null; show('promote'); }
     else show(next);
   }
   function startPromoteAnim() {
@@ -1259,8 +1290,159 @@
     $('p-restored').hidden = !restoredShown;
     $('p-storage-note').hidden = S.isPersistent();
     clearStep = 0; $('p-clear').textContent = 'ぜんぶの こどもの きろくを けす'; $('p-clear-note').textContent = '';
+    fillDays();
     updateBadges(); fillKids(); fillTraceTable();
   }
+  // ---- 子ども向け: きょうの しゅつどう（docs/design-daily-log.md 9 章。数字は出さない。ひらがなだけ） ----
+  var TODAY_GAMES = [['math', 'kazu', 'かず'], ['letter', 'moji', 'もじ'], ['clock', 'tokei', 'とけい'], ['english', 'eigo', 'えいご'], ['trace', 'pencil', 'かく']];
+  function kidNow() { return DL.kidToday(viewDays(), todayStr(), { enOn: !enOff(), cleared: data.cleared }); }
+  // 絵のあつまり（5 つ）。small = タイトルの列。まだのものは薄く（えいご の声が使えない端末では薄くしない）
+  function buildTodayCells(box, k, small) {
+    box.textContent = '';
+    var cells = [];
+    TODAY_GAMES.forEach(function (g) {
+      var id = g[0], c = el(small ? 'span' : 'div', small ? 'tchip ' + id : 'big tcell ' + id);
+      var cv = doc.createElement('canvas'); cv.className = 'ico'; cv.width = cv.height = small ? 72 : 96; cv.setAttribute('data-icon', g[1]); c.appendChild(cv); drawIcon(cv, g[1]);
+      if (!small) c.appendChild(el('span', '', g[2]));
+      var off = !k.played[id] && !(id === 'english' && enOff());
+      if (off && !k.none) c.classList.add('later');
+      var cell = { id: id, el: c, stamp: null, crown: null };
+      if (k.played[id]) {
+        var im = doc.createElement('img'); im.className = 'stamp'; im.alt = ''; im.src = stampURL('stamp', k.crown === id); c.appendChild(im); cell.stamp = im;
+      }
+      if (k.crown === id) {
+        var cr = doc.createElement('canvas'); cr.className = 'crown'; cr.width = 96; cr.height = 72; c.appendChild(cr); drawIcon(cr, 'crown'); cell.crown = cr;
+      }
+      box.appendChild(c); cells.push(cell);
+    });
+    return cells;
+  }
+  function updateTodayStrip() {
+    var s = $('today-strip'), k = kidNow();
+    s.hidden = k.none;
+    if (!k.none) buildTodayCells(s, k, true);
+  }
+  var todayFromStrip = false;   // タイトルの列から開いたときは「もどる」、おしまい の後は「おしまい」
+  function startToday() {
+    var fromStrip = todayFromStrip; todayFromStrip = false;
+    var ok = $('btn-today-ok'), lab = ok.querySelector('span');
+    lab.textContent = fromStrip ? 'もどる' : 'おしまい'; ok.setAttribute('aria-label', lab.textContent);
+    ok.querySelector('canvas').setAttribute('data-icon', fromStrip ? 'back' : 'station'); drawIcon(ok.querySelector('canvas'), fromStrip ? 'back' : 'station');
+    var k = kidNow(), cells = buildTodayCells($('today-row'), k, false), calm = reducedMotion();
+    var crownLine = k.crown ? LN.todayCrown(k.crown) : '', msg = $('today-msg'), items = [];
+    var names = {}; TODAY_GAMES.forEach(function (g) { names[g[0]] = g[2]; });
+    if (k.none) { msg.textContent = 'きょうは どれで しゅつどう する？'; items.push({ text: LN.FIXED.todayNone, lang: 'ja' }); }
+    else if (k.all) { msg.textContent = 'ぜんぶ しゅつどう できたね！'; items.push({ text: LN.FIXED.todayAll, lang: 'ja' }); }
+    else {
+      msg.innerHTML = esc('きょうは ' + names[k.crown] + ' を とくに がんばったね！') + (k.invite ? '<br>' + esc('あしたは ' + names[k.invite] + ' も やってみる？') : '');
+      items.push({ text: crownLine, lang: 'ja' });
+      if (k.invite) items.push({ text: LN.todayInvite(k.invite), lang: 'ja', gap: 500 });
+    }
+    SP.prefetch(items.map(function (i) { return i.text; }));
+    // 動き: スタンプを左から順に 0.3 秒ずつ「ぽん」→ 王冠。動きを減らす設定のときは一度に出す
+    var t = 300;
+    cells.forEach(function (c) {
+      [c.stamp, c.crown].forEach(function (n) { if (n && !calm) n.classList.add('wait'); });
+    });
+    if (!calm) {
+      cells.forEach(function (c) {
+        if (!c.stamp) return;
+        later(t, function () { c.stamp.classList.remove('wait'); c.stamp.classList.add('pop'); sfx('pon'); });
+        t += 300;
+      });
+      cells.forEach(function (c) { if (c.crown) later(t, function () { c.crown.classList.remove('wait'); c.crown.classList.add('pop'); sfx('card'); }); });
+    }
+    later(calm ? 300 : t + 700, function () { if (items.length) seq(items); });
+    kick();
+  }
+  // 画面に使う日ごとの記録（今の子の分＋ほかの端末の分 daysOther。daysOther は R4 の cloud.js が読んで置き換える）
+  function viewDays() { return DL.sumDays(data.days, data.daysOther); }
+
+  // ---- 保護者画面: まいにちの きろく（docs/design-daily-log.md 8 章。今えらんでいる子だけ） ----
+  var dlWeek = '', dlOpen = '';   // 見ている週の月曜・内訳を開いている日。保護者画面を開いたとき・子を切り替えたとき今の週に戻す
+  var DL_NAME = { math: 'かず', letter: 'もじ', clock: 'とけい', english: 'えいご', trace: 'かく', solo: 'ひとりで かく' };
+  var DL_WD = ['にち', 'げつ', 'か', 'すい', 'もく', 'きん', 'ど'];
+  // 分の読みは MIN_KANA に揃える（1・3・4・6・8・10 は「ぷん」、2・5・7・9 は「ふん」。60 以上は下 1 けたで決める）
+  function dlMin(sec) {
+    var m = Math.max(1, Math.round(sec / 60)), pun = m <= 59 ? /ぷん$/.test(D.MIN_KANA[m]) : [0, 1, 3, 4, 6, 8].indexOf(m % 10) >= 0;
+    return 'やく ' + m + (pun ? 'ぷん' : 'ふん');
+  }
+  function dlGameOfLevel(lv) { for (var i = 0; i < D.GAMES.length; i++) if (D.LEVELS[D.GAMES[i]].indexOf(lv) >= 0) return D.GAMES[i]; return ''; }
+  function dlLines(box, lines) { lines.forEach(function (t) { box.appendChild(el('div', '', t)); }); }
+  function dlDetail(row, w, today) {
+    var d = row.day, box = el('div', 'dl-detail'), lines = [];
+    ['math', 'letter', 'clock', 'english'].forEach(function (g) {
+      var x = d[g]; if (!x) return;
+      lines.push(DL_NAME[g] + '　' + x.sessions + 'かい（もんだい ' + x.questions + '・1かいめで せいかい ' + x.firstTry + '）');
+    });
+    ['trace', 'solo'].forEach(function (g) { var x = d[g]; if (x) lines.push(DL_NAME[g] + '　' + x.sessions + 'かい（' + x.chars + 'じ）'); });
+    if (d.wrote) lines.push('かいた じ：' + Array.from(d.wrote).join('・'));
+    var got = [];
+    if (d.up) ['math', 'letter', 'clock', 'english'].forEach(function (g) { if (d.up[g]) got.push(DL_NAME[g] + ' ' + d.up[g] + ' まで'); });
+    w.got.gates.forEach(function (x) { if (x.date === row.key) got.push((DL_NAME[dlGameOfLevel(x.level)] || '') + ' ' + x.level + ' の かんもん'); });
+    w.got.stages.forEach(function (x) { if (x.date === row.key) { var i = D.stageIndex(x.stage); got.push('ステージ ' + (i >= 0 ? D.STAGES[i].rank : x.stage) + ' が ひらいた'); } });
+    if (d.newChars) got.push('はじめて かいた じ ' + Array.from(d.newChars).join('・'));
+    if (d.newSolo) got.push('ひとりで かけた じ ' + Array.from(d.newSolo).join('・'));
+    (d.license || []).forEach(function (x) { got.push(SET_LABEL_PARENT[x] + 'の めんきょ'); });
+    if (got.length) lines.push('できるように なったこと：' + got.join('・'));
+    if (d.cards) {
+      var names = (d.newCars || []).map(function (id) { var c = carById(id); return c ? c.name : ''; }).filter(Boolean);
+      lines.push('ごほうび ' + d.cards + 'まい' + (names.length ? '（あたらしい のりもの：' + names.join('・') + '）' : ''));
+    }
+    if (d.sec) lines.push('あそんだ じかん：' + dlMin(d.sec));
+    dlLines(box, lines);
+    return box;
+  }
+  function fillDays() {
+    var today = todayStr();
+    if (!dlWeek) dlWeek = DL.weekStart(today);
+    var w = DL.weekSummary(viewDays(), dlWeek, today, data);
+    $('dl-range').textContent = mdOf(w.start) + '〜' + mdOf(w.end);
+    $('dl-prev').disabled = !w.hasPrev; $('dl-next').disabled = !w.hasNext;
+    $('dl-sum').textContent = w.any && (w.sum.sessions || w.sum.sec)
+      ? 'この しゅうは しゅつどう ' + w.sum.sessions + 'かい・' + (w.sum.sec ? dlMin(w.sum.sec) + '・' : '') + 'あそんだ ひ ' + w.sum.playedDays + 'にち'
+      : 'この しゅうは まだ きろくが ありません';
+    var scale = 4;
+    w.rows.forEach(function (r) { if (r.total > scale) scale = r.total; });   // 目盛りは max(4, その週のいちばん多い日)。満タンの線は描かない
+    var rows = $('dl-rows'); rows.textContent = '';
+    w.rows.forEach(function (r) {
+      var tap = r.kind === 'day', row = el(tap ? 'button' : 'div', 'dl-row ' + r.kind + (tap && dlOpen === r.key ? ' open' : ''));
+      if (tap) { row.type = 'button'; row.setAttribute('data-key', r.key); row.setAttribute('aria-expanded', dlOpen === r.key ? 'true' : 'false'); }
+      var name = el('span', 'dl-day', DL_WD[DL.dayOfWeek(r.key)]);
+      name.appendChild(el('small', '', mdOf(r.key)));
+      if (r.key === today) name.appendChild(el('span', 'today', 'きょう'));
+      var bar = el('span', 'dl-bar');
+      if (r.kind === 'day') DL.GAMES.forEach(function (g) {
+        if (!r.byGame[g]) return;
+        var i = el('i', 'g-' + g); i.style.width = (r.byGame[g] / scale * 100) + '%'; bar.appendChild(i);
+      });
+      var val = el('span', 'dl-val');
+      if (r.kind === 'day') { val.textContent = r.total + 'かい'; if (r.sec) val.appendChild(el('small', '', dlMin(r.sec))); }
+      else if (r.kind === 'none') val.textContent = 'ー';
+      else if (r.kind === 'old') { bar.textContent = 'きろく なし'; bar.style.cssText = 'font-size:13px;align-items:center'; }
+      row.appendChild(name); row.appendChild(bar); row.appendChild(val);
+      rows.appendChild(row);
+      if (tap && dlOpen === r.key) rows.appendChild(dlDetail(r, w, today));
+    });
+    var lg = $('dl-legend'); lg.textContent = '';
+    DL.GAMES.forEach(function (g) { var s = el('span'); s.appendChild(el('i', 'g-' + g)); s.appendChild(doc.createTextNode(DL_NAME[g])); lg.appendChild(s); });
+    var gb = $('dl-got'); gb.textContent = '';
+    if (w.got.any) {
+      gb.appendChild(el('h4', '', 'この しゅうに できるように なったこと'));
+      var g = w.got, lines = [];
+      ['math', 'letter', 'clock', 'english'].forEach(function (k) { if (g.up[k]) lines.push(DL_NAME[k] + ' ' + g.up[k] + ' まで'); });
+      g.gates.forEach(function (x) { lines.push((DL_NAME[dlGameOfLevel(x.level)] || '') + ' ' + x.level + ' の かんもんを とおった'); });
+      g.stages.forEach(function (x) { var i = D.stageIndex(x.stage); lines.push('ステージ ' + (i >= 0 ? D.STAGES[i].rank : x.stage) + ' が ひらいた'); });
+      if (g.newChars) lines.push('はじめて かいた じ：' + Array.from(g.newChars).join('・'));
+      if (g.newSolo) lines.push('ひとりで かけた じ：' + Array.from(g.newSolo).join('・'));
+      g.license.forEach(function (x) { lines.push(SET_LABEL_PARENT[x] + 'の めんきょ'); });
+      if (g.newCars.length) lines.push('あたらしい のりもの：' + g.newCars.map(function (id) { var c = carById(id); return c ? c.name : ''; }).filter(Boolean).join('・'));
+      dlLines(gb, lines);
+    }
+    $('dl-note').textContent = 'この たんまつで あそんだ ぶん だけ です。35にちより まえの きろくは きえます。じかんは しゅつどうの がめんに いた じかんの めやすです。かいすうより、たのしく つづける ことを たいせつに して ください。';
+  }
+  function dlMove(n) { dlWeek = DL.addDays(dlWeek || DL.weekStart(todayStr()), 7 * n); dlOpen = ''; fillDays(); }
+
   // 保護者画面: ステージ（手動の解放・再ロック。design-elementary 3.6）
   var relockAsk = ''; // 「とじる」を 1 回押したステージの id（2 段階の確認）
   var GATE_LABEL = { math: 'かず', letter: 'もじ', clock: 'とけい' };
@@ -1415,7 +1597,13 @@
       if (tboard.replay()) { var ti = traceInfoAt(trun.idx); say(tracePrompt(trun.chars[trun.idx], ti), { alt: LN.tracePromptAlt(trun.chars[trun.idx], ti) }); }   // 手本の書き足し中は効かない
       kick();
     });
-    doc.addEventListener('visibilitychange', function () { if (doc.hidden && tboard && tboard.active) tboard.cancelActive(); });   // 画面が隠れたら書きかけの線を捨てる
+    doc.addEventListener('visibilitychange', function () {
+      if (tm) {   // 隠れていた間は出動の時間に数えない
+        if (doc.hidden) { if (tm.hiddenAt === null) tm.hiddenAt = now(); }
+        else if (tm.hiddenAt !== null) { tm.hid += now() - tm.hiddenAt; tm.hiddenAt = null; }
+      }
+      if (doc.hidden && tboard && tboard.active) tboard.cancelActive();
+    });   // 画面が隠れたら書きかけの線を捨てる
     // 「かく」の間だけ: iOS の 2 本指の拡大・スクロールを止める（design-tracing 4.4）
     ['gesturestart', 'gesturechange', 'gestureend'].forEach(function (n) { doc.addEventListener(n, function (e) { if (screen === 'trace') e.preventDefault(); }, { passive: false }); });
     $('s-trace').addEventListener('touchmove', function (e) { e.preventDefault(); }, { passive: false });
@@ -1450,17 +1638,26 @@
       } else garageOpen = { tab: 'cars', set: garageOpen.set, stamp: [], shelf: rewardShelf(), run: reward && reward.r.id ? reward.r.id : '' };
       leaveReward('garage');
     });
-    $('btn-r-end').addEventListener('click', function () { sfx('tap'); leaveReward('title'); });   // 昇格があれば先に昇格画面（そのあとタイトル）
+    $('btn-r-end').addEventListener('click', function () { sfx('tap'); leaveReward('today'); });   // 昇格があれば先に昇格画面（そのあとタイトル）
     $('btn-r-again').addEventListener('click', function () {
       sfx('tap');
       if (reward && reward.game === 'trace') { if (reward.solo && soloAvailable()) startSolo(); else startTrace(); } else leaveReward('pick');   // かく から来たときは かく をもう一度（ひとりで かく のあとは ひとりで かく。出せる字が足りなければ なぞり）
     });
     $('btn-pr-go').addEventListener('click', function () {   // 「すすむ」: 新しいステージを選んでタイトルへ
       sfx('tap'); if (promo) { replaceData(LD.selectStage(data, promo.stage)); save(); }
-      promo = null; show('title');
+      var nx = promo && promo.next || 'title'; promo = null; show(nx);
     });
-    $('btn-pr-later').addEventListener('click', function () { sfx('tap'); promo = null; show('title'); });
+    $('btn-pr-later').addEventListener('click', function () { sfx('tap'); var nx = promo && promo.next || 'title'; promo = null; show(nx); });
+    $('btn-today-ok').addEventListener('click', function () { sfx('tap'); show('title'); });
+    $('today-strip').addEventListener('click', function () { sfx('tap'); todayFromStrip = true; show('today'); });
     $('btn-g-back').addEventListener('click', function () { sfx('tap'); show('title'); });
+    $('dl-prev').addEventListener('click', function () { dlMove(-1); });
+    $('dl-next').addEventListener('click', function () { dlMove(1); });
+    $('dl-rows').addEventListener('click', function (e) {   // 行をタップ → その日の内訳（もう一度で閉じる）
+      var b = e.target.closest ? e.target.closest('button.dl-row') : null;
+      if (!b) return;
+      var k = b.getAttribute('data-key'); dlOpen = dlOpen === k ? '' : k; fillDays();
+    });
     $('btn-p-back').addEventListener('click', function () { kidEdit = null; relockAsk = ''; restoredShown = false; show('title'); });
     $('btn-who').addEventListener('click', function () { sfx('tap'); if (state.profiles.length > 1) show('who'); });
     $('p-kid-add').addEventListener('click', addKid);
@@ -1538,6 +1735,39 @@
       show('garage');
     },
     current: function () { return run ? run.qs[run.idx] : null; },
+    // 確認用: 日ごとの記録（今の子の days）。見本は 35 日分をつくり直す（保存する。確認用の端末だけで使う）
+    debugDays: function () { return JSON.stringify(data.days || {}); },
+    debugDaysSample: function () {
+      var today = todayStr(), seed = 7, rnd = function () { seed = (seed * 1103515245 + 12345) % 2147483648; return seed / 2147483648; };
+      var days = {}, chars = Array.from(STR.SETS.hira), ci = 0;
+      for (var i = 34; i >= 0; i--) {
+        var day = DL.addDays(today, -i), wd = DL.dayOfWeek(day);
+        var play = i === 0 || rnd() < (wd === 0 || wd === 6 ? 0.8 : 0.6);   // 今日は必ず遊んだ日にする
+        if (!play) continue;
+        var kinds = [];
+        DL.GAMES.forEach(function (g) { if (rnd() < 0.45) kinds.push(g); });
+        if (i === 0 && !kinds.length) kinds.push('math');
+        kinds.forEach(function (g) {
+          var n = 1 + Math.floor(rnd() * 3);
+          for (var k = 0; k < n; k++) {
+            if (g === 'trace' || g === 'solo') {
+              for (var c = 0; c < 4; c++) { var ch = chars[ci++ % chars.length]; days = DL.recordChar(days, day, { game: g, ch: ch, firstDone: ci <= chars.length, firstSolo: g === 'solo' && ci <= chars.length }); }
+              days = DL.recordSession(days, day, { game: g, reward: { id: 'bus', isNew: false }, license: g === 'solo' && ci === 46 ? 'hira' : '' });
+            } else {
+              var lv = D.LEVELS[g];
+              days = DL.recordSession(days, day, { game: g, questions: 4, firstTry: 2 + Math.floor(rnd() * 3), up: rnd() < 0.15 ? lv[Math.min(lv.length - 1, 1 + Math.floor(i / 8))] : '', reward: rnd() < 0.5 ? { id: 'taxi', isNew: rnd() < 0.3 } : { sticker: true } });
+            }
+            days = DL.addTime(days, day, 90 + Math.floor(rnd() * 150));
+          }
+        });
+      }
+      data.days = days;
+      var gate = D.gateLevels()[0];
+      if (gate && !data.cleared[gate]) data.cleared[gate] = DL.addDays(today, -2);   // 「できるように なったこと」の見本
+      save();
+      if (screen === 'parent') fillParent();
+      return Object.keys(days).length;
+    },
     debugProgress: function (n) { if (stage) { stage.setProgress(n); updateLamps(n); stage.draw(now()); } },
     refresh: function () { updateVoiceMark(); if (screen === 'parent') fillParent(); }
   };

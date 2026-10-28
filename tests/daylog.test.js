@@ -1,0 +1,359 @@
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const DL = require('../src/daylog.js');
+const S = require('../src/storage.js');
+const D = require('../src/data.js');
+
+const T = '2026-10-28';
+const clone = x => JSON.parse(JSON.stringify(x));
+
+// ---- 日付 ----
+test('addDays・weekStart: 月末・年末・うるう年・月曜はじまり', () => {
+  assert.equal(DL.addDays('2026-10-31', 1), '2026-11-01');
+  assert.equal(DL.addDays('2026-12-31', 1), '2027-01-01');
+  assert.equal(DL.addDays('2028-02-28', 1), '2028-02-29');
+  assert.equal(DL.addDays('2028-02-29', 1), '2028-03-01');
+  assert.equal(DL.addDays('2027-03-01', -1), '2027-02-28');
+  assert.equal(DL.weekStart('2026-12-28'), '2026-12-28');   // 月曜は自分
+  assert.equal(DL.weekStart('2027-01-03'), '2026-12-28');   // 日曜はその週の月曜に戻る
+  assert.equal(DL.weekStart('2026-10-28'), '2026-10-26');   // 水曜
+  assert.deepEqual(DL.weekKeys('2026-12-28'), ['2026-12-28', '2026-12-29', '2026-12-30', '2026-12-31', '2027-01-01', '2027-01-02', '2027-01-03']);
+});
+test('isDayKey: 形と実在', () => {
+  assert.equal(DL.isDayKey('2026-10-28'), true);
+  ['2026-02-30', '2026-1-1', '2026-13-01', '', null, 5, '__proto__', '2026-10-28x'].forEach(k => assert.equal(DL.isDayKey(k), false, String(k)));
+  assert.equal(DL.isDayKey('2028-02-29'), true);
+  assert.equal(DL.isDayKey('2027-02-29'), false);
+});
+
+// ---- 記録 ----
+test('recordSession: 同じ日は足され、別の日は別の鍵。入力は書き換えない', () => {
+  const a = DL.recordSession({}, T, { game: 'math', questions: 4, firstTry: 3 });
+  const before = clone(a);
+  const b = DL.recordSession(a, T, { game: 'math', questions: 4, firstTry: 2 });
+  assert.deepEqual(a, before);
+  assert.deepEqual(b[T].math, { sessions: 2, questions: 8, firstTry: 5 });
+  assert.equal(b[T].last, 'math');
+  const c = DL.recordSession(b, '2026-10-29', { game: 'clock', questions: 4, firstTry: 4 });
+  assert.deepEqual(Object.keys(c).sort(), [T, '2026-10-29']);
+  assert.equal(c['2026-10-29'].clock.sessions, 1);
+});
+test('recordSession: up は上のレベルだけ残る（下がったことは記録しない）', () => {
+  let d = DL.recordSession({}, T, { game: 'math', questions: 4, firstTry: 4, up: 'M4' });
+  d = DL.recordSession(d, T, { game: 'math', questions: 4, firstTry: 4, up: 'M5' });
+  d = DL.recordSession(d, T, { game: 'math', questions: 4, firstTry: 1, up: 'M4' });
+  assert.deepEqual(d[T].up, { math: 'M5' });
+  d = DL.recordSession(d, T, { game: 'math', questions: 4, firstTry: 1, up: 'Z9' });
+  assert.deepEqual(d[T].up, { math: 'M5' });
+  const e = DL.recordSession({}, T, { game: 'trace', up: 'M5' });
+  assert.equal(e[T].up, undefined);
+});
+test('recordSession: ごほうび（isNew のときだけ newCars。ステッカーは cards だけ）・めんきょ', () => {
+  let d = DL.recordSession({}, T, { game: 'letter', questions: 4, firstTry: 4, reward: { id: 'bus', stars: 1, isNew: true } });
+  d = DL.recordSession(d, T, { game: 'letter', questions: 4, firstTry: 4, reward: { id: 'bus', stars: 2, isNew: false } });
+  d = DL.recordSession(d, T, { game: 'letter', questions: 4, firstTry: 4, reward: { sticker: true } });
+  d = DL.recordSession(d, T, { game: 'letter', questions: 4, firstTry: 4, reward: { id: 'nonexistent', isNew: true } });
+  assert.equal(d[T].cards, 4);
+  assert.deepEqual(d[T].newCars, ['bus']);
+  d = DL.recordSession(d, T, { game: 'solo', license: 'hira' });
+  d = DL.recordSession(d, T, { game: 'solo', license: 'hira' });
+  d = DL.recordSession(d, T, { game: 'solo', license: 'bogus' });
+  assert.deepEqual(d[T].license, ['hira']);
+  assert.equal(d[T].solo.sessions, 3); assert.equal(d[T].last, 'solo');
+});
+test('recordChar: chars・wrote・firstDone・firstSolo。知らない字は数えない', () => {
+  let d = DL.recordChar({}, T, { game: 'trace', ch: 'し', firstDone: true, firstSolo: false });
+  d = DL.recordChar(d, T, { game: 'solo', ch: 'し', firstDone: false, firstSolo: true });
+  d = DL.recordChar(d, T, { game: 'solo', ch: 'つ', firstDone: true, firstSolo: true });
+  assert.equal(d[T].wrote, 'しつ');
+  assert.equal(d[T].newChars, 'しつ'); assert.equal(d[T].newSolo, 'しつ');
+  assert.deepEqual(d[T].trace, { sessions: 0, chars: 1 });
+  assert.deepEqual(d[T].solo, { sessions: 0, chars: 2 });
+  const same = DL.recordChar(d, T, { game: 'trace', ch: 'あ'.repeat(1) + 'Q', firstDone: true });
+  assert.deepEqual(same, d);
+  assert.deepEqual(DL.recordChar(d, T, { game: 'math', ch: 'し' }), d);
+});
+test('addTime: 1 回 600 秒まで・負や数でないは 0・合計 86400 まで', () => {
+  assert.equal(DL.addTime({}, T, 125)[T].sec, 125);
+  assert.equal(DL.addTime({}, T, 5000)[T].sec, 600);
+  assert.deepEqual(DL.addTime({}, T, -5), {});
+  assert.deepEqual(DL.addTime({}, T, NaN), {});
+  assert.deepEqual(DL.addTime({}, T, '30'), {});
+  let d = {};
+  for (let i = 0; i < 200; i++) d = DL.addTime(d, T, 600);
+  assert.equal(d[T].sec, 86400);
+});
+test('prune: 今日を含め 35 日。今日の 34 日前は残り 35 日前は消える。2 日以上先は消え 1 日先は残る', () => {
+  const mk = k => ({ [k]: { math: { sessions: 1, questions: 4, firstTry: 4 } } });
+  const all = Object.assign({}, mk(DL.addDays(T, -34)), mk(DL.addDays(T, -35)), mk(DL.addDays(T, 1)), mk(DL.addDays(T, 2)), mk(T));
+  const p = DL.prune(all, T);
+  assert.deepEqual(Object.keys(p).sort(), [DL.addDays(T, -34), T, DL.addDays(T, 1)].sort());
+  const r = DL.recordSession(all, T, { game: 'math', questions: 4, firstTry: 4 });
+  assert.equal(r[DL.addDays(T, -35)], undefined); assert.equal(r[DL.addDays(T, 2)], undefined);
+});
+test('365 日続けて毎日記録しても鍵は 35 個、上限の中', () => {
+  let d = {}, day = '2026-01-01';
+  for (let i = 0; i < 365; i++) {
+    d = DL.recordSession(d, day, { game: 'math', questions: 4, firstTry: 4 });
+    d = DL.recordChar(d, day, { game: 'trace', ch: 'し', firstDone: true });
+    d = DL.addTime(d, day, 300);
+    day = DL.addDays(day, 1);
+  }
+  assert.equal(Object.keys(d).length, 35);
+  assert.deepEqual(DL.normalizeDays(d), d);
+});
+test('1 日に 1000 回・10000 字でも上限で止まる', () => {
+  let d = {};
+  for (let i = 0; i < 1100; i++) d = DL.recordSession(d, T, { game: 'math', questions: 4, firstTry: 4 });
+  assert.equal(d[T].math.sessions, 999); assert.equal(d[T].math.questions, 4400);
+  let e = {};
+  const chars = Array.from(require('../src/strokes.js').SETS.hira);
+  for (let i = 0; i < 150; i++) e = DL.recordChar(e, T, { game: 'trace', ch: chars[i % chars.length], firstDone: true });
+  assert.equal(e[T].trace.chars, 150);
+  const k1 = Array.from(require('../src/strokes.js').SETS.k1 + require('../src/strokes.js').SETS.k2 + require('../src/strokes.js').SETS.kata);
+  for (const c of k1) e = DL.recordChar(e, T, { game: 'trace', ch: c, firstDone: true });
+  assert.ok(Array.from(e[T].wrote).length <= 130);
+  Array.from(e[T].newChars).forEach(c => assert.ok(e[T].wrote.includes(c)));
+});
+
+// ---- 補正 ----
+test('normalizeDays: 壊れたデータは使える部分だけ残る', () => {
+  [null, undefined, 'x', 5, [], true].forEach(v => assert.deepEqual(DL.normalizeDays(v), {}));
+  const raw = {
+    '2026-10-28': {
+      math: { sessions: 2, questions: 8, firstTry: 99 },
+      letter: { sessions: -1, questions: 1.9, firstTry: 'x' },
+      bogus: { sessions: 3 },
+      clock: { sessions: 0, questions: 0, firstTry: 0 },
+      trace: { sessions: 1, chars: 4 },
+      up: { math: 'M5', trace: 'M5', clock: 'Q' },
+      wrote: 'しつQし', newChars: 'つあ', newSolo: 'ZZ', license: ['hira', 'hira', 'x'], newCars: ['bus', 'bus', 'nope'],
+      cards: 5, sec: 1e9, last: 'nothing'
+    },
+    '2026-02-30': { math: { sessions: 1 } }, 'abc': {}, '2026-10-27': 'x', '2026-10-26': {}, '__proto__': { math: { sessions: 1 } }
+  };
+  const before = clone(raw);
+  const out = DL.normalizeDays(raw);
+  assert.deepEqual(raw, before);
+  assert.deepEqual(Object.keys(out), ['2026-10-28']);
+  const d = out['2026-10-28'];
+  assert.deepEqual(d.math, { sessions: 2, questions: 8, firstTry: 8 });
+  assert.deepEqual(d.letter, { sessions: 0, questions: 1, firstTry: 0 });
+  assert.equal(d.bogus, undefined); assert.equal(d.clock, undefined);
+  assert.deepEqual(d.up, { math: 'M5' });
+  assert.equal(d.wrote, 'しつ'); assert.equal(d.newChars, 'つ'); assert.equal(d.newSolo, undefined);
+  assert.deepEqual(d.license, ['hira']); assert.deepEqual(d.newCars, ['bus']);
+  assert.equal(d.cards, 5); assert.equal(d.sec, 86400); assert.equal(d.last, '');
+  assert.deepEqual(DL.normalizeDays(out), out);   // 2 回通しても同じ
+  assert.equal(({}).math, undefined);             // 汚染されない
+});
+test('normalizeDays: 41 件以上は新しい 40 件', () => {
+  const raw = {};
+  let k = '2026-01-01';
+  for (let i = 0; i < 60; i++) { raw[k] = { math: { sessions: 1, questions: 4, firstTry: 4 } }; k = DL.addDays(k, 1); }
+  const out = DL.normalizeDays(raw);
+  assert.equal(Object.keys(out).length, 40);
+  assert.ok(out['2026-03-01'] && !out['2026-01-01']);
+});
+
+// ---- 保存との結合 ----
+test('storage: days の無い・壊れたプロフィールは days: {} で、ほかは変わらない', () => {
+  const p = S.normalizeProfile({ levels: { math: 'M3' } });
+  assert.deepEqual(p.days, {}); assert.deepEqual(p.daysOther, {});
+  assert.deepEqual(S.normalizeProfile({ days: 'x', daysOther: [1] }).days, {});
+  assert.equal(p.levels.math, 'M3');
+  const m = S.migrateV1({ levels: { math: 'M2' } }, 'p_a_0001', '2026-10-25');
+  assert.deepEqual(m.profiles[0].days, {});
+});
+test('storage: days は補正を通って残り、読み直しても同じ。device の番号・送る日・消した日', () => {
+  const days = DL.recordSession({}, T, { game: 'math', questions: 4, firstTry: 4 });
+  const st = S.normalize({ profiles: [{ id: 'p_a_0001', days, daysOther: days }] }, 'p_a_0001', T);
+  assert.deepEqual(st.profiles[0].days, days); assert.deepEqual(st.profiles[0].daysOther, days);
+  assert.match(st.device.deviceId, /^d_[0-9a-z]{8}$/);
+  assert.deepEqual(st.device.daysDirty, []); assert.equal(st.device.daysPrunedOn, '');
+  const st2 = S.normalize(JSON.parse(JSON.stringify(st)), 'p_a_0009', T);
+  assert.equal(st2.device.deviceId, st.device.deviceId);   // 一度作った番号は変わらない
+  assert.deepEqual(st2.profiles[0].days, days);
+  const odd = S.normalize({ device: { deviceId: 'D_X', daysDirty: [T, T, 'bad', '2026-10-27'], daysPrunedOn: 'x' }, profiles: [{ id: 'p_a_0001' }] }, 'p_a_0001', T);
+  assert.match(odd.device.deviceId, /^d_[0-9a-z]{8}$/); assert.notEqual(odd.device.deviceId, 'D_X');
+  assert.deepEqual(odd.device.daysDirty, [T, '2026-10-27']); assert.equal(odd.device.daysPrunedOn, '');
+});
+
+// ---- weekSummary ----
+function sample() {
+  let d = {};
+  d = DL.recordSession(d, '2026-10-20', { game: 'clock', questions: 4, firstTry: 1 });   // 前の週
+  d = DL.recordSession(d, '2026-10-26', { game: 'math', questions: 4, firstTry: 3, up: 'M3', reward: { id: 'bus', isNew: true } });
+  d = DL.addTime(d, '2026-10-26', 120);
+  d = DL.recordSession(d, '2026-10-26', { game: 'math', questions: 4, firstTry: 4, up: 'M4' });
+  d = DL.recordChar(d, '2026-10-27', { game: 'trace', ch: 'し', firstDone: true });   // 字だけ（出動は終えていない）
+  d = DL.recordSession(d, '2026-10-28', { game: 'solo', license: 'hira' });
+  d = DL.recordChar(d, '2026-10-28', { game: 'solo', ch: 'つ', firstDone: true, firstSolo: true });
+  d = DL.addTime(d, '2026-10-28', 300);
+  return d;
+}
+test('weekSummary: 7 行・合計が一致・あそんだ日は出動を終えた日だけ', () => {
+  const w = DL.weekSummary(sample(), '2026-10-26', T, { cleared: { M5: '2026-10-27', M3: '2026-10-01' }, promoted: { S1: '2026-10-28' } });
+  assert.equal(w.rows.length, 7);
+  assert.deepEqual(w.rows.map(r => r.key), DL.weekKeys('2026-10-26'));
+  assert.deepEqual(w.rows.map(r => r.kind), ['day', 'day', 'day', 'future', 'future', 'future', 'future']);
+  assert.equal(w.rows.reduce((a, r) => a + r.total, 0), w.sum.sessions);
+  assert.equal(w.sum.sessions, 3); assert.equal(w.sum.sec, 420); assert.equal(w.sum.playedDays, 2);   // 10/27 は字だけ
+  assert.equal(w.sum.byGame.math, 2); assert.equal(w.sum.byGame.solo, 1); assert.equal(w.rows[1].total, 0);
+  assert.deepEqual(w.got.up, { math: 'M4' });
+  assert.deepEqual(w.got.gates, [{ level: 'M5', date: '2026-10-27' }]);   // その週の日付だけ
+  assert.deepEqual(w.got.stages, [{ stage: 'S1', date: '2026-10-28' }]);
+  assert.equal(w.got.newChars, 'しつ'); assert.equal(w.got.newSolo, 'つ');
+  assert.deepEqual(w.got.license, ['hira']); assert.deepEqual(w.got.newCars, ['bus']);
+  assert.equal(w.got.any, true); assert.equal(w.any, true);
+});
+test('weekSummary: 前の週・範囲の前は old・今日より先は future・hasPrev / hasNext の境', () => {
+  const d = sample();
+  const prev = DL.weekSummary(d, '2026-10-19', T, {});
+  assert.equal(prev.sum.sessions, 1); assert.equal(prev.hasNext, true); assert.equal(prev.hasPrev, true);
+  assert.equal(DL.weekSummary(d, '2026-10-26', T, {}).hasNext, false);
+  // 今日 2026-10-28 → 35 日の最初は 2026-09-24（木）。月曜 09-21 の週は先頭の 3 日が old
+  const first = DL.weekSummary(d, '2026-09-21', T, {});
+  assert.deepEqual(first.rows.slice(0, 4).map(r => r.kind), ['old', 'old', 'old', 'none']);
+  assert.equal(first.hasPrev, false);   // 前の週の日曜（09-20）は範囲の外
+  assert.equal(DL.weekSummary(d, '2026-09-28', T, {}).hasPrev, true);   // 前の週の日曜 09-27 は範囲の中
+  const empty = DL.weekSummary({}, '2026-10-26', T, {});
+  assert.equal(empty.any, false); assert.equal(empty.got.any, false);
+  assert.equal(DL.weekSummary(null, '2026-10-26', T, null).sum.sessions, 0);
+});
+
+// ---- kidToday ----
+const rs = (d, day, g, o) => DL.recordSession(d, day, Object.assign({ game: g, questions: 4, firstTry: 2 }, o || {}));
+test('kidToday: 1 つなら それに王冠。回数が多い方。同じならできたことが多い方。それも同じなら last。last が無ければ並びで先', () => {
+  let d = rs({}, T, 'clock');
+  assert.deepEqual(DL.kidToday(d, T), { played: { math: false, letter: false, clock: true, english: false, trace: false }, crown: 'clock', invite: 'math', all: false, none: false });
+  d = rs(rs(d, T, 'math'), T, 'math');
+  assert.equal(DL.kidToday(d, T).crown, 'math');   // 2 回 > 1 回
+  let e = rs(rs({}, T, 'math'), T, 'letter', { up: 'K2' });
+  assert.equal(DL.kidToday(e, T).crown, 'letter');   // 同じ 1 回: できたこと 1 > 0（last は letter でもできたことが先に効く）
+  e = rs(rs({}, T, 'letter'), T, 'math');
+  assert.equal(DL.kidToday(e, T).crown, 'math');   // 同点: last
+  e = rs(rs({}, T, 'math'), T, 'letter');
+  assert.equal(DL.kidToday(e, T).crown, 'letter');
+  const noLast = JSON.parse(JSON.stringify(e)); noLast[T].last = '';
+  assert.equal(DL.kidToday(noLast, T).crown, 'math');   // 並びで先
+  assert.equal(DL.kidToday(noLast, T, { cleared: { K1: T } }).crown, 'letter');   // 関門を今日通った
+  assert.equal(DL.kidToday(noLast, T, { cleared: { K1: '2026-10-01' } }).crown, 'math');
+});
+test('kidToday: trace と solo はまとめる。字だけの かく は遊んだ。回数に 1 回目で正解は使わない', () => {
+  let d = rs(rs({}, T, 'trace', { questions: 0, firstTry: 0 }), T, 'solo', { questions: 0, firstTry: 0 });
+  d = rs(d, T, 'math', { firstTry: 4 });
+  const k = DL.kidToday(d, T);
+  assert.equal(k.played.trace, true); assert.equal(k.crown, 'trace');   // 2 回 > 1 回（正解の数が多い math ではない）
+  const only = DL.recordChar({}, T, { game: 'trace', ch: 'し', firstDone: true });
+  assert.equal(DL.kidToday(only, T).played.trace, true); assert.equal(DL.kidToday(only, T).crown, 'trace');
+  const g = DL.recordChar(DL.recordChar(rs({}, T, 'trace'), T, { game: 'solo', ch: 'し', firstDone: true, firstSolo: true }), T, { game: 'trace', ch: 'つ', firstDone: true });
+  assert.equal(DL.kidToday(rs(g, T, 'math'), T).crown, 'trace');   // 1 回ずつ: かく はできたこと 3
+});
+test('kidToday: 誘いは直近 7 日でいちばん少ないもの。同じなら並びで先。えいごは enOn のときだけ。全部・なし', () => {
+  let d = rs({}, '2026-10-25', 'letter');
+  d = rs(rs(d, '2026-10-26', 'clock'), '2026-10-27', 'trace');
+  d = rs(d, T, 'math');
+  assert.equal(DL.kidToday(d, T).invite, 'english');   // letter・clock・trace は直近 7 日に 1 回ずつ、english は 0
+  assert.equal(DL.kidToday(d, T, { enOn: false }).invite, 'letter');   // english は誘わない。残りは同数で並びが先
+  d = rs({}, '2026-10-01', 'letter'); d = rs(d, T, 'math');
+  assert.equal(DL.kidToday(d, T).invite, 'letter'); // 7 日より前の記録は数えない（同数 0 で並びが先）
+  let all = {}; ['math', 'letter', 'clock', 'english', 'trace'].forEach(g => { all = rs(all, T, g); });
+  const k = DL.kidToday(all, T);
+  assert.equal(k.all, true); assert.equal(k.invite, ''); assert.equal(k.crown, 'trace');   // 全部 1 回 → 最後に終えた かく
+  const noEn = {}; let ne = noEn; ['math', 'letter', 'clock', 'trace'].forEach(g => { ne = rs(ne, T, g); });
+  assert.equal(DL.kidToday(ne, T, { enOn: false }).all, true);
+  assert.equal(DL.kidToday(ne, T).all, false);
+  const none = DL.kidToday({}, T);
+  assert.deepEqual(none, { played: { math: false, letter: false, clock: false, english: false, trace: false }, crown: '', invite: '', all: false, none: true });
+  assert.deepEqual(DL.kidToday(null, T), none);
+  assert.deepEqual(DL.kidToday(d, T), DL.kidToday(d, T));
+});
+
+// ---- クラウドの形・足し合わせ（DL-5） ----
+const fs = require('fs'), path = require('path');
+const STR = require('../src/strokes.js');
+const DEV = 'd_k3m9x2ab', DEV2 = 'd_a1b2c3d4';
+function fullDay() {   // 全部のゲーム・字 130 字・乗り物 47 種・めんきょ 4 つ・上限の回数と秒
+  const chars = Array.from(STR.SETS.hira + STR.SETS.kata + STR.SETS.k1 + STR.SETS.k2).slice(0, 130);
+  const d = {};
+  ['math', 'letter', 'clock', 'english'].forEach(g => { d[g] = { sessions: 999, questions: 9999, firstTry: 9999 }; });
+  d.trace = { sessions: 999, chars: 9999 }; d.solo = { sessions: 999, chars: 9999 };
+  d.up = { math: 'M13', letter: 'K9', clock: 'T8', english: 'E5' };
+  d.wrote = chars.join(''); d.newChars = chars.slice(0, 50).join(''); d.newSolo = chars.slice(0, 20).join('');
+  d.license = ['hira', 'kata', 'k1', 'k2']; d.newCars = D.ALL_VEHICLES.map(v => v.id).slice(0, 47);
+  d.cards = 999; d.sec = 86400; d.last = 'solo';
+  return d;
+}
+test('toCloudDay / fromCloudDay: 往復で変わらない（普通の日・空の日・全部入りの日）', () => {
+  const some = sample()['2026-10-28'];
+  [some, fullDay(), sample()['2026-10-26']].forEach(day => {
+    const n = DL.normalizeDay(day), doc = DL.toCloudDay(day, T, DEV);
+    assert.equal(doc.n.length, 18); assert.equal(Object.keys(doc).length, 11);
+    assert.deepEqual(DL.fromCloudDay(JSON.parse(JSON.stringify(doc))), { date: T, dev: DEV, day: n });
+  });
+  const empty = DL.toCloudDay(null, T, DEV);
+  assert.deepEqual(empty.n, new Array(18).fill(0)); assert.equal(empty.up, ',,,');
+  assert.deepEqual(DL.fromCloudDay(empty), { date: T, dev: DEV, day: null });   // 遊ばなかったゲームは 0 で戻り、空の日は日ごと消える
+  assert.deepEqual(DL.toCloudDay(some, T, DEV).n.slice(0, 3), [0, 0, 0]);
+});
+test('toCloudDay の結果は、firestore.rules の isDay と同じ正規表現に合う（ルールの文字列と一致も確かめる）', () => {
+  const rules = fs.readFileSync(path.join(__dirname, '..', 'firestore.rules'), 'utf8');
+  const doc = DL.toCloudDay(fullDay(), T, DEV);
+  assert.match(doc.date, DL.RE.date); assert.match(doc.dev, DL.RE.dev); assert.match(doc.n.join(','), DL.RE.n);
+  assert.match(doc.up, DL.RE.up); assert.match(doc.license, DL.RE.license); assert.match(doc.last, DL.RE.last);
+  assert.ok(doc.newCars.length <= 700);
+  // ルールの正規表現（'^…$' の中身）をそのまま取り出して、端末の正規表現のソースと比べる
+  const grab = (re) => { const m = re.exec(rules); assert.ok(m, String(re)); return m[1]; };
+  assert.equal(grab(/n\.join\(','\)\.matches\('([^']+)'\)/), DL.RE.n.source);
+  assert.equal(grab(/d\.up\.matches\('([^']+)'\)/), DL.RE.up.source);
+  assert.equal(grab(/d\.license\.matches\('([^']+)'\)/), DL.RE.license.source);
+  assert.equal(grab(/d\.last\.matches\('([^']+)'\)/), DL.RE.last.source);
+  assert.equal(grab(/d\.dev is string && d\.dev\.matches\('([^']+)'\)/), DL.RE.dev.source);
+  assert.equal(grab(/d\.date is string && d\.date\.matches\('([^']+)'\)/), DL.RE.date.source);
+});
+test('fromCloudDay: 形の違う文書・35 日の外ではなく形だけを見て捨てる', () => {
+  const ok = DL.toCloudDay(sample()['2026-10-28'], T, DEV);
+  const bad = f => { const d = JSON.parse(JSON.stringify(ok)); f(d); return DL.fromCloudDay(d); };
+  assert.ok(DL.fromCloudDay(ok));
+  [d => { d.v = 2; }, d => { d.extra = 1; }, d => { delete d.last; }, d => { d.date = '2026-1-1'; }, d => { d.date = '2026-02-30'; }, d => { d.dev = 'x'; },
+   d => { d.n.pop(); }, d => { d.n.push(0); }, d => { d.n[0] = -1; }, d => { d.n[0] = 1.5; }, d => { d.n[0] = 1000; }, d => { d.n[17] = 100000; }, d => { d.n = {}; },
+   d => { d.up = 'M5,,'; }, d => { d.up = 'X5,,,'; }, d => { d.license = 'bogus'; }, d => { d.last = 'bogus'; }, d => { d.wrote = 5; }, d => { d.newCars = 'x'.repeat(701); }
+  ].forEach((f, i) => assert.equal(bad(f), null, 'case ' + i));
+  assert.equal(DL.fromCloudDay(null), null); assert.equal(DL.fromCloudDay([]), null); assert.equal(DL.fromCloudDay('x'), null);
+  // 形は合うが中身が使えないもの（知らない字・知らない乗り物）は補正で落ちる
+  const odd = bad(d => { d.wrote = 'しQ'; d.newChars = 'Q'; d.newCars = 'nonexistent'; });
+  assert.equal(odd.day.wrote, 'し'); assert.equal(odd.day.newCars, undefined);
+});
+test('sumDays: 回数は足し・up は高い方・字や乗り物は和集合・last は自分が先。sumDays(a, {}) は a。上限で止まる', () => {
+  const mine = {}, other = {};
+  mine[T] = { math: { sessions: 3, questions: 12, firstTry: 9 }, up: { math: 'M4' }, wrote: 'しつ', newChars: 'し', license: ['hira'], newCars: ['bus'], cards: 3, sec: 300, last: 'math' };
+  other[T] = { math: { sessions: 2, questions: 8, firstTry: 5 }, trace: { sessions: 1, chars: 4 }, up: { math: 'M5', clock: 'T2' }, wrote: 'つくへ', newChars: 'つ', newSolo: 'つ', license: ['hira', 'kata'], newCars: ['bus', 'taxi'], cards: 2, sec: 200, last: 'trace' };
+  other['2026-10-20'] = { clock: { sessions: 1, questions: 4, firstTry: 4 } };
+  const s = DL.sumDays(mine, other)[T];
+  assert.deepEqual(s.math, { sessions: 5, questions: 20, firstTry: 14 }); assert.deepEqual(s.trace, { sessions: 1, chars: 4 });
+  assert.deepEqual(s.up, { math: 'M5', clock: 'T2' });
+  assert.equal(s.wrote, 'しつくへ'); assert.equal(s.newChars, 'しつ'); assert.equal(s.newSolo, 'つ');
+  assert.deepEqual(s.license, ['hira', 'kata']); assert.deepEqual(s.newCars, ['bus', 'taxi']);
+  assert.equal(s.cards, 5); assert.equal(s.sec, 500); assert.equal(s.last, 'math');
+  assert.deepEqual(Object.keys(DL.sumDays(mine, other)).sort(), ['2026-10-20', T]);
+  assert.equal(DL.sumDays({ [T]: { math: { sessions: 1, questions: 4, firstTry: 4 } } }, { [T]: { solo: { sessions: 1, chars: 4 } } })[T].last, '');   // どちらも無ければ ''
+  assert.equal(DL.sumDays({ [T]: { solo: { sessions: 1, chars: 4 } } }, mine)[T].last, 'math');   // 自分に無ければ、ほかの端末の値
+  assert.equal(DL.sumDays({ [T]: { solo: { sessions: 1, chars: 4 }, last: 'solo' } }, mine)[T].last, 'solo');   // 自分の値が先
+  assert.deepEqual(DL.sumDays(mine, {}), DL.normalizeDays(mine)); assert.deepEqual(DL.sumDays({}, other), DL.normalizeDays(other));
+  const big = { [T]: fullDay() }, two = DL.sumDays(big, big)[T];
+  assert.equal(two.math.sessions, 999); assert.equal(two.sec, 86400); assert.equal(two.cards, 999); assert.ok(Array.from(two.wrote).length <= 130);
+  assert.deepEqual(DL.sumDays(mine, other), DL.normalizeDays(DL.sumDays(mine, other)));   // 足した結果も補正済み
+});
+test('foldOthers: ほかの端末の文書を何度読んでも同じ。読む順番に関係なく同じ（端末の番号の順）', () => {
+  const a = DL.fromCloudDay(DL.toCloudDay(sample()['2026-10-28'], T, DEV)), b = DL.fromCloudDay(DL.toCloudDay(sample()['2026-10-26'], T, DEV2));
+  const x = DL.foldOthers([a, b]), y = DL.foldOthers([b, a]), z = DL.foldOthers([a, b, a, b].slice(0, 2));
+  assert.deepEqual(x, y); assert.deepEqual(x, z);
+  assert.deepEqual(DL.foldOthers([]), {}); assert.deepEqual(DL.foldOthers([null, { date: T, dev: DEV, day: null }]), {});
+  // 2 台（自分 = DEV・もう 1 台 = DEV2）で同じ日に遊んだ → 画面は足した値
+  const mine = { [T]: { math: { sessions: 3, questions: 12, firstTry: 9 }, last: 'math' } };
+  const other = DL.foldOthers([DL.fromCloudDay(DL.toCloudDay({ math: { sessions: 2, questions: 8, firstTry: 5 }, trace: { sessions: 1, chars: 4 }, last: 'trace' }, T, DEV2))]);
+  const view = DL.sumDays(mine, other)[T];
+  assert.equal(view.math.sessions, 5); assert.equal(view.trace.sessions, 1);
+  assert.equal(DL.kidToday(DL.sumDays(mine, other), T).crown, 'math'); assert.equal(DL.kidToday(DL.sumDays(mine, other), T).played.trace, true);
+});

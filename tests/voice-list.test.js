@@ -100,3 +100,15 @@ test('T3: 1 つでも解けなければ null（声を混ぜない）', () => {
   assert.equal(V.resolve('Fire truck', table), null);   // 英語は作らない
   assert.equal(V.resolve('出動！', {}), null);           // 声のパックが空
 });
+
+test('きょうの しゅつどう: 12 本の文（王冠 5・誘い 5・ぜんぶ・0 回）が一覧に入り、一覧だけで言える', () => {
+  const texts = [];
+  Object.keys(L.GAME_NAME).forEach(g => texts.push(L.todayCrown(g), L.todayInvite(g)));
+  texts.push(L.FIXED.todayAll, L.FIXED.todayNone);
+  assert.equal(new Set(texts).size, 12);
+  const have = new Set(U.map(u => u.text));
+  texts.forEach(t => { assert.ok(have.has(V.normalize(t)), t); assert.ok(V.resolve(t, table), t); });
+  assert.equal(U.filter(u => u.why === 'today').length, 10);
+  assert.equal(L.todayCrown('trace'), '今日は かくを、とくに がんばったね！');
+  assert.equal(L.todayInvite('clock'), 'あしたは とけいも、やってみる？');
+});

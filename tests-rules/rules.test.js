@@ -6,12 +6,13 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const { initializeTestEnvironment, assertFails, assertSucceeds } = require('@firebase/rules-unit-testing');
-const { doc, getDoc, setDoc, deleteDoc, getDocs, collection, serverTimestamp, writeBatch, collectionGroup, query } = require('firebase/firestore');
+const { doc, getDoc, setDoc, deleteDoc, getDocs, collection, serverTimestamp, writeBatch, collectionGroup, query, where } = require('firebase/firestore');
 
 const ROOT = path.join(__dirname, '..');
 const storage = require(path.join(ROOT, 'src/storage.js'));
 const strokes = require(path.join(ROOT, 'src/strokes.js'));
 const data = require(path.join(ROOT, 'src/data.js'));
+const DL = require(path.join(ROOT, 'src/daylog.js'));
 
 let env;
 before(async () => {
@@ -43,6 +44,7 @@ const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 function toCloudProfile(p) {
   const o = JSON.parse(JSON.stringify(p));
   delete o.seen;
+  delete o.days; delete o.daysOther;   // 日ごとの記録は別の文書（docs/design-daily-log.md 10.6）
   if (!DATE_RE.test(o.lastPlayed)) o.lastPlayed = '';
   o.updatedAt = NOW; o.ladderAt = NOW;
   return o;
@@ -451,4 +453,189 @@ test('自分以外の uid でも、別の uid の文書は読めない（相互�
   await assertFails(deleteDoc(profRef(google('B'), 'A', 'p_abc_0001')));
   await assertFails(deleteDoc(famRef(google('B'), 'A')));
   await assertSucceeds(getDoc(famRef(google('A'), 'A')));
+});
+
+
+// ================= 日ごとの記録（docs/design-daily-log.md 10 章。試験 15〜15l） =================
+const PID = 'p_abc_0001', DEV_A = 'd_k3m9x2ab', DEV_B = 'd_a1b2c3d4', DAY = '2026-10-28';
+const dayRef = (db, uid, pid, did) => doc(db, 'families', uid, 'profiles', pid, 'days', did);
+const didOf = (d) => d.date + '_' + d.dev;
+const dayDoc = (day, date, dev) => DL.toCloudDay(day, date || DAY, dev || DEV_A);
+const sampleDay = () => ({
+  math: { sessions: 2, questions: 8, firstTry: 6 }, trace: { sessions: 1, chars: 4 }, solo: { sessions: 1, chars: 4 },
+  up: { math: 'M5' }, wrote: 'しつくへ', newChars: 'へ', newSolo: 'し', license: ['hira'], cards: 4, newCars: ['bus'], sec: 780, last: 'solo'
+});
+function fullDay() {   // すべて上限まで（字 130・乗り物 47・めんきょ 4・上限の回数と秒）
+  const chars = [...(strokes.SETS.hira + strokes.SETS.kata + strokes.SETS.k1 + strokes.SETS.k2)].slice(0, 130);
+  const d = {};
+  ['math', 'letter', 'clock', 'english'].forEach((g) => { d[g] = { sessions: 999, questions: 9999, firstTry: 9999 }; });
+  d.trace = { sessions: 999, chars: 9999 }; d.solo = { sessions: 999, chars: 9999 };
+  d.up = { math: 'M13', letter: 'K9', clock: 'T8', english: 'E5' };
+  d.wrote = chars.join(''); d.newChars = chars.slice(0, 50).join(''); d.newSolo = chars.slice(0, 20).join('');
+  d.license = ['hira', 'kata', 'k1', 'k2']; d.newCars = data.ALL_VEHICLES.map((v) => v.id).slice(0, 47);
+  d.cards = 999; d.sec = 86400; d.last = 'solo';
+  return d;
+}
+async function withParent(uid, ids) {   // 親だけ（ids を指定）。子の文書は書かない
+  await setDoc(famRef(google(uid), uid), { v: 1, ids: ids || [PID], deleted: {}, updatedAt: serverTimestamp() });
+}
+const writeDay = (d, uid, pid, db) => setDoc(dayRef(db || google(uid || 'A'), uid || 'A', pid || PID, didOf(d)), d);
+const mut = (fn) => { const d = dayDoc(sampleDay()); fn(d); return d; };
+
+test('15 uid A で ids にある子の days を書く・読む・一覧する（date >= の問い合わせ）: 許可', async () => {
+  await withParent('A');
+  const a = google('A'), d1 = dayDoc(sampleDay(), DAY, DEV_A), d2 = dayDoc(sampleDay(), '2026-10-20', DEV_B);
+  await assertSucceeds(writeDay(d1)); await assertSucceeds(writeDay(d2));
+  const g = await assertSucceeds(getDoc(dayRef(a, 'A', PID, didOf(d1))));
+  assert.deepEqual(DL.fromCloudDay(g.data()), { date: DAY, dev: DEV_A, day: DL.normalizeDay(sampleDay()) });
+  const recent = await assertSucceeds(getDocs(query(collection(a, 'families', 'A', 'profiles', PID, 'days'), where('date', '>=', '2026-10-24'))));
+  assert.equal(recent.size, 1);
+  const old = await assertSucceeds(getDocs(query(collection(a, 'families', 'A', 'profiles', PID, 'days'), where('date', '<', '2026-10-24'))));
+  assert.equal(old.size, 1);
+  await assertSucceeds(writeDay(Object.assign(clone(d1), { n: d1.n.map((x) => x + 1) })));   // 上書き（update）
+});
+test('15b 端末の normalizeDays が作った日（空・全部のゲーム・字 130・乗り物 47・めんきょ 4・上限の回数と秒）を toCloudDay した文書: 許可', async () => {
+  await withParent('A');
+  const cases = { 空の日: null, 普通: sampleDay(), 全部入り: fullDay(), 字だけ: { wrote: 'し', newChars: 'し', trace: { sessions: 0, chars: 1 } } };
+  let i = 0;
+  for (const [label, day] of Object.entries(cases)) {
+    const d = dayDoc(day, '2026-10-0' + (++i)), back = DL.fromCloudDay(d);
+    assert.ok(back, label);
+    await assertSucceeds(writeDay(d));
+  }
+  const sum = DL.sumDays({ [DAY]: fullDay() }, { [DAY]: fullDay() });   // 足した結果（上限で止まったもの）も通る
+  await assertSucceeds(writeDay(dayDoc(sum[DAY], DAY, DEV_B)));
+  for (const k of ['math', 'letter', 'clock', 'english']) assert.equal(fullDay()[k].sessions, 999);
+});
+test('15c uid B・未ログイン・匿名で A の days を 読む・書く・消す・一覧する。collectionGroup(days): 拒否', async () => {
+  await withParent('A');
+  const d = dayDoc(sampleDay()); await writeDay(d);
+  const ref = (db) => dayRef(db, 'A', PID, didOf(d));
+  for (const db of [google('B'), env.unauthenticatedContext().firestore(), anon('A')]) {
+    await assertFails(getDoc(ref(db))); await assertFails(setDoc(ref(db), d)); await assertFails(deleteDoc(ref(db)));
+    await assertFails(getDocs(collection(db, 'families', 'A', 'profiles', PID, 'days')));
+  }
+  await assertFails(getDocs(collectionGroup(google('A'), 'days')));
+  await assertFails(getDocs(query(collectionGroup(google('A'), 'days'), where('date', '>=', '2026-10-01'))));
+  await assertFails(setDoc(dayRef(google('B'), 'B', PID, didOf(d)), d));   // B の親は無い
+  await assertSucceeds(getDoc(ref(google('A'))));
+});
+test('15d 親が無い・ids に無い子の days を書く: 拒否。親（ids に入れた後）なら許可', async () => {
+  const d = dayDoc(sampleDay());
+  await assertFails(writeDay(d));   // 親が無い
+  await withParent('A', []);
+  await assertFails(writeDay(d));   // ids に無い
+  await withParent('A', ['p_abc_0002']);
+  await assertFails(writeDay(d));   // 別の子だけ
+  await withParent('A', [PID]);
+  await assertSucceeds(writeDay(d));
+  await assertFails(writeDay(d, 'A', 'p_abc_0009'));   // ids に無い 5 人目
+});
+test('15e 項目を足す・欠く・v が 2: 拒否', async () => {
+  await withParent('A');
+  await assertFails(writeDay(mut((d) => { d.email = 'a@example.com'; })));
+  for (const k of ['n', 'up', 'wrote', 'newChars', 'newSolo', 'license', 'newCars', 'last']) {
+    const d = dayDoc(sampleDay()); delete d[k];
+    await assertFails(writeDay(d));
+  }
+  await assertFails(writeDay(mut((d) => { d.v = 2; })));
+  await assertFails(writeDay(mut((d) => { d.v = '1'; })));
+});
+test('15f 文書の名前と date・dev が合わない・dev や日付の形が違う・数や表: 拒否', async () => {
+  await withParent('A');
+  const d = dayDoc(sampleDay()), a = google('A');
+  await assertFails(setDoc(dayRef(a, 'A', PID, '2026-10-27_' + DEV_A), d));   // 名前と date が違う
+  await assertFails(setDoc(dayRef(a, 'A', PID, DAY + '_' + DEV_B), d));      // 名前と dev が違う
+  await assertFails(setDoc(dayRef(a, 'A', PID, 'x'), d));
+  for (const f of [(x) => { x.dev = 'd_ABCDEFGH'; }, (x) => { x.dev = 'd_abc'; }, (x) => { x.dev = 'k3m9x2ab'; }, (x) => { x.date = '2026-1-1'; }, (x) => { x.date = '20261028'; },
+    (x) => { x.date = 20261028; }, (x) => { x.dev = 5; }, (x) => { x.date = {}; }, (x) => { x.dev = ['d_k3m9x2ab']; }]) {
+    const x = dayDoc(sampleDay()); f(x);
+    await assertFails(setDoc(dayRef(a, 'A', PID, typeof x.date === 'string' && typeof x.dev === 'string' ? x.date + '_' + x.dev : DAY + '_' + DEV_A), x));
+  }
+  await assertSucceeds(setDoc(dayRef(a, 'A', PID, DAY + '_' + DEV_A), d));
+});
+test('15g n が 17・19 個・負・小数・けたが多い（回数 1000・秒 100000）・表: 拒否', async () => {
+  await withParent('A');
+  const bad = [(d) => { d.n.pop(); }, (d) => { d.n.push(0); }, (d) => { d.n[0] = -1; }, (d) => { d.n[1] = 1.5; }, (d) => { d.n[0] = 1000; }, (d) => { d.n[1] = 10000; },
+    (d) => { d.n[17] = 100000; }, (d) => { d.n[14] = 1000; }, (d) => { d.n[12] = 1000; }, (d) => { d.n[16] = 1000; }, (d) => { d.n = {}; }, (d) => { d.n = 'x'; }, (d) => { d.n[3] = 'a'; }, (d) => { d.n[3] = null; }];
+  for (const f of bad) await assertFails(writeDay(mut(f)));
+  await assertSucceeds(writeDay(mut((d) => { d.n[0] = 999; d.n[1] = 9999; d.n[17] = 99999; })));
+});
+test('15h up・license・newCars・wrote・last の形: 拒否と許可', async () => {
+  await withParent('A');
+  const bad = [(d) => { d.up = 'M5,,'; }, (d) => { d.up = 'M5,,,,'; }, (d) => { d.up = 'X5,,,'; }, (d) => { d.up = ',M5,,'; }, (d) => { d.up = 'M5,K1,T1'; }, (d) => { d.up = 5; },
+    (d) => { d.license = 'bogus'; }, (d) => { d.license = 'hira,'; }, (d) => { d.license = 'hira,hira,hira,hira,hira'; }, (d) => { d.license = ['hira']; },
+    (d) => { d.newCars = 'nonexistent'; }, (d) => { d.newCars = ','; }, (d) => { d.newCars = 'bus,'; },
+    (d) => { d.newCars = data.ALL_VEHICLES.map((v) => v.id).slice(0, 47).concat('bus').join(','); },
+    (d) => { d.wrote = 'しQ'; }, (d) => { d.wrote = 'し'.repeat(131); }, (d) => { d.newChars = 'Z'; }, (d) => { d.newSolo = 5; }, (d) => { d.wrote = ['し']; },
+    (d) => { d.last = 'bogus'; }, (d) => { d.last = 'math,trace'; }, (d) => { d.last = 3; }];
+  for (const f of bad) await assertFails(writeDay(mut(f)));
+  await assertSucceeds(writeDay(mut((d) => { d.up = 'M13,K9,T8,E5'; d.license = 'hira,kata,k1,k2'; d.last = ''; d.wrote = ''; d.newChars = ''; d.newSolo = ''; d.newCars = ''; })));
+  await assertSucceeds(writeDay(mut((d) => { d.wrote = [...strokes.SETS.hira + strokes.SETS.kata + strokes.SETS.k1].slice(0, 130).join(''); })));
+});
+test('15i uid A で自分の days を消す: 許可（文書が無くても）。B は拒否', async () => {
+  await withParent('A');
+  const d = dayDoc(sampleDay()); await writeDay(d);
+  await assertFails(deleteDoc(dayRef(google('B'), 'A', PID, didOf(d))));
+  await assertSucceeds(deleteDoc(dayRef(google('A'), 'A', PID, didOf(d))));
+  await assertSucceeds(deleteDoc(dayRef(google('A'), 'A', PID, didOf(d))));
+  const l = await getDocs(collection(google('A'), 'families', 'A', 'profiles', PID, 'days'));
+  assert.equal(l.size, 0);
+});
+test('15j 2 人 × 35 日 × 2 台の days を書いた後で、試験 13（4 人を上限まで埋める）と同じ書き込み: 許可（プロフィールの式の数は変わらない）', async () => {
+  const st = storage.normalize({ profiles: [1, 2, 3, 4].map(fullRaw) });
+  await put('A', toCloud(st));   // 親と 4 人（親が先）
+  let k = '2026-09-24', n = 0;
+  for (let i = 0; i < 35; i++) {
+    for (const pid of [st.profiles[0].id, st.profiles[1].id]) for (const dev of [DEV_A, DEV_B]) { await assertSucceeds(writeDay(dayDoc(i % 2 ? fullDay() : sampleDay(), k, dev), 'A', pid)); n++; }
+    k = DL.addDays(k, 1);
+  }
+  assert.equal(n, 140);
+  await assertSucceeds(put('A', toCloud(st)));   // 試験 13 と同じ（更新）
+  const l = await getDocs(collection(google('A'), 'families', 'A', 'profiles', st.profiles[0].id, 'days'));
+  assert.equal(l.size, 70);
+});
+test('15k ルールの乗り物の一覧（dayCarPattern）が isCards・端末の CAR_IDS と一致する', async () => {
+  const rules = fs.readFileSync(path.join(ROOT, 'firestore.rules'), 'utf8');
+  const inDay = rules.match(/function dayCarPattern\(\) \{\s*return '\(([a-z|]+)\)';/)[1].split('|');
+  const inCards = rules.match(/isKeyList\(c\.keys\(\), '\(([a-z|]+)\)'\)/)[1].split('|');
+  assert.deepEqual(inDay, inCards);
+  assert.deepEqual(inDay, storage.CAR_IDS);
+  assert.deepEqual(inDay, data.ALL_VEHICLES.map((c) => c.id));
+  // 字の正規表現は isTraceStr が traceCharPattern を使うので、プロフィールと同じ一覧（上の「ルールの一覧」試験が端末と一致を確かめる）
+  assert.ok(/function isTraceStr\(s\)[\s\S]*traceCharPattern\(\)/.test(rules));
+});
+test('15l 1 文書を上限まで埋めたときの式の数: isDay をもう 1 回足す方法で測る（余裕を記録する）', async () => {
+  const rules = fs.readFileSync(path.join(ROOT, 'firestore.rules'), 'utf8');
+  const one = 'isDay(request.resource.data, did)';
+  assert.ok(rules.includes(one));
+  const full = dayDoc(fullDay());
+  let ok = 0;
+  for (let k = 1; k <= 40; k++) {
+    const text = rules.replace(one, new Array(k).fill(one).join(' && '));
+    const e2 = await initializeTestEnvironment({ projectId: 'demo-hataraku-measure', firestore: { rules: text } });
+    try {
+      await e2.clearFirestore();
+      const db = e2.authenticatedContext('A', { firebase: { sign_in_provider: 'google.com' } }).firestore();
+      await setDoc(famRef(db, 'A'), { v: 1, ids: [PID], deleted: {}, updatedAt: serverTimestamp() });
+      await assertSucceeds(setDoc(dayRef(db, 'A', PID, didOf(full)), full).catch((e) => { throw e; }));
+      ok = k;
+    } catch (e) { break; } finally { await e2.cleanup(); }
+  }
+  console.log('# 15l: isDay を ' + ok + ' 回まで足しても通る（1 回 + ' + (ok - 1) + ' 回分の余裕 → 1 文書の式の数は 1,000 の約 1/' + ok + '）');
+  assert.ok(ok >= 3, 'isDay を 3 回足しても通ること（余裕が 3 倍以上）: ' + ok);
+});
+
+test('15m 親の ids 更新と days を同じ batch で書く（getAfter）: 許可。ids に無い子の days を含む batch は拒否', async () => {
+  const a = google('A'), d = dayDoc(sampleDay()), e = dayDoc(sampleDay(), '2026-10-27', DEV_B);
+  const b = writeBatch(a);
+  b.set(famRef(a, 'A'), { v: 1, ids: [PID], deleted: {}, updatedAt: serverTimestamp() });
+  b.set(dayRef(a, 'A', PID, didOf(d)), d); b.set(dayRef(a, 'A', PID, didOf(e)), e);
+  await assertSucceeds(b.commit());
+  const l = await getDocs(collection(a, 'families', 'A', 'profiles', PID, 'days'));
+  assert.equal(l.size, 2);
+  const c = writeBatch(a);   // ids から外す更新と同じ batch の days は拒否
+  c.set(famRef(a, 'A'), { v: 1, ids: [], deleted: {}, updatedAt: serverTimestamp() });
+  c.set(dayRef(a, 'A', PID, didOf(d)), d);
+  await assertFails(c.commit());
 });

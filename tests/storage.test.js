@@ -16,6 +16,9 @@ function withStorage(init, fn) {
   try { return fn(mem); } finally { if (orig) Object.defineProperty(globalThis, 'localStorage', orig); else delete globalThis.localStorage; }
 }
 
+// 端末ごとの番号 deviceId は作るたびにランダムなので、比べるときは外す
+const sameState = (a, b, msg) => { const f = x => { const c = JSON.parse(JSON.stringify(x)); delete c.device.deviceId; return c; }; assert.deepEqual(f(a), f(b), msg); };
+
 // ---- normalizeProfile（旧 normalize の検査） ----
 test('壊れたデータや欠損はデフォルトで埋まる', () => {
   assert.deepEqual(S.normalizeProfile(null), S.defaultProgress());
@@ -84,7 +87,7 @@ test('normalizeProfile: M6・M7 を受け入れ、列に無いレベルは M1 �
 test('normalize: null・文字列・数・配列は既定（こども1 が 1 人）', () => {
   for (const bad of [null, 'x', 5, [], undefined, true]) {
     const d = S.normalize(bad, ID, TODAY);
-    assert.deepEqual(d, S.defaults(ID, TODAY));
+    sameState(d, S.defaults(ID, TODAY));
     assert.equal(d.version, 2);
     assert.equal(d.profiles.length, 1);
     assert.equal(d.profiles[0].name, 'こども1');
@@ -105,9 +108,9 @@ test('normalize: 5 人目以降は捨てる。id 重複は先のもの、id 不�
   const dup = S.normalize({ profiles: [prof('p_x_0001', { name: 'まえ' }), prof('p_x_0001', { name: 'あと' })] }, ID, TODAY);
   assert.equal(dup.profiles.length, 1); assert.equal(dup.profiles[0].name, 'まえ');
   const bad = S.normalize({ profiles: [prof('x1'), prof('p_'), prof('P_ABC'), prof(5), null, 'a'] }, ID, TODAY);
-  assert.deepEqual(bad, S.defaults(ID, TODAY));   // 全部捨てて既定の 1 人
-  assert.deepEqual(S.normalize({ profiles: 'x' }, ID, TODAY), S.defaults(ID, TODAY));
-  assert.deepEqual(S.normalize({ profiles: [] }, ID, TODAY), S.defaults(ID, TODAY));
+  sameState(bad, S.defaults(ID, TODAY));   // 全部捨てて既定の 1 人
+  sameState(S.normalize({ profiles: 'x' }, ID, TODAY), S.defaults(ID, TODAY));
+  sameState(S.normalize({ profiles: [] }, ID, TODAY), S.defaults(ID, TODAY));
 });
 
 test('normalize: 名前・アイコン・日付の不正値は既定。lastProfileId が無い id なら先頭', () => {

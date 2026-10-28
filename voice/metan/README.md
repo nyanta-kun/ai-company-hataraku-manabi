@@ -9,5 +9,5 @@
 - 設定: {"speedScale":0.95,"pitchScale":0,"intonationScale":1.2,"volumeScale":1,"pauseLengthScale":0.6,"prePhonemeLength":0.05,"postPhonemeLength":0.05}
 - 渡した文: 漢字まじり（画面の文字はひらがなのまま）。`scripts/voice/yomi.json`。抑揚の直し: `scripts/voice/accent.json`（直したあと /mora_pitch で高さを作り直した）
 - 形式: AAC-LC 32kbps・24kHz・モノラル（ADTS の .aac。`afconvert -f adts -d aac -c 1 -b 32000`）
-- 作った日: 2026-10-27、文の数 1076、音声の大きさ 合計 5.09 MB
+- 作った日: 2026-10-28、文の数 1088、音声の大きさ 合計 5.23 MB
 - 作り方: `node scripts/voice/build.js --voice metan`（VOICEVOX エンジンを起動して。変わった文だけ作り直す。`--all` で全部）

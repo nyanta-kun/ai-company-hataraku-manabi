@@ -194,11 +194,31 @@ families/{uid}/profiles/{id}      プロフィール 1 人 1 文書。端末内�
 - **「4 人まで」の強制**: ルールは `profiles` の文書の数を数えられないが、プロフィールの作成・更新を「親の `ids` にその id があるときだけ」に絞っている（`getAfter`）。親の `ids` は 4 件までなので、5 人目は書けない。**書き込みごとに読み取り 1 回の課金対象**（家族の利用なら無料枠の中。8 章）。
 - **cloud.js の約束（書く順番）**: ①**親を先に書く**（新しい子の id を `ids` に入れる）。②そのあとでプロフィールを書く。最初の保存（親がまだ無いとき）も同じ順番。親が無い・`ids` に無い id のプロフィールの書き込みは拒否される。同じ batch／トランザクションで親と子を一緒に書くのも通る（`getAfter` は同じ書き込みの後の状態を見る）。子を消すときは、親の `ids` から外す書き込みと子の削除を順番を問わず行える（削除はルールが `ids` を見ない）。
 - **ids から外した子の文書は、cloud.js が必ず消す（強調）**: ルールは、`ids` に入っている id のプロフィールだけを書けるようにしている。ただし `ids` の中身は何度でも入れ替えられるので、入れ替えるたびに古い子の文書が残ると、4 件より多くの文書を作れてしまう（本人の領域の中だけで、他人には見えず、無料枠の中。リスクとして受け入れる。7 章）。そこで **cloud.js は、プロフィールを `ids` から外す（消す・入れ替える）ときは、その子の文書を同じ batch で消す**。起動時の `list` で `ids` にない子の文書を見つけたら、消す。
-- **アカウントの削除**: 親と、`profiles` の下の各文書を、それぞれ消す（クライアントが `ids` と `list` で集めて消す）。（`docs/r4-data-and-privacy.md` の手順 3 と `docs/design-elementary.md` 7 章は、この形に合わせてある。）
+- **日ごとの記録（4.4）**: プロフィールを消す・`ids` から外すときは、その子の `days` も消す（Firestore はプロフィールの文書を消しても下の文書を消さない。途中で通信が切れたら、次の同期で `ids` に無い子の `days` も消す）。`days` は親の `ids` の更新と同じ batch で書ける（ルールが `getAfter()` を使うため。試験 15m）。プロフィールとは、batch 全体の式の数が本番で未確認なので分けて書く。
+- **アカウントの削除**: 親と、`profiles` の下の各文書（各プロフィールの `days` を先に）を、それぞれ消す（クライアントが `ids` と `list` で集めて消す）。（`docs/r4-data-and-privacy.md` の手順 3 と `docs/design-elementary.md` 7 章は、この形に合わせてある。）
 
 ### 4.3 回数の型の検査について（試験で分かったこと）
 
 式の上限のため、`stats`・`trace` の回数（`sessions`・`questions`・`firstTry`・`chars`・`clean`、`done`・`help`・`solo` の値）は、「全部をまとめて `join(',')` して、0 以上の数字だけの並びに合うか」で確かめている。**数字だけの文字列（例 `'5'`）は通る**（整数型かどうかまでは確かめない。負の数・小数・数字以外・13 けた以上は拒否）。端末の `normalizeProfile` は整数しか作らないので正しいデータには影響せず、書けるのは本人だけで、大きさは件数と長さの両方で縛ってある（`stats` は 16 個の数の並びがちょうどその個数で、`done`・`help`・`solo` は 5.2 のとおり長さを縛る）。`cards` の値（1〜3）・`locked`・`updatedAt`・`ladderAt` は型まで確かめている。
+
+### 4.4 日ごとの記録の文書（まいにちの きろく。`docs/design-daily-log.md` 10 章）
+
+プロフィールの文書とは**別の文書**に置く。プロフィールの項目数（`size() == 15`）と式の数（5.2）に触れないため。**1 日・1 端末で 1 文書**: 1 台が書くのは自分の文書だけなので取り合いが無く、2 台で同じ日に遊んだ分は読んで足し合わせる（二重に数えない）。
+
+```
+families/{uid}/profiles/{pid}/days/{date}_{dev}      date = 'YYYY-MM-DD'、dev = 端末ごとの番号（'d_' + 小文字の英数字 8 字。アプリが乱数で作る）
+{
+  v: 1, date: '2026-10-28', dev: 'd_k3m9x2ab',
+  n: [2, 8, 6,  0, 0, 0,  1, 4, 2,  0, 0, 0,  1, 4,  1, 4,  4, 780],
+      かず s,q,f  もじ s,q,f  とけい s,q,f  えいご s,q,f  かく s,c  ひとりで s,c  ごほうび  秒
+  up: 'M5,,,',  wrote: 'しつくへ', newChars: 'へ', newSolo: 'し', license: 'hira', newCars: 'bus', last: 'solo'
+}
+```
+
+- 項目は 11 個でいつも全部ある（遊ばなかったゲームは 0・空の文字列）。1 文書 約 0.2〜0.5 KB。端末の形（2.3）との行き来は `src/daylog.js` の `toCloudDay`・`fromCloudDay`、足し合わせは `sumDays`・`foldOthers`（回数は足す・`up` は高い方・字と乗り物は和集合）。
+- 保存しないもの: 何時に遊んだか・1 問ごとの答え。35 日より古い文書は**アプリが消す**（TTL ポリシーは使わない）。
+- `allow get, list`・`delete` は本人だけ。`create, update` は本人で、形（`isDay`）に合い、**親の `ids` にその子がある**ときだけ（`getAfter()`。親の `ids` 更新と同じ batch で書ける）。
+- ルールが確かめないこと（端末が守る）: 実在する日付（2 月 30 日）・遠い未来でないか・`firstTry ≤ questions`・字の重なり・`newChars ⊆ wrote`・`n` が整数型か（0 以上の数字だけの並びで確かめる。4.3 と同じ）。
 
 ---
 
@@ -319,6 +339,37 @@ service cloud.firestore {
         && isMs(p.ladderAt);
     }
 
+    // ---- 日ごとの記録（docs/design-daily-log.md 10 章）----
+    // families/{uid}/profiles/{pid}/days/{did}   did = 'YYYY-MM-DD_' + 端末の番号。1 日・1 端末で 1 文書
+    // 乗り物の id（src/storage.js の CAR_IDS と同じ。isCards と同じ並び。ずれたら tests-rules が失敗する）
+    function dayCarPattern() {
+      return '(nekoguruma|forklift|gomi|shovel|bulldozer|dump|kyukyu|shoubousha|mizutank|hashigo|chodai|rescuework|rescuechem|rescuecmd|rescueheli|patrol|bus|taxi|postcar|truck|motorbike|crane|roller|train|shinkansen|steam|tram|monorail|freight|cablecar|hayabusa|komachi|kagayaki|doctoryellow|linear|airplane|heli|rocket|balloon|airship|propplane|ship|fishboat|yacht|tugboat|fireboat|cargoship)';
+    }
+    // 書ける字だけの文字列（空も通る。130 字まで）。重なりと「newChars・newSolo は wrote の中」は端末の normalizeDays が守る
+    function isTraceStr(s) {
+      return s is string && s.size() <= 130 && s.matches('^' + traceCharPattern() + '*$');
+    }
+    // 回数 18 個: かず・もじ・とけい・えいご の（回数 3 けた, 問題 4 けた, 1 回目で正解 4 けた）、かく・ひとりで の（回数 3 けた, 字 4 けた）、ごほうび 3 けた、秒 5 けた
+    function isDayCounts(n) {
+      return n is list && n.size() == 18
+        && n.join(',').matches('^([0-9]{1,3},[0-9]{1,4},[0-9]{1,4},){4}[0-9]{1,3},[0-9]{1,4},[0-9]{1,3},[0-9]{1,4},[0-9]{1,3},[0-9]{1,5}$');
+    }
+    function isDay(d, did) {
+      return d is map
+        && d.size() == 11
+        && d.v == 1
+        && d.date is string && d.date.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+        && d.dev is string && d.dev.matches('^d_[0-9a-z]{8}$')
+        && did == d.date + '_' + d.dev
+        && isDayCounts(d.n)
+        && d.up.matches('^(M[0-9]{1,2})?,(K[0-9]{1,2})?,(T[0-9]{1,2})?,(E[0-9]{1,2})?$')
+        && isTraceStr(d.wrote) && isTraceStr(d.newChars) && isTraceStr(d.newSolo)
+        && d.license.matches('^((hira|kata|k1|k2)(,(hira|kata|k1|k2)){0,3})?$')
+        && d.newCars.size() <= 700
+        && d.newCars.matches('^(' + dayCarPattern() + '(,' + dayCarPattern() + '){0,46})?$')
+        && d.last.matches('^(math|letter|clock|english|trace|solo)?$');
+    }
+
     // ---- 家族の親の文書 ----
     function isFamily(d) {
       return d.size() == 4
@@ -343,6 +394,14 @@ service cloud.firestore {
         allow create, update: if isOwner(uid) && isProfile(request.resource.data, pid)
           && pid in getAfter(/databases/$(database)/documents/families/$(uid)).data.ids;
         allow delete: if isOwner(uid);
+
+        match /days/{did} {
+          allow get, list: if isOwner(uid);   // 自分の子の日ごとの記録だけ。list は「date >= 35 日前」「date < 35 日前」の問い合わせに使う
+          // 親の ids に pid があるときだけ書ける（消した子・5 人目の子の記録は書けない）。読み取り 1 回分（getAfter）の課金対象
+          allow create, update: if isOwner(uid) && isDay(request.resource.data, did)
+            && pid in getAfter(/databases/$(database)/documents/families/$(uid)).data.ids;
+          allow delete: if isOwner(uid);
+        }
       }
     }
 
@@ -362,6 +421,7 @@ service cloud.firestore {
 - **時刻**: 親の `updatedAt` はサーバーの時刻（`request.time`）でなければ通さない。
 - **削除**: 本人は自分の親の文書・プロフィールの文書を消せる。
 - **式の数（実測）**: 1 リクエストの上限は 1,000（エミュレーターも同じ。超えると `maximum of 1000 expressions` で拒否され、正しいデータも通らない）。**当初の見込み（1 人あたり約 103、4 人で約 470）は実測の約 10 分の 1 だった**。実測では、当初の形（1 家族 1 文書、型を細かく検査）は **プロフィール 1 人で約 1,000 に達し、2 人以上が通らなかった**。原因は、リストのリテラルは要素 1 つずつが式として数えられること、関数に渡した値の読み出し（`p.stats.math` のような道筋）が使うたびに数え直されること、関数のなかで関数を呼ぶと重なること。これを受けて、(1) 1 人 1 文書に分け（4 章）、(2) 一覧のリテラルを正規表現と `join` に置き換え、(3) `size()` と値の読み出しで項目の過不足を確かめるようにした。結果、1 人分をすべて上限まで埋めた文書（4 人分の試験 13）が通る。最大の 1 人（すべての表を上限まで埋めたもの）は、`,` の抜けを塞いだ後で約 750〜800 式（余裕は約 2 割。`isTrace` をもう 1 回足すと通らない）。**ごほうびの棚（`cards` が 15 → 42 → 47 種）でも変わらない**: 件数の上限と正規表現は 1 つの文字列・1 回の `matches()` のままなので式の数は増えず、47 種すべて ★3 の最大の 1 人でも試験 13・13b が通る。同じ方法（`isTrace(p.trace)` をもう 1 回足す）で測り直して、足すと同じ箇所で上限に当たることを確かめた（余裕は 15 種のときと同じ約 2 割）。親の文書と 4 人を 1 つの batch で書く（5 書き込み）試験 13b もエミュレーターでは通るが、**本番が batch 全体で式を数えるのかは未確認**（5.3 の公開前の手順）。**R3 などで項目を足すときは、必ず 試験 13 を回し直す**。
+- **日ごとの記録（4.4）**: 別の文書なので、プロフィールの式の数は変わらない（試験 13・13b を回し直して確かめた。試験 15j は 2 人 × 35 日 × 2 台の `days` を書いた後でも 13 と同じ書き込みが通る）。1 文書（全項目を上限まで埋めたもの）の式の数は、`isDay` をもう 1 回足す方法で測ると **5 回まで通り 6 回で上限**（試験 15l）なので、1 文書で約 170〜200 式（上限 1,000 に対して余裕は約 4〜5 倍。設計書の見込みの約 40 より多かった）。ルールが強くない点（実在する日付・`firstTry ≤ questions`・字の重なり・`newChars ⊆ wrote`）は端末の `normalizeDays` が守る。
 - **`join` の抜け**: キーを `,` でつないで 1 つずつの形に合わせる方法は、「`,` を含むキー 1 つ」が 2 つに見える抜けがあった（試験で見つけた）。`;` でつないだものも合わせることで防いだ（`isKeyList`）。
 - **R3 に向けて**: レベルは `M`・`K`・`T`・`E` ＋ 2 けたまでの形で通すので、新しいレベルを足してもルールは直さなくてよい。ステージは S3 まで入れてある。乗り物を増やすときは `firestore.rules` の `cards` の正規表現と件数の上限を `src/storage.js` の `CAR_IDS` と、`p.icon` の正規表現を `data.js` の `ALL_CARS`（15 種）と合わせる（`docs/design-rewards.md` 8.3）。書ける字を増やすときは `traceCharPattern()`（`src/strokes.js` の `SETS`）。どちらも、ずれたら試験が失敗する（「ルールの一覧が端末側と一致する」）。
 
@@ -375,7 +435,7 @@ firebase emulators:exec --only firestore --project demo-hataraku "npm --prefix t
 ```
 
 - `firebase.json` はエミュレーターの Firestore だけを設定している（デプロイ先の設定は入れていない）。初回はエミュレーターの jar がダウンロードされる（無料）。
-- 試験は `tests-rules/rules.test.js`（46 件。2026-10-26 に全部通った）。既存の `bash scripts/test.sh` と CI には含まれない（別の `package.json`）。ルールを直したときと、`src/storage.js` の形・`src/strokes.js` の字を変えたときに回す。
+- 試験は `tests-rules/rules.test.js`（59 件。2026-10-29 に全部通った。うち 46 件は 2026-10-26 から、日ごとの記録の 15〜15m の 13 件を足した）。既存の `bash scripts/test.sh` と CI には含まれない（別の `package.json`）。ルールを直したときと、`src/storage.js` の形・`src/strokes.js` の字を変えたときに回す。
 - 端末の実際のプロフィール（`src/storage.js` の `normalize` が作る S0・S1・S2、「かく」の記録あり、v1 からの移行、壊れた入力を直した後）をクラウドの形に直したものが**拒否されない**ことも、同じ試験で確かめている（正しいデータの拒否が最も困るため）。
 
 | # | 操作 | 期待 | 試験 |
@@ -394,10 +454,21 @@ firebase emulators:exec --only firestore --project demo-hataraku "npm --prefix t
 | 11 | uid A で `families/A` を消す | 許可（ほかの人・未ログインは拒否） | 11・11b |
 | 12 | 一覧の問い合わせ（`families` 全体・`collectionGroup('profiles')`） | 拒否（自分の `profiles` の一覧は許可、プロフィールの id がパスと違うものは拒否） | 12・12b・12d |
 | 13 | 4 人分で、すべての表を上限まで埋めた文書を書く（親＋4 人を 1 つの batch でも） | 許可（式の上限に当たらない） | 13・13b |
+| 15 | uid A で、親の `ids` にある子の `days/{date}_{dev}` を書く・読む・一覧する（`date >=`・`date <`） | 許可 | 15 |
+| 15b | 端末の `normalizeDay` が作った日（空・全部のゲーム・字 130・乗り物 47・めんきょ 4・上限の回数と秒）を `toCloudDay` した文書 | 許可（正しいデータを拒否しない） | 15b |
+| 15c | uid B・未ログイン・匿名で A の `days` を読む・書く・消す・一覧する。`collectionGroup('days')` | 拒否 | 15c |
+| 15d | 親が無い・`ids` に無い子の `days` を書く | 拒否（親を書いた後なら許可） | 15d |
+| 15e・15f | 項目を足す・欠く・`v` が 2。文書の名前と `date`・`dev` が合わない・形が違う・数や表 | 拒否 | 15e・15f |
+| 15g・15h | `n` の個数・負・小数・けた。`up`・`license`・`newCars`・`wrote`・`last` の形 | 拒否 | 15g・15h |
+| 15i | uid A で自分の `days` を消す | 許可 | 15i |
+| 15j | 2 人 × 35 日 × 2 台の `days` の後で、試験 13 と同じ書き込み | 許可（プロフィールの式の数が変わらない） | 15j |
+| 15m | 親の `ids` 更新と `days` を同じ batch で書く（`getAfter`）。`ids` に無い子の `days` を含む batch は拒否 | 許可・拒否 | 15m |
+| 15k・15l | `dayCarPattern` が `isCards`・端末の `CAR_IDS` と一致。1 文書を上限まで埋めたときの式の数 | 一致・余裕を記録 | 15m | 親の `ids` 更新と `days` を同じ batch で書く（`getAfter`）。`ids` に無い子の `days` を含む batch は拒否 | 許可・拒否 | 15m |
+| 15k・15l |
 
 **公開前の手順（本番で batch を試す）**: 本番が batch 全体で式の数を数えるかは未確認。公開の前に、テスト用の Google アカウント（実在の家族のものではない）で、親の文書と上限まで埋めた 4 人（試験 13b と同じ）を 1 つの batch で書き、通ることを確かめて、すぐ消す。拒否されたら、cloud.js は親→子を別々の書き込みにする（4.2 の順番で、`getAfter` は前の書き込みを見るので通る）。
 
-**公開前の手順（本番の式の上限の確認）**: 本番の式の上限（1,000）が、エミュレーターと同じかは未確認。公開前に、Firebase コンソールの「ルール プレイグラウンド」で、**最大の文書**（試験 13 と同じ、4 人分を上限まで埋めたもの。プロフィールは `tests-rules/rules.test.js` の `fullRaw`）を一度試し、許可されることを確かめる（ルールの公開前に試せる。データは書かれない）。拒否されたら公開しない。
+**公開前の手順（本番の式の上限の確認）**: 本番の式の上限（1,000）が、エミュレーターと同じかは未確認。公開前に、Firebase コンソールの「ルール プレイグラウンド」で、**最大の文書**（試験 13 と同じ、4 人分を上限まで埋めたもの。プロフィールは `tests-rules/rules.test.js` の `fullRaw`）を一度試し、許可されることを確かめる（ルールの公開前に試せる。データは書かれない）。拒否されたら公開しない。 日ごとの記録も、上限まで埋めた `days` の文書（試験 15b の「全部入り」。`tests/daylog.test.js` の `fullDay()` を `toCloudDay` したもの）を 1 つ試し、許可されることを確かめる。
 
 **`values()`・`join()` などの確認結果（2026-10-26。以前は「公式の参照ページの本文が取れず未確認」だった）**: エミュレーターで次が**動く**ことを確かめた。`Map.keys()`・`Map.values()`・`Map.size()`・`List.join(',')`（文字列のリストも、整数・真偽値のリストも。整数は `'0,0,0'` のように文字列にされ、正規表現に合う）・`List.hasOnly()`・`List.hasAll()`・`String.matches()`・`string(整数)`・関数の中の `let`（ただし式の数は減らない）。**動かない・注意するもの**: リストどうしの `+`（`list + list`）は使えない（`Unsupported operation error. Received: list + list`）。長いリストのリテラル（字の一覧など）は動くが式の数が膨らみ、上限を超える（正規表現に置き換えた）。`join` は `,` を含む値を見分けられない（`isKeyList` で防いだ）。
 
@@ -452,13 +523,13 @@ firebase emulators:exec --only firestore --project demo-hataraku "npm --prefix t
 | 項目 | 無料枠（Spark） | このアプリの見込み（1 家族・1 日） | 超えたとき |
 |---|---|---|---|
 | Firestore 読み取り | 5 万／日 | （1 人 1 文書に分けたあと）起動 5 回 × 最大 5（親 1 ＋ プロフィール 4 人）＋ 保存 20 回 ×（トランザクションの読み取り 1〜2 ＋ ルールが親を見る読み取り 1）＋ 保護者画面 2 回 ≒ 80〜110（R4-1 の作りで変わる） | その日（または月）の残りは読み書きが失敗する。アプリは端末内の記録で動き続け、次に送れたときに同期する |
-| Firestore 書き込み | 2 万／日 | 出動 20 回 × 2（プロフィール 1 ＋ 親 1）＋ 保護者の操作数回 ≒ 45 | 同上 |
-| Firestore 削除 | 2 万／日 | ほぼ 0 | 同上 |
+| Firestore 書き込み | 2 万／日 | 出動 20 回 × 2（プロフィール 1 ＋ 親 1）＋ 保護者の操作数回 ≒ 45。日ごとの記録（4.4）で出動ごとに 1 が増えて ≒ 65 | 同上 |
+| Firestore 削除 | 2 万／日 | ほぼ 0（日ごとの記録の古い文書を消す 1 日 1〜2） | 同上 |
 | Firestore 保存 | 1 GiB | 約 3 KB | 書き込みが止まる |
 | Firestore 転送 | 10 GiB／月 | 約 1 MB／月 | 同上 |
 | Authentication（Google） | 家族の利用では上限に届かない（1 章） | 保護者 1〜2 人 | ログインできなくなる。ログイン済みの端末も、トークンの更新ができないと保存が止まる |
 
-- 家族で使う範囲では、どの枠も 1% に届かない。1 家族 45 回／日の書き込みなら、400 家族ほどまで書き込みの枠に収まる計算（1 人 1 文書に分けた後の見込み）。
+- 家族で使う範囲では、どの枠も 1% に届かない。1 家族 65 回／日の書き込み（日ごとの記録を含む）なら、**約 300 家族**まで書き込みの枠に収まる計算（日ごとの記録を足す前は約 400）。日ごとの記録の読み取りは、保護者画面を開いたとき（その子の 35 日 × 端末の数まで。2 回 × 最大 70）と、ルールが親を見る分（書き込みごとに 1）が増える（1 家族で 1% に届かない）。
 - 超えたときの止まり方: 料金プランのページは「その製品は、その月の残りは止まる」と書き、Firestore の料金のページは「日ごとの枠は太平洋時間の真夜中ごろに戻る」と書く。どちらが当てはまるかは今回確かめられなかったので、**最悪はその月の残りが止まる**と見込んで説明する。どちらでも**課金はされない**。
 - 承認者が確かめること（R4 完了条件 6）: 月に 1 回、Firebase コンソールの「使用量と請求額」で、Spark のままであること・使用量が枠から遠いことを見る。
 

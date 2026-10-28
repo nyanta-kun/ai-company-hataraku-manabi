@@ -22,6 +22,7 @@
         <button id="btn-go" class="big" type="button"><canvas width="96" height="96" data-icon="truck"></canvas><span>しゅつどう</span></button>
         <button id="btn-garage" class="big alt" type="button"><canvas width="96" height="96" data-icon="garage"></canvas><span>しゃこ</span></button>
       </div>
+      <button id="today-strip" type="button" aria-label="きょうの しゅつどう" hidden></button>
     </div>
   </section>
 
@@ -48,6 +49,16 @@
         <button id="btn-english" class="big english" type="button"><canvas width="96" height="96" data-icon="eigo"></canvas><span>えいご</span><canvas class="xmark" width="48" height="48" data-icon="speakerx"></canvas></button>
         <button id="btn-trace" class="big trace" type="button"><canvas width="96" height="96" data-icon="pencil"></canvas><span>かく</span></button>
       </div>
+    </div>
+  </section>
+
+  <!-- きょうの しゅつどう（「おしまい」の後。数字なし。docs/design-daily-log.md 9 章） -->
+  <section id="s-today" class="screen">
+    <div class="today-box">
+      <h2>きょうの しゅつどう</h2>
+      <div id="today-row"></div>
+      <p id="today-msg" class="kid-sub"></p>
+      <button id="btn-today-ok" class="big end" type="button"><canvas width="96" height="96" data-icon="station"></canvas><span>おしまい</span></button>
     </div>
   </section>
 
@@ -166,6 +177,18 @@
         <button id="p-kid-add" type="button" class="pbtn">こどもを ふやす</button>
         <p id="p-kid-note" class="note">したの 「すすみぐあい」「レベル」は、いま えらんでいる こ（★）の ものです。ほかの こを おすと きりかわります。</p>
       </div>
+      <div class="card" id="p-days"><h3>まいにちの きろく <span class="who-tag badge small"></span></h3>
+        <div class="dl-nav">
+          <button id="dl-prev" type="button" class="pbtn sub">‹ まえの しゅう</button>
+          <b id="dl-range"></b>
+          <button id="dl-next" type="button" class="pbtn sub">つぎの しゅう ›</button>
+        </div>
+        <div id="dl-sum"></div>
+        <div id="dl-rows"></div>
+        <div id="dl-legend"></div>
+        <div id="dl-got"></div>
+        <p class="note" id="dl-note"></p>
+      </div>
       <div class="card"><h3>すすみぐあい <span class="who-tag badge small"></span></h3><div id="p-progress"></div></div>
       <div class="card" id="p-trace-card"><h3>かく の ひょう</h3>
         <div id="pt-sets"></div>
@@ -218,6 +241,7 @@
 <script src="src/data.js"></script>
 <script src="src/strokes.js"></script>
 <script src="src/trace.js"></script>
+<script src="src/daylog.js"></script>
 <script src="src/freewrite.js"></script>
 <script src="src/problems.js"></script>
 <script src="src/lines.js"></script>

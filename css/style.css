@@ -210,6 +210,68 @@ canvas { display: block; }
 .note { font-size: 14px; color: #6b5d50; margin: 6px 0 0; line-height: 1.5; }
 .prow { display: flex; justify-content: space-between; gap: 12px; font-size: 17px; padding: 4px 0; border-bottom: 1px dashed #e5dcc8; }
 
+/* 保護者画面: まいにちの きろく（docs/design-daily-log.md 8 章） */
+.dl-nav { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
+.dl-nav .pbtn { min-height: 44px; padding: 0 10px; margin: 0; font-size: 15px; white-space: nowrap; }
+.dl-nav .pbtn:disabled { visibility: hidden; }
+.dl-nav b { font-size: 16px; text-align: center; }
+#dl-sum { font-size: 17px; margin: 8px 0; font-weight: bold; }
+.dl-row { display: grid; grid-template-columns: 4.6em 1fr 4.8em; align-items: center; gap: 6px; width: 100%; min-height: 48px; padding: 3px 0; background: none; border: 0; border-bottom: 1px dashed #e5dcc8; font-size: 17px; text-align: left; color: #3a2b24; font-family: inherit; }
+button.dl-row { cursor: pointer; }
+div.dl-row.none, div.dl-row.old, div.dl-row.future { color: #9a8f7c; }
+.dl-row.open { background: #fbf6e8; }
+.dl-day { line-height: 1.15; }
+.dl-day small { display: block; font-size: 12px; color: #6b5d50; }
+.dl-day .today { display: inline-block; margin-left: 2px; padding: 0 5px; font-size: 11px; border-radius: 8px; background: #e07a00; color: #fff; vertical-align: middle; }
+.dl-bar { display: flex; height: 22px; border-radius: 6px; background: #f3ecdc; overflow: hidden; }
+.dl-row.none .dl-bar, .dl-row.old .dl-bar, .dl-row.future .dl-bar { background: none; }
+.dl-bar i { display: block; height: 100%; flex: 0 0 auto; }
+.dl-val { text-align: right; line-height: 1.15; }
+.dl-val small { display: block; font-size: 12px; color: #6b5d50; }
+.g-math { background: #2e9d5d; }
+.g-letter { background: #f08a24; }
+.g-clock { background: #3a7bd5; }
+.g-english { background: #8e44ad; }
+.g-trace { background: #16a085; }
+.g-solo { background: repeating-linear-gradient(45deg, #16a085 0 4px, #6fd0be 4px 8px); }
+.dl-detail { padding: 6px 4px 8px; font-size: 15px; line-height: 1.6; background: #fbf6e8; border-bottom: 1px dashed #e5dcc8; }
+.dl-detail div { padding-left: 1.2em; text-indent: -1.2em; }
+#dl-legend { display: flex; flex-wrap: wrap; gap: 4px 12px; margin: 8px 0 4px; font-size: 13px; color: #6b5d50; }
+#dl-legend span { display: inline-flex; align-items: center; gap: 4px; }
+#dl-legend i { width: 14px; height: 14px; border-radius: 3px; display: inline-block; }
+#dl-got { font-size: 15px; line-height: 1.6; }
+#dl-got h4 { margin: 10px 0 2px; font-size: 16px; }
+#dl-got div { padding-left: 1.2em; text-indent: -1.2em; }
+@media (max-width: 400px) { .dl-row { font-size: 15px; } .dl-nav { flex-wrap: wrap; } .dl-nav b { order: -1; flex: 0 0 100%; font-size: 15px; } .dl-nav .pbtn { padding: 0 8px; font-size: 14px; } }
+
+/* きょうの しゅつどう（子ども向け。数字なし）と、タイトルの小さな列 */
+.today-box { margin: auto; text-align: center; padding: 16px; width: 100%; }
+.today-box h2 { font-size: clamp(26px, 6vmin, 44px); margin: 0 0 20px; }
+#today-row { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; max-width: 440px; margin: 0 auto 16px; }
+.tcell { position: relative; min-width: 0; min-height: 0; padding: 8px 4px 6px; border-radius: 22px; border-bottom-width: 6px; transition: opacity .3s; }
+.tcell:active { transform: none; }
+.tcell canvas.ico { width: clamp(52px, 12vmin, 84px); height: clamp(52px, 12vmin, 84px); }
+.tcell span { font-size: clamp(18px, 4vmin, 28px); }
+.tcell.later { opacity: .4; }   /* まだ: 色は残して薄く（灰色にしない） */
+.tcell img.stamp { position: absolute; right: -6px; top: -10px; width: clamp(34px, 8vmin, 54px); height: auto; aspect-ratio: 1; filter: drop-shadow(0 2px 2px rgba(0,0,0,.25)); }
+.tcell img.stamp.wait, .tcell canvas.crown.wait { visibility: hidden; }
+.tcell img.stamp.pop { animation: stampPop .45s ease-out; }
+.tcell canvas.crown { position: absolute; left: -6px; top: -24px; width: clamp(38px, 9vmin, 60px); height: clamp(30px, 7vmin, 48px); rotate: -14deg; }
+.tcell canvas.crown.pop { animation: stampPop .5s ease-out; }
+#today-msg { text-wrap: balance; word-break: keep-all; font-size: clamp(18px, 4.2vmin, 28px); font-weight: bold; margin: 8px auto 16px; max-width: 520px; line-height: 1.5; min-height: 3em; }
+.today-box .big.end { margin: 0 auto; min-height: 96px; }
+@media (orientation: landscape) { #today-row { grid-template-columns: repeat(5, minmax(0, 1fr)); max-width: 760px; } .today-box h2 { margin-bottom: 26px; } }
+@media (orientation: landscape) and (max-height: 520px) { .today-box h2 { font-size: 24px; margin-bottom: 20px; } #today-msg { margin: 4px auto 6px; min-height: 0; font-size: 18px; } .today-box .big.end { min-height: 64px; flex-direction: row; } .today-box .big.end canvas { width: 44px; height: 44px; } .tcell canvas.ico { width: 56px; height: 56px; } }
+#today-strip { display: flex; justify-content: center; align-items: center; gap: 8px; margin: 10px auto 0; padding: 6px 12px; border-radius: 24px; background: rgba(255,255,255,.85); border: 3px solid rgba(58,43,36,.25); min-height: 52px; }
+#today-strip[hidden] { display: none; }
+#today-strip .tchip { position: relative; width: 36px; height: 36px; border-radius: 50%; flex: none; }
+#today-strip .tchip.math { background: #2e9d5d; } #today-strip .tchip.letter { background: #f08a24; } #today-strip .tchip.clock { background: #3a7bd5; } #today-strip .tchip.english { background: #8e44ad; } #today-strip .tchip.trace { background: #16a085; }
+#today-strip .tchip.later { opacity: .4; }
+#today-strip .tchip canvas.ico { width: 36px; height: 36px; }
+#today-strip .tchip img { position: absolute; right: -6px; top: -7px; width: 22px; height: 22px; }
+#today-strip .tchip canvas.crown { position: absolute; left: -6px; top: -14px; width: 26px; height: 20px; rotate: -14deg; }
+@media (prefers-reduced-motion: reduce) { .tcell img.stamp.pop, .tcell canvas.crown.pop { animation: none; } }
+
 /* デバッグ */
 #debug { position: fixed; right: 4px; bottom: 4px; z-index: 99; background: rgba(0,0,0,.78); color: #fff; padding: 6px; border-radius: 8px; font-size: 12px; max-width: 70vw; max-height: 45vh; overflow: auto; }
 #debug button, #debug select { font-size: 12px; min-height: 28px; margin: 2px; padding: 0 6px; background: #fff; color: #000; border-radius: 4px; }
