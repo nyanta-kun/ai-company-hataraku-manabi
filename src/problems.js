@@ -628,18 +628,36 @@
 
   // レベルの昇降級（企画書 3.3）。locked なら変えない。範囲外の current も端に丸める。
   // range = 動ける範囲のレベル ID の配列（省略時は LEVELS[game] 全体）。上下とも range の端で止まる
-  function nextLevel(game, current, firstTryCorrectCount, locked, range) {
+  // steady = 1 回もまちがえなかった問題の数（絵を見たものも入れる）。省略時は firstTryCorrectCount と同じ。
+  // 絵を見て正解した問題は firstTryCorrectCount（昇級）には入れないが、まちがえてはいないので降級の判定には steady を使う（絵のボタンをよく押す子が下がらないように）
+  function nextLevel(game, current, firstTryCorrectCount, locked, range, steady) {
     var lv = range || LEVELS[game];
     if (!lv || !lv.length) throw new RangeError('game: ' + game);
     var i = lv.indexOf(current);
     if (i < 0) i = 0;
     if (locked) return lv[i];
     if (firstTryCorrectCount >= PROMOTE_AT) i = Math.min(lv.length - 1, i + 1);
-    else if (firstTryCorrectCount <= DEMOTE_AT) i = Math.max(0, i - 1);
+    else if ((typeof steady === 'number' ? steady : firstTryCorrectCount) <= DEMOTE_AT) i = Math.max(0, i - 1);
     return lv[i];
   }
 
+  // ---- しきから（たしざん・ひきざん・かけざんは、慣れたら式だけで始め、タップで絵を出す）----
+  // practice = { レベル: そのレベルで終えた出動の数 }。FORMULA_AFTER 回（絵つき）をこえたレベルでは、式の問題に formula を付ける。
+  // 数える問題（M1・M2・M3・M8 の数える問題・M11）と、もともと式だけの M12（mental）には付けない
+  var FORMULA_AFTER = 2;
+  var PRACTICE_CAP = 99;
+  function practiceOf(practice, level) {
+    return practice && Object.prototype.hasOwnProperty.call(practice, level) && typeof practice[level] === 'number' ? practice[level] : 0;
+  }
+  function formulaReady(practice, level) { return practiceOf(practice, level) >= FORMULA_AFTER; }
+  function applyFormula(qs, practice, level) {
+    if (!formulaReady(practice, level)) return qs;
+    qs.forEach(function (q) { if ((q.kind === 'add' || q.kind === 'sub' || q.kind === 'mul') && !q.mental) q.formula = true; });
+    return qs;
+  }
+
   var api = {
+    FORMULA_AFTER: FORMULA_AFTER, PRACTICE_CAP: PRACTICE_CAP, practiceOf: practiceOf, formulaReady: formulaReady, applyFormula: applyFormula,
     QUESTIONS_PER_SESSION: QUESTIONS_PER_SESSION, PROMOTE_AT: PROMOTE_AT, DEMOTE_AT: DEMOTE_AT,
     LEVELS: LEVELS, MATH: MATH, LETTER: LETTER, CLOCK: CLOCK, ENGLISH: ENGLISH,
     generateEnglish: generateEnglish, buildEnglish: buildEnglish, colorOf: colorOf,

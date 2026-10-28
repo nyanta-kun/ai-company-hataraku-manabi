@@ -39,6 +39,7 @@
       seen: { letter: [] },
       lastPlayed: '',
       stage: { unlocked: 'S0', current: 'S0' },   // 階段（design-elementary 3.2）: 解放済みの一番上のステージと、いま選んでいるステージ
+      practice: {},                               // 数のレベル → 終えた出動の数（99 まで）。3 回目から たしざん・ひきざん・かけざんを式だけで始める
       cleared: {},                                // 関門レベル → 初めて 4/4 した日
       promoted: {},                               // ステージ → 昇格した日
       days: {},                                   // 日付 → その日の合計（この端末の分。docs/design-daily-log.md 2.3）
@@ -118,9 +119,22 @@
     var cl = isObj(raw.cleared) ? raw.cleared : {}, pr = isObj(raw.promoted) ? raw.promoted : {};
     D.gateLevels().forEach(function (id) { if (isDate(cl[id])) d.cleared[id] = cl[id]; });
     D.STAGES.forEach(function (stg, i) { if (i > 0 && isDate(pr[stg.id])) d.promoted[stg.id] = pr[stg.id]; });
+    d.practice = normalizePractice(raw.practice, d.levels.math, d.stats.math.sessions);
     d.days = DL.normalizeDays(raw.days);
     d.daysOther = DL.normalizeDays(raw.daysOther);
     return d;
+  }
+  // 数のレベルごとの出動の数。practice の無い（この機能より前の）子は、遊んだ記録から推す:
+  // いまより下のレベルは 2 回ぶん（もう通ったので式から）。いまのレベルは、かずを 10 回以上遊んでいれば 2 回ぶん、そうでなければ 0
+  function normalizePractice(raw, curLevel, mathSessions) {
+    var out = {}, lv = D.LEVELS.math;   // キーは既知のレベル id だけ（読むときは hasOwnProperty）。null プロトタイプにすると JSON で読み直した値と deepEqual が合わない
+    if (isObj(raw)) {
+      lv.forEach(function (id) { if (Object.prototype.hasOwnProperty.call(raw, id)) { var n = Math.min(99, num(raw[id])); if (n > 0) out[id] = n; } });
+      return out;
+    }
+    var ci = lv.indexOf(curLevel);
+    lv.forEach(function (id, i) { if (i < ci || (i === ci && mathSessions >= 10)) out[id] = 2; });
+    return out;
   }
   function makeProfile(id, name, icon, created, progress) {
     var p = { id: id, name: name, icon: icon, created: created };

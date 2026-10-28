@@ -87,6 +87,7 @@
     if (p.kind === 'count') return FIXED.count;
     if (p.kind === 'add') return NUMK[p.a] + 'たす' + NUMK[p.b] + 'は、いくつ？';   // 数字で渡すと「1たす4」などの読みが揺れるので、数の読み（よん・なな）で渡す
     if (p.kind === 'sub') return NUMK[p.a] + 'ひく' + NUMK[p.b] + 'は、いくつ？';
+    if (p.kind === 'mul' && p.formula && !p.picShown) return NUMK[p.a] + 'かける' + NUMK[p.b] + 'は、いくつ？';   // 式だけのとき。絵を出したあとは下の文
     if (p.kind === 'mul') return 'ひとはこに、' + NUMK[p.a] + 'こずつ。' + D.HAKO_KANA[p.b] + 'で、ぜんぶでいくつ？';   // 数字で渡さず数の読みで。「かける」は式の絵に任せる
     if (p.kind === 'clock') {
       if (p.form === 'read') return FIXED.clockRead;
@@ -157,6 +158,7 @@
   function uniq(list) { var seen = {}; return list.filter(function (t) { if (!t || seen[t]) return false; seen[t] = true; return true; }); }
   function questionTexts(q) {
     var out = [prompt(q), correct(q)];
+    if (q.kind === 'mul') out.push(prompt(Object.assign({}, q, { formula: !q.formula, picShown: false })));   // 式だけ／絵つきの両方の文（タップで切り替わる）
     (q.choices || []).forEach(function (v) { if (v !== q.answer) out.push(wrong(q, v)); });
     out.push(hint(q));
     if (q.kind === 'count' || q.kind === 'add' || q.kind === 'sub' || q.kind === 'mul') {
