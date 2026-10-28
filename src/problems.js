@@ -6,7 +6,7 @@
 
   var QUESTIONS_PER_SESSION = 4;   // 1 回の出動の問題数（調整可）
   var PROMOTE_AT = 4;              // 1 回目正解がこれ以上なら昇級
-  var DEMOTE_AT = 1;               // 1 回目正解がこれ以下なら降級
+  var DEMOTE_AT = 1;               // 1 回目正解がこれ以下なら降級（かず の式から始める問題は「まちがえなかった数」で見る。design-elementary.md 10 章）
 
   var LEVELS = D.LEVELS;   // レベル列の正は data.js（STAGES から組み立てる）
   // 数のレベル: max = 選択肢の範囲の上限、choices = 選択肢の数

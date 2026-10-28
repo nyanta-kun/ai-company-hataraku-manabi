@@ -12,11 +12,28 @@ jobs:
       - uses: actions/checkout@v4
       - run: ./scripts/test.sh
 
+  # Firestore ルールの試験（エミュレーター。実在のプロジェクトには触れない、ログインもしない）。
+  # 端末のデータの形が変わってルールに拒否されるようになったら、ここで気づく。
+  rules:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm ci --prefix tests-rules
+      - run: npx -y firebase-tools@15 emulators:exec --only firestore --project demo-hataraku "npm --prefix tests-rules test"
+
   # main に入ったら、テストが通ったときだけテスト版（GitHub Pages）を更新する。
   # 公開するのは遊ぶのに要るファイルだけ（docs・tests・scripts は出さない）。
   deploy:
     if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
-    needs: test
+    needs: [test, rules]
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
