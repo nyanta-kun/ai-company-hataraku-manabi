@@ -5,6 +5,7 @@
   var node = typeof module !== 'undefined' && module.exports;
   var D = node ? require('./data.js') : root.Manabi.data;
   var TR = node ? require('./trace.js') : root.Manabi.trace;   // なぞりがきの保存の補正（trace.normalizeTrace）
+  var DL = node ? require('./daylog.js') : root.Manabi.daylog;   // 日ごとの記録の補正（daylog.normalizeDays）
   var KEY = 'hataraku-manabi:v2', KEY_V1 = 'hataraku-manabi:v1', KEY_BROKEN = 'hataraku-manabi:v2:broken';
   var GAME_IDS = D.GAMES;
   var CAR_IDS = ['nekoguruma', 'forklift', 'gomi', 'shovel', 'bulldozer', 'dump', 'kyukyu', 'shoubousha', 'mizutank', 'hashigo', 'chodai',
@@ -39,7 +40,9 @@
       lastPlayed: '',
       stage: { unlocked: 'S0', current: 'S0' },   // 階段（design-elementary 3.2）: 解放済みの一番上のステージと、いま選んでいるステージ
       cleared: {},                                // 関門レベル → 初めて 4/4 した日
-      promoted: {}                                // ステージ → 昇格した日
+      promoted: {},                               // ステージ → 昇格した日
+      days: {},                                   // 日付 → その日の合計（この端末の分。docs/design-daily-log.md 2.3）
+      daysOther: {}                               // ほかの端末の分を足したもの（端末の中だけ。クラウドから作り直せる。同 10.6）
     };
   }
   function num(v) { return (typeof v === 'number' && isFinite(v) && v >= 0) ? Math.floor(v) : 0; }
@@ -53,6 +56,13 @@
     var r = Math.floor((rng ? rng() : Math.random()) * 1679616);   // 36^4
     return 'p_' + Math.floor(now).toString(36) + '_' + ('0000' + r.toString(36)).slice(-4);
   }
+  // 端末ごとの番号（日ごとの記録のクラウドの文書名に使う。ランダム。端末の機種や識別番号とは関係ない）
+  function newDeviceId(rng) {
+    var s = '';
+    for (var i = 0; i < 8; i++) s += Math.floor((rng ? rng() : Math.random()) * 36).toString(36);
+    return 'd_' + s;
+  }
+  var DEVICE_ID_RE = /^d_[0-9a-z]{8}$/;
   var AUTO_NAME_RE = /^こども[1-4]$/;
   var ID_RE = /^p_[0-9a-z_]{1,24}$/, DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -108,6 +118,8 @@
     var cl = isObj(raw.cleared) ? raw.cleared : {}, pr = isObj(raw.promoted) ? raw.promoted : {};
     D.gateLevels().forEach(function (id) { if (isDate(cl[id])) d.cleared[id] = cl[id]; });
     D.STAGES.forEach(function (stg, i) { if (i > 0 && isDate(pr[stg.id])) d.promoted[stg.id] = pr[stg.id]; });
+    d.days = DL.normalizeDays(raw.days);
+    d.daysOther = DL.normalizeDays(raw.daysOther);
     return d;
   }
   function makeProfile(id, name, icon, created, progress) {
@@ -129,11 +141,19 @@
     today = (typeof today === 'string' && DATE_RE.test(today)) ? today : todayLocal();
     return {
       version: 2,
-      device: { sound: { sfx: true, voice: true, speaker: '' }, lastProfileId: id, migratedV1: '' },
+      device: { sound: { sfx: true, voice: true, speaker: '' }, lastProfileId: id, migratedV1: '', deviceId: newDeviceId(), daysDirty: [], daysPrunedOn: '' },
       profiles: [defaultProfile(id, 'こども1', 'shoubousha', today)]
     };
   }
 
+  // 送る日の一覧（日付だけ・重なりなし・40 件まで）
+  function cleanDirty(a) {
+    var out = [], seen = Object.create(null);
+    if (Array.isArray(a)) a.forEach(function (k) {
+      if (out.length < DL.MAX_KEYS && DL.isDayKey(k) && !seen[k]) { seen[k] = true; out.push(k); }
+    });
+    return out;
+  }
   // 壊れたデータ・欠損があってもデフォルトで埋めて返す（v2）
   function normalize(raw, id, today) {
     var d = defaults(id, today);
@@ -162,7 +182,10 @@
       device: {
         sound: normalizeSound(dev.sound),
         lastProfileId: last,
-        migratedV1: (typeof dev.migratedV1 === 'string' && DATE_RE.test(dev.migratedV1)) ? dev.migratedV1 : ''
+        migratedV1: (typeof dev.migratedV1 === 'string' && DATE_RE.test(dev.migratedV1)) ? dev.migratedV1 : '',
+        deviceId: (typeof dev.deviceId === 'string' && DEVICE_ID_RE.test(dev.deviceId)) ? dev.deviceId : newDeviceId(),
+        daysDirty: cleanDirty(dev.daysDirty),
+        daysPrunedOn: (typeof dev.daysPrunedOn === 'string' && DATE_RE.test(dev.daysPrunedOn)) ? dev.daysPrunedOn : ''
       },
       profiles: list
     };
@@ -229,7 +252,7 @@
   var api = {
     KEY: KEY, KEY_V1: KEY_V1, KEY_BROKEN: KEY_BROKEN, MAX_PROFILES: MAX_PROFILES, ICON_ORDER: ICON_ORDER, CAR_IDS: CAR_IDS,
     defaultProgress: defaultProgress, normalizeProfile: normalizeProfile, defaultProfile: defaultProfile, defaults: defaults,
-    normalize: normalize, migrateV1: migrateV1, normalizeName: normalizeName, isId: isId, isDate: isDate, nextName: nextName, freeIconIn: freeIconIn, newId: newId,
+    normalize: normalize, migrateV1: migrateV1, normalizeName: normalizeName, isId: isId, isDate: isDate, nextName: nextName, freeIconIn: freeIconIn, newId: newId, newDeviceId: newDeviceId,
     load: load, save: save, clear: clear, fresh: fresh, isPersistent: isPersistent
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;

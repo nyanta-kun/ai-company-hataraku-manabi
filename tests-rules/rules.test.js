@@ -43,6 +43,7 @@ const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 function toCloudProfile(p) {
   const o = JSON.parse(JSON.stringify(p));
   delete o.seen;
+  delete o.days; delete o.daysOther;   // 日ごとの記録は別の文書（docs/design-daily-log.md 10.6）
   if (!DATE_RE.test(o.lastPlayed)) o.lastPlayed = '';
   o.updatedAt = NOW; o.ladderAt = NOW;
   return o;
