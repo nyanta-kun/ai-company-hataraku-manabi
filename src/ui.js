@@ -152,6 +152,12 @@
       ctx.closePath(); ctx.fill();
       return;
     }
+    if (kind === 'crown') {   // 金の王冠（きょうの しゅつどう。とくに がんばった 1 つだけ）
+      ctx.beginPath(); ctx.moveTo(w * .1, h * .82); ctx.lineTo(w * .06, h * .26); ctx.lineTo(w * .3, h * .5); ctx.lineTo(w * .5, h * .14); ctx.lineTo(w * .7, h * .5); ctx.lineTo(w * .94, h * .26); ctx.lineTo(w * .9, h * .82); ctx.closePath();
+      ctx.fillStyle = '#ffd23f'; ctx.fill(); ctx.lineWidth = w * .06; ctx.strokeStyle = '#b87a00'; ctx.stroke();
+      ctx.fillStyle = '#e53935'; ctx.beginPath(); ctx.arc(w * .5, h * .64, w * .07, 0, 7); ctx.fill();
+      return;
+    }
     if (kind === 'back') { ln(.62, .2, .3, .5, .12); ln(.3, .5, .62, .8, .12); return; }
     if (kind === 'x') { ln(.25, .25, .75, .75, .12); ln(.75, .25, .25, .75, .12); }
   }
@@ -204,7 +210,8 @@
     [].forEach.call(doc.querySelectorAll('.screen'), function (s) { s.classList.toggle('active', s.id === 's-' + name); });
     updateVoiceMark();
     if (name === 'who') { buildWho(); later(300, function () { say(LN.FIXED.who); }); }
-    if (name === 'title') { updateBadges(); drawTitle(); kick(); }
+    if (name === 'title') { updateBadges(); drawTitle(); updateTodayStrip(); kick(); }
+    if (name === 'today') startToday();
     if (name === 'pick') { updateBadges(); updatePick(); later(300, function () { say(LN.FIXED.pick); }); }
     if (name === 'garage') buildGarage();
     if (name === 'parent') { dlWeek = ''; dlOpen = ''; fillParent(); }
@@ -863,7 +870,7 @@
   // ごほうびの次: 昇格していたら しょうかく の画面（そのあとはタイトル）、なければ行き先へ
   var promo = null;   // { stage, t0 }
   function leaveReward(next) {
-    if (reward && reward.promo) { promo = { stage: reward.promo, t0: 0 }; reward.promo = null; show('promote'); }
+    if (reward && reward.promo) { promo = { stage: reward.promo, t0: 0, next: next === 'today' ? 'today' : 'title' }; reward.promo = null; show('promote'); }
     else show(next);
   }
   function startPromoteAnim() {
@@ -1286,6 +1293,66 @@
     fillDays();
     updateBadges(); fillKids(); fillTraceTable();
   }
+  // ---- 子ども向け: きょうの しゅつどう（docs/design-daily-log.md 9 章。数字は出さない。ひらがなだけ） ----
+  var TODAY_GAMES = [['math', 'kazu', 'かず'], ['letter', 'moji', 'もじ'], ['clock', 'tokei', 'とけい'], ['english', 'eigo', 'えいご'], ['trace', 'pencil', 'かく']];
+  function kidNow() { return DL.kidToday(viewDays(), todayStr(), { enOn: !enOff(), cleared: data.cleared }); }
+  // 絵のあつまり（5 つ）。small = タイトルの列。まだのものは薄く（えいご の声が使えない端末では薄くしない）
+  function buildTodayCells(box, k, small) {
+    box.textContent = '';
+    var cells = [];
+    TODAY_GAMES.forEach(function (g) {
+      var id = g[0], c = el(small ? 'span' : 'div', small ? 'tchip ' + id : 'big tcell ' + id);
+      var cv = doc.createElement('canvas'); cv.className = 'ico'; cv.width = cv.height = small ? 72 : 96; cv.setAttribute('data-icon', g[1]); c.appendChild(cv); drawIcon(cv, g[1]);
+      if (!small) c.appendChild(el('span', '', g[2]));
+      var off = !k.played[id] && !(id === 'english' && enOff());
+      if (off && !k.none) c.classList.add('later');
+      var cell = { id: id, el: c, stamp: null, crown: null };
+      if (k.played[id]) {
+        var im = doc.createElement('img'); im.className = 'stamp'; im.alt = ''; im.src = stampURL('stamp', k.crown === id); c.appendChild(im); cell.stamp = im;
+      }
+      if (k.crown === id) {
+        var cr = doc.createElement('canvas'); cr.className = 'crown'; cr.width = 96; cr.height = 72; c.appendChild(cr); drawIcon(cr, 'crown'); cell.crown = cr;
+      }
+      box.appendChild(c); cells.push(cell);
+    });
+    return cells;
+  }
+  function updateTodayStrip() {
+    var s = $('today-strip'), k = kidNow();
+    s.hidden = k.none;
+    if (!k.none) buildTodayCells(s, k, true);
+  }
+  function startToday() {
+    var k = kidNow(), cells = buildTodayCells($('today-row'), k, false), calm = reducedMotion();
+    var crownLine = k.crown ? LN.todayCrown(k.crown) : '', msg = $('today-msg'), items = [];
+    var names = {}; TODAY_GAMES.forEach(function (g) { names[g[0]] = g[2]; });
+    if (k.none) { msg.textContent = 'きょうは どれで しゅつどう する？'; items.push({ text: LN.FIXED.todayNone, lang: 'ja' }); }
+    else if (k.all) { msg.textContent = 'ぜんぶ しゅつどう できたね！'; items.push({ text: LN.FIXED.todayAll, lang: 'ja' }); }
+    else {
+      msg.innerHTML = esc('きょうは ' + names[k.crown] + ' を とくに がんばったね！') + (k.invite ? '<br>' + esc('あしたは ' + names[k.invite] + ' も やってみる？') : '');
+      items.push({ text: crownLine, lang: 'ja' });
+      if (k.invite) items.push({ text: LN.todayInvite(k.invite), lang: 'ja', gap: 500 });
+    }
+    SP.prefetch(items.map(function (i) { return i.text; }));
+    // 動き: スタンプを左から順に 0.3 秒ずつ「ぽん」→ 王冠。動きを減らす設定のときは一度に出す
+    var t = 300;
+    cells.forEach(function (c) {
+      [c.stamp, c.crown].forEach(function (n) { if (n && !calm) n.classList.add('wait'); });
+    });
+    if (!calm) {
+      cells.forEach(function (c) {
+        if (!c.stamp) return;
+        later(t, function () { c.stamp.classList.remove('wait'); c.stamp.classList.add('pop'); sfx('pon'); });
+        t += 300;
+      });
+      cells.forEach(function (c) { if (c.crown) later(t, function () { c.crown.classList.remove('wait'); c.crown.classList.add('pop'); sfx('card'); }); });
+    }
+    later(calm ? 300 : t + 700, function () { if (items.length) seq(items); });
+    kick();
+  }
+  // 画面に使う日ごとの記録（今の子の分。クラウドのほかの端末の分を足すのは DL-5 以降）
+  function viewDays() { return data.days || {}; }
+
   // ---- 保護者画面: まいにちの きろく（docs/design-daily-log.md 8 章。今えらんでいる子だけ） ----
   var dlWeek = '', dlOpen = '';   // 見ている週の月曜・内訳を開いている日。保護者画面を開いたとき・子を切り替えたとき今の週に戻す
   var DL_NAME = { math: 'かず', letter: 'もじ', clock: 'とけい', english: 'えいご', trace: 'かく', solo: 'ひとりで かく' };
@@ -1320,7 +1387,7 @@
   function fillDays() {
     var today = todayStr();
     if (!dlWeek) dlWeek = DL.weekStart(today);
-    var w = DL.weekSummary(data.days, dlWeek, today, data);
+    var w = DL.weekSummary(viewDays(), dlWeek, today, data);
     $('dl-range').textContent = mdOf(w.start) + '〜' + mdOf(w.end);
     $('dl-prev').disabled = !w.hasPrev; $('dl-next').disabled = !w.hasNext;
     $('dl-sum').textContent = w.any && (w.sum.sessions || w.sum.sec)
@@ -1562,16 +1629,18 @@
       } else garageOpen = { tab: 'cars', set: garageOpen.set, stamp: [], shelf: rewardShelf(), run: reward && reward.r.id ? reward.r.id : '' };
       leaveReward('garage');
     });
-    $('btn-r-end').addEventListener('click', function () { sfx('tap'); leaveReward('title'); });   // 昇格があれば先に昇格画面（そのあとタイトル）
+    $('btn-r-end').addEventListener('click', function () { sfx('tap'); leaveReward('today'); });   // 昇格があれば先に昇格画面（そのあとタイトル）
     $('btn-r-again').addEventListener('click', function () {
       sfx('tap');
       if (reward && reward.game === 'trace') { if (reward.solo && soloAvailable()) startSolo(); else startTrace(); } else leaveReward('pick');   // かく から来たときは かく をもう一度（ひとりで かく のあとは ひとりで かく。出せる字が足りなければ なぞり）
     });
     $('btn-pr-go').addEventListener('click', function () {   // 「すすむ」: 新しいステージを選んでタイトルへ
       sfx('tap'); if (promo) { replaceData(LD.selectStage(data, promo.stage)); save(); }
-      promo = null; show('title');
+      var nx = promo && promo.next || 'title'; promo = null; show(nx);
     });
-    $('btn-pr-later').addEventListener('click', function () { sfx('tap'); promo = null; show('title'); });
+    $('btn-pr-later').addEventListener('click', function () { sfx('tap'); var nx = promo && promo.next || 'title'; promo = null; show(nx); });
+    $('btn-today-ok').addEventListener('click', function () { sfx('tap'); show('title'); });
+    $('today-strip').addEventListener('click', function () { sfx('tap'); show('today'); });
     $('btn-g-back').addEventListener('click', function () { sfx('tap'); show('title'); });
     $('dl-prev').addEventListener('click', function () { dlMove(-1); });
     $('dl-next').addEventListener('click', function () { dlMove(1); });

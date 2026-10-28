@@ -22,6 +22,7 @@
         <button id="btn-go" class="big" type="button"><canvas width="96" height="96" data-icon="truck"></canvas><span>しゅつどう</span></button>
         <button id="btn-garage" class="big alt" type="button"><canvas width="96" height="96" data-icon="garage"></canvas><span>しゃこ</span></button>
       </div>
+      <button id="today-strip" type="button" aria-label="きょうの しゅつどう" hidden></button>
     </div>
   </section>
 
@@ -48,6 +49,16 @@
         <button id="btn-english" class="big english" type="button"><canvas width="96" height="96" data-icon="eigo"></canvas><span>えいご</span><canvas class="xmark" width="48" height="48" data-icon="speakerx"></canvas></button>
         <button id="btn-trace" class="big trace" type="button"><canvas width="96" height="96" data-icon="pencil"></canvas><span>かく</span></button>
       </div>
+    </div>
+  </section>
+
+  <!-- きょうの しゅつどう（「おしまい」の後。数字なし。docs/design-daily-log.md 9 章） -->
+  <section id="s-today" class="screen">
+    <div class="today-box">
+      <h2>きょうの しゅつどう</h2>
+      <div id="today-row"></div>
+      <p id="today-msg" class="kid-sub"></p>
+      <button id="btn-today-ok" class="big end" type="button"><canvas width="96" height="96" data-icon="station"></canvas><span>おしまい</span></button>
     </div>
   </section>
 

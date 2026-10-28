@@ -43,7 +43,10 @@
     askKanji: 'どの かんじかな？',
     tryWrite: 'かいて みる？',
     traceTail: 'なぞってね。',
-    soloTail: 'ひとりで かいて みよう。'
+    soloTail: 'ひとりで かいて みよう。',
+    // 「きょうの しゅつどう」（docs/design-daily-log.md 9.4）。王冠・誘いの文は todayCrown・todayInvite（ゲームごと）
+    todayAll: 'ぜんぶ 出動できたね！',
+    todayNone: '今日は どれで 出動する？'
   };
   // 時刻の前置き（「出動は、よじ。」の前の部分。resolve が部品に分けるとき使う）
   var TIME_PREFIX = ['出動は、', 'いまは、', 'ごぜん、', 'ごご、'];
@@ -145,6 +148,9 @@
   function license(set) { return SET_LABEL[set] + ' めんきょを、もらったよ！'; }
   function carGet(car) { return carYomi(car) + 'を、ゲット！'; }
   function promote(stg) { return stg.rank + 'に、しょうかく！'; }
+  // きょうの しゅつどう: 「とくに がんばった」「あしたは これも」。ゲームは GAME_NAME の 5 つ（かく は ひとりで かく を含む）
+  function todayCrown(game) { return '今日は ' + GAME_NAME[game] + 'を、とくに がんばったね！'; }
+  function todayInvite(game) { return 'あしたは ' + GAME_NAME[game] + 'も、やってみる？'; }
   function shelfHow(game) { return GAME_NAME[game] + 'で あそぶと ふえるよ'; }
 
   // ---- 出動の始めに先読みする文（日本語だけ。英語は端末の声）。名前の文は含めない ----
@@ -179,7 +185,7 @@
     number: number, wordOf: wordOf, yomiOf: yomiOf, carYomi: carYomi, isSpecialLetter: isSpecialLetter, exampleOf: exampleOf, correctExample: correctExample, kanjiWord: kanjiWord,
     prompt: prompt, wrong: wrong, hint: hint, correct: correct, who: who,
     tracePrompt: tracePrompt, tracePromptAlt: tracePromptAlt, soloPrompt: soloPrompt, traceDoneWord: traceDoneWord, traceDone: traceDone, soloDone: soloDone, mojiSheet: mojiSheet,
-    license: license, carGet: carGet, promote: promote, shelfHow: shelfHow,
+    license: license, carGet: carGet, promote: promote, shelfHow: shelfHow, todayCrown: todayCrown, todayInvite: todayInvite,
     questionTexts: questionTexts, sessionTexts: sessionTexts, traceTexts: traceTexts
   };
   if (node) module.exports = api;

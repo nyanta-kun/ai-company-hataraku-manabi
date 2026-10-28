@@ -221,3 +221,51 @@ test('weekSummary: 前の週・範囲の前は old・今日より先は future�
   assert.equal(empty.any, false); assert.equal(empty.got.any, false);
   assert.equal(DL.weekSummary(null, '2026-10-26', T, null).sum.sessions, 0);
 });
+
+// ---- kidToday ----
+const rs = (d, day, g, o) => DL.recordSession(d, day, Object.assign({ game: g, questions: 4, firstTry: 2 }, o || {}));
+test('kidToday: 1 つなら それに王冠。回数が多い方。同じならできたことが多い方。それも同じなら last。last が無ければ並びで先', () => {
+  let d = rs({}, T, 'clock');
+  assert.deepEqual(DL.kidToday(d, T), { played: { math: false, letter: false, clock: true, english: false, trace: false }, crown: 'clock', invite: 'math', all: false, none: false });
+  d = rs(rs(d, T, 'math'), T, 'math');
+  assert.equal(DL.kidToday(d, T).crown, 'math');   // 2 回 > 1 回
+  let e = rs(rs({}, T, 'math'), T, 'letter', { up: 'K2' });
+  assert.equal(DL.kidToday(e, T).crown, 'letter');   // 同じ 1 回: できたこと 1 > 0（last は letter でもできたことが先に効く）
+  e = rs(rs({}, T, 'letter'), T, 'math');
+  assert.equal(DL.kidToday(e, T).crown, 'math');   // 同点: last
+  e = rs(rs({}, T, 'math'), T, 'letter');
+  assert.equal(DL.kidToday(e, T).crown, 'letter');
+  const noLast = JSON.parse(JSON.stringify(e)); noLast[T].last = '';
+  assert.equal(DL.kidToday(noLast, T).crown, 'math');   // 並びで先
+  assert.equal(DL.kidToday(noLast, T, { cleared: { K1: T } }).crown, 'letter');   // 関門を今日通った
+  assert.equal(DL.kidToday(noLast, T, { cleared: { K1: '2026-10-01' } }).crown, 'math');
+});
+test('kidToday: trace と solo はまとめる。字だけの かく は遊んだ。回数に 1 回目で正解は使わない', () => {
+  let d = rs(rs({}, T, 'trace', { questions: 0, firstTry: 0 }), T, 'solo', { questions: 0, firstTry: 0 });
+  d = rs(d, T, 'math', { firstTry: 4 });
+  const k = DL.kidToday(d, T);
+  assert.equal(k.played.trace, true); assert.equal(k.crown, 'trace');   // 2 回 > 1 回（正解の数が多い math ではない）
+  const only = DL.recordChar({}, T, { game: 'trace', ch: 'し', firstDone: true });
+  assert.equal(DL.kidToday(only, T).played.trace, true); assert.equal(DL.kidToday(only, T).crown, 'trace');
+  const g = DL.recordChar(DL.recordChar(rs({}, T, 'trace'), T, { game: 'solo', ch: 'し', firstDone: true, firstSolo: true }), T, { game: 'trace', ch: 'つ', firstDone: true });
+  assert.equal(DL.kidToday(rs(g, T, 'math'), T).crown, 'trace');   // 1 回ずつ: かく はできたこと 3
+});
+test('kidToday: 誘いは直近 7 日でいちばん少ないもの。同じなら並びで先。えいごは enOn のときだけ。全部・なし', () => {
+  let d = rs({}, '2026-10-25', 'letter');
+  d = rs(rs(d, '2026-10-26', 'clock'), '2026-10-27', 'trace');
+  d = rs(d, T, 'math');
+  assert.equal(DL.kidToday(d, T).invite, 'english');   // letter・clock・trace は直近 7 日に 1 回ずつ、english は 0
+  assert.equal(DL.kidToday(d, T, { enOn: false }).invite, 'letter');   // english は誘わない。残りは同数で並びが先
+  d = rs({}, '2026-10-01', 'letter'); d = rs(d, T, 'math');
+  assert.equal(DL.kidToday(d, T).invite, 'letter'); // 7 日より前の記録は数えない（同数 0 で並びが先）
+  let all = {}; ['math', 'letter', 'clock', 'english', 'trace'].forEach(g => { all = rs(all, T, g); });
+  const k = DL.kidToday(all, T);
+  assert.equal(k.all, true); assert.equal(k.invite, ''); assert.equal(k.crown, 'trace');   // 全部 1 回 → 最後に終えた かく
+  const noEn = {}; let ne = noEn; ['math', 'letter', 'clock', 'trace'].forEach(g => { ne = rs(ne, T, g); });
+  assert.equal(DL.kidToday(ne, T, { enOn: false }).all, true);
+  assert.equal(DL.kidToday(ne, T).all, false);
+  const none = DL.kidToday({}, T);
+  assert.deepEqual(none, { played: { math: false, letter: false, clock: false, english: false, trace: false }, crown: '', invite: '', all: false, none: true });
+  assert.deepEqual(DL.kidToday(null, T), none);
+  assert.deepEqual(DL.kidToday(d, T), DL.kidToday(d, T));
+});

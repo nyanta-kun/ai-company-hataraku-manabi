@@ -241,11 +241,57 @@
     };
   }
 
+  // ---- 子ども向け「きょうの しゅつどう」（9.3。決定的。数字は画面に出さない） ----
+  function kidSessions(day, g) { return g === 'trace' ? sessionsOf(day, 'trace') + sessionsOf(day, 'solo') : sessionsOf(day, g); }
+  function kidPlayed(day, g) {
+    if (!day) return false;
+    if (g !== 'trace') return sessionsOf(day, g) >= 1;
+    return kidSessions(day, 'trace') >= 1 || (typeof day.wrote === 'string' && day.wrote !== '');   // 書いた字があれば、終えていなくても遊んだ
+  }
+  // 「できるようになったこと」の数（王冠の 2 番目の決め手。昇格は関門と重なるので数えない）
+  function kidGains(day, g, today, cleared) {
+    if (!day) return 0;
+    var n = 0;
+    if (g === 'trace') return Array.from(day.newChars || '').length + Array.from(day.newSolo || '').length + (day.license || []).length;
+    if (isObj(day.up) && has(day.up, g)) n++;
+    if (isObj(cleared)) Object.keys(cleared).forEach(function (lv) { if (cleared[lv] === today && D.LEVELS[g].indexOf(lv) >= 0) n++; });
+    return n;
+  }
+  // days = 表示に使う値。opts = { enOn（えいごの声が使えるか。省略は使える）, cleared（profile.cleared） }
+  // → { played: { math, letter, clock, english, trace }, crown: 'trace' | '', invite: 'clock' | '', all, none }
+  function kidToday(days, today, opts) {
+    opts = isObj(opts) ? opts : {};
+    var enOn = opts.enOn !== false, day = isObj(days) && has(days, today) ? days[today] : null;
+    var played = {}, list = [];
+    KID_GAMES.forEach(function (g) { played[g] = kidPlayed(day, g); if (played[g]) list.push(g); });
+    var out = { played: played, crown: '', invite: '', all: false, none: list.length === 0 };
+    if (!list.length) return out;
+    var best = null;
+    list.forEach(function (g) {
+      var c = { g: g, s: kidSessions(day, g), n: kidGains(day, g, today, opts.cleared), l: (g === 'trace' ? (day.last === 'trace' || day.last === 'solo') : day.last === g) ? 1 : 0 };
+      if (!best || c.s > best.s || (c.s === best.s && (c.n > best.n || (c.n === best.n && c.l > best.l)))) best = c;   // 同点は KID_GAMES の並びで先（上書きしない）
+    });
+    out.crown = best.g;
+    var avail = KID_GAMES.filter(function (g) { return g !== 'english' || enOn; });
+    out.all = avail.every(function (g) { return played[g]; });
+    if (!out.all) {
+      var lo = addDays(today, -6), pick = null;
+      avail.forEach(function (g) {
+        if (played[g]) return;
+        var n = 0;
+        for (var k = lo; k <= today; k = addDays(k, 1)) if (isObj(days) && has(days, k)) n += kidSessions(days[k], g);
+        if (pick === null || n < pick.n) pick = { g: g, n: n };
+      });
+      out.invite = pick ? pick.g : '';
+    }
+    return out;
+  }
+
   var api = {
     KEEP_DAYS: KEEP_DAYS, MAX_KEYS: MAX_KEYS, SEC_CAP: SEC_CAP, GAMES: GAMES, KID_GAMES: KID_GAMES, CAP: CAP, LICENSES: LICENSES,
     isDayKey: isDayKey, addDays: addDays, dayOfWeek: dayOfWeek, weekStart: weekStart, weekKeys: weekKeys,
     normalizeDay: normalizeDay, normalizeDays: normalizeDays, prune: prune,
-    weekSummary: weekSummary, recordSession: recordSession, recordChar: recordChar, addTime: addTime
+    weekSummary: weekSummary, kidToday: kidToday, recordSession: recordSession, recordChar: recordChar, addTime: addTime
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else { root.Manabi = root.Manabi || {}; root.Manabi.daylog = api; }
