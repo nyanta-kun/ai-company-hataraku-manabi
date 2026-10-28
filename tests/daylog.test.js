@@ -269,3 +269,91 @@ test('kidToday: 誘いは直近 7 日でいちばん少ないもの。同じな�
   assert.deepEqual(DL.kidToday(null, T), none);
   assert.deepEqual(DL.kidToday(d, T), DL.kidToday(d, T));
 });
+
+// ---- クラウドの形・足し合わせ（DL-5） ----
+const fs = require('fs'), path = require('path');
+const STR = require('../src/strokes.js');
+const DEV = 'd_k3m9x2ab', DEV2 = 'd_a1b2c3d4';
+function fullDay() {   // 全部のゲーム・字 130 字・乗り物 47 種・めんきょ 4 つ・上限の回数と秒
+  const chars = Array.from(STR.SETS.hira + STR.SETS.kata + STR.SETS.k1 + STR.SETS.k2).slice(0, 130);
+  const d = {};
+  ['math', 'letter', 'clock', 'english'].forEach(g => { d[g] = { sessions: 999, questions: 9999, firstTry: 9999 }; });
+  d.trace = { sessions: 999, chars: 9999 }; d.solo = { sessions: 999, chars: 9999 };
+  d.up = { math: 'M13', letter: 'K9', clock: 'T8', english: 'E5' };
+  d.wrote = chars.join(''); d.newChars = chars.slice(0, 50).join(''); d.newSolo = chars.slice(0, 20).join('');
+  d.license = ['hira', 'kata', 'k1', 'k2']; d.newCars = D.ALL_VEHICLES.map(v => v.id).slice(0, 47);
+  d.cards = 999; d.sec = 86400; d.last = 'solo';
+  return d;
+}
+test('toCloudDay / fromCloudDay: 往復で変わらない（普通の日・空の日・全部入りの日）', () => {
+  const some = sample()['2026-10-28'];
+  [some, fullDay(), sample()['2026-10-26']].forEach(day => {
+    const n = DL.normalizeDay(day), doc = DL.toCloudDay(day, T, DEV);
+    assert.equal(doc.n.length, 18); assert.equal(Object.keys(doc).length, 11);
+    assert.deepEqual(DL.fromCloudDay(JSON.parse(JSON.stringify(doc))), { date: T, dev: DEV, day: n });
+  });
+  const empty = DL.toCloudDay(null, T, DEV);
+  assert.deepEqual(empty.n, new Array(18).fill(0)); assert.equal(empty.up, ',,,');
+  assert.deepEqual(DL.fromCloudDay(empty), { date: T, dev: DEV, day: null });   // 遊ばなかったゲームは 0 で戻り、空の日は日ごと消える
+  assert.deepEqual(DL.toCloudDay(some, T, DEV).n.slice(0, 3), [0, 0, 0]);
+});
+test('toCloudDay の結果は、firestore.rules の isDay と同じ正規表現に合う（ルールの文字列と一致も確かめる）', () => {
+  const rules = fs.readFileSync(path.join(__dirname, '..', 'firestore.rules'), 'utf8');
+  const doc = DL.toCloudDay(fullDay(), T, DEV);
+  assert.match(doc.date, DL.RE.date); assert.match(doc.dev, DL.RE.dev); assert.match(doc.n.join(','), DL.RE.n);
+  assert.match(doc.up, DL.RE.up); assert.match(doc.license, DL.RE.license); assert.match(doc.last, DL.RE.last);
+  assert.ok(doc.newCars.length <= 700);
+  // ルールの正規表現（'^…$' の中身）をそのまま取り出して、端末の正規表現のソースと比べる
+  const grab = (re) => { const m = re.exec(rules); assert.ok(m, String(re)); return m[1]; };
+  assert.equal(grab(/n\.join\(','\)\.matches\('([^']+)'\)/), DL.RE.n.source);
+  assert.equal(grab(/d\.up\.matches\('([^']+)'\)/), DL.RE.up.source);
+  assert.equal(grab(/d\.license\.matches\('([^']+)'\)/), DL.RE.license.source);
+  assert.equal(grab(/d\.last\.matches\('([^']+)'\)/), DL.RE.last.source);
+  assert.equal(grab(/d\.dev is string && d\.dev\.matches\('([^']+)'\)/), DL.RE.dev.source);
+  assert.equal(grab(/d\.date is string && d\.date\.matches\('([^']+)'\)/), DL.RE.date.source);
+});
+test('fromCloudDay: 形の違う文書・35 日の外ではなく形だけを見て捨てる', () => {
+  const ok = DL.toCloudDay(sample()['2026-10-28'], T, DEV);
+  const bad = f => { const d = JSON.parse(JSON.stringify(ok)); f(d); return DL.fromCloudDay(d); };
+  assert.ok(DL.fromCloudDay(ok));
+  [d => { d.v = 2; }, d => { d.extra = 1; }, d => { delete d.last; }, d => { d.date = '2026-1-1'; }, d => { d.date = '2026-02-30'; }, d => { d.dev = 'x'; },
+   d => { d.n.pop(); }, d => { d.n.push(0); }, d => { d.n[0] = -1; }, d => { d.n[0] = 1.5; }, d => { d.n[0] = 1000; }, d => { d.n[17] = 100000; }, d => { d.n = {}; },
+   d => { d.up = 'M5,,'; }, d => { d.up = 'X5,,,'; }, d => { d.license = 'bogus'; }, d => { d.last = 'bogus'; }, d => { d.wrote = 5; }, d => { d.newCars = 'x'.repeat(701); }
+  ].forEach((f, i) => assert.equal(bad(f), null, 'case ' + i));
+  assert.equal(DL.fromCloudDay(null), null); assert.equal(DL.fromCloudDay([]), null); assert.equal(DL.fromCloudDay('x'), null);
+  // 形は合うが中身が使えないもの（知らない字・知らない乗り物）は補正で落ちる
+  const odd = bad(d => { d.wrote = 'しQ'; d.newChars = 'Q'; d.newCars = 'nonexistent'; });
+  assert.equal(odd.day.wrote, 'し'); assert.equal(odd.day.newCars, undefined);
+});
+test('sumDays: 回数は足し・up は高い方・字や乗り物は和集合・last は自分が先。sumDays(a, {}) は a。上限で止まる', () => {
+  const mine = {}, other = {};
+  mine[T] = { math: { sessions: 3, questions: 12, firstTry: 9 }, up: { math: 'M4' }, wrote: 'しつ', newChars: 'し', license: ['hira'], newCars: ['bus'], cards: 3, sec: 300, last: 'math' };
+  other[T] = { math: { sessions: 2, questions: 8, firstTry: 5 }, trace: { sessions: 1, chars: 4 }, up: { math: 'M5', clock: 'T2' }, wrote: 'つくへ', newChars: 'つ', newSolo: 'つ', license: ['hira', 'kata'], newCars: ['bus', 'taxi'], cards: 2, sec: 200, last: 'trace' };
+  other['2026-10-20'] = { clock: { sessions: 1, questions: 4, firstTry: 4 } };
+  const s = DL.sumDays(mine, other)[T];
+  assert.deepEqual(s.math, { sessions: 5, questions: 20, firstTry: 14 }); assert.deepEqual(s.trace, { sessions: 1, chars: 4 });
+  assert.deepEqual(s.up, { math: 'M5', clock: 'T2' });
+  assert.equal(s.wrote, 'しつくへ'); assert.equal(s.newChars, 'しつ'); assert.equal(s.newSolo, 'つ');
+  assert.deepEqual(s.license, ['hira', 'kata']); assert.deepEqual(s.newCars, ['bus', 'taxi']);
+  assert.equal(s.cards, 5); assert.equal(s.sec, 500); assert.equal(s.last, 'math');
+  assert.deepEqual(Object.keys(DL.sumDays(mine, other)).sort(), ['2026-10-20', T]);
+  assert.equal(DL.sumDays({ [T]: { math: { sessions: 1, questions: 4, firstTry: 4 } } }, { [T]: { solo: { sessions: 1, chars: 4 } } })[T].last, '');   // どちらも無ければ ''
+  assert.equal(DL.sumDays({ [T]: { solo: { sessions: 1, chars: 4 } } }, mine)[T].last, 'math');   // 自分に無ければ、ほかの端末の値
+  assert.equal(DL.sumDays({ [T]: { solo: { sessions: 1, chars: 4 }, last: 'solo' } }, mine)[T].last, 'solo');   // 自分の値が先
+  assert.deepEqual(DL.sumDays(mine, {}), DL.normalizeDays(mine)); assert.deepEqual(DL.sumDays({}, other), DL.normalizeDays(other));
+  const big = { [T]: fullDay() }, two = DL.sumDays(big, big)[T];
+  assert.equal(two.math.sessions, 999); assert.equal(two.sec, 86400); assert.equal(two.cards, 999); assert.ok(Array.from(two.wrote).length <= 130);
+  assert.deepEqual(DL.sumDays(mine, other), DL.normalizeDays(DL.sumDays(mine, other)));   // 足した結果も補正済み
+});
+test('foldOthers: ほかの端末の文書を何度読んでも同じ。読む順番に関係なく同じ（端末の番号の順）', () => {
+  const a = DL.fromCloudDay(DL.toCloudDay(sample()['2026-10-28'], T, DEV)), b = DL.fromCloudDay(DL.toCloudDay(sample()['2026-10-26'], T, DEV2));
+  const x = DL.foldOthers([a, b]), y = DL.foldOthers([b, a]), z = DL.foldOthers([a, b, a, b].slice(0, 2));
+  assert.deepEqual(x, y); assert.deepEqual(x, z);
+  assert.deepEqual(DL.foldOthers([]), {}); assert.deepEqual(DL.foldOthers([null, { date: T, dev: DEV, day: null }]), {});
+  // 2 台（自分 = DEV・もう 1 台 = DEV2）で同じ日に遊んだ → 画面は足した値
+  const mine = { [T]: { math: { sessions: 3, questions: 12, firstTry: 9 }, last: 'math' } };
+  const other = DL.foldOthers([DL.fromCloudDay(DL.toCloudDay({ math: { sessions: 2, questions: 8, firstTry: 5 }, trace: { sessions: 1, chars: 4 }, last: 'trace' }, T, DEV2))]);
+  const view = DL.sumDays(mine, other)[T];
+  assert.equal(view.math.sessions, 5); assert.equal(view.trace.sessions, 1);
+  assert.equal(DL.kidToday(DL.sumDays(mine, other), T).crown, 'math'); assert.equal(DL.kidToday(DL.sumDays(mine, other), T).played.trace, true);
+});

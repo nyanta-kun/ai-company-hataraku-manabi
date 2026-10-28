@@ -1350,8 +1350,8 @@
     later(calm ? 300 : t + 700, function () { if (items.length) seq(items); });
     kick();
   }
-  // 画面に使う日ごとの記録（今の子の分。クラウドのほかの端末の分を足すのは DL-5 以降）
-  function viewDays() { return data.days || {}; }
+  // 画面に使う日ごとの記録（今の子の分＋ほかの端末の分 daysOther。daysOther は R4 の cloud.js が読んで置き換える）
+  function viewDays() { return DL.sumDays(data.days, data.daysOther); }
 
   // ---- 保護者画面: まいにちの きろく（docs/design-daily-log.md 8 章。今えらんでいる子だけ） ----
   var dlWeek = '', dlOpen = '';   // 見ている週の月曜・内訳を開いている日。保護者画面を開いたとき・子を切り替えたとき今の週に戻す

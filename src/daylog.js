@@ -287,11 +287,95 @@
     return out;
   }
 
+  // ---- クラウドの形（10.3。1 日・1 端末で 1 文書）との行き来と、端末どうしの足し合わせ（10.5） ----
+  // firestore.rules の isDay と同じ正規表現（tests/daylog.test.js が、ルールの文字列と一致していることを確かめる）
+  var RE = {
+    date: /^[0-9]{4}-[0-9]{2}-[0-9]{2}$/,
+    dev: /^d_[0-9a-z]{8}$/,
+    n: /^([0-9]{1,3},[0-9]{1,4},[0-9]{1,4},){4}[0-9]{1,3},[0-9]{1,4},[0-9]{1,3},[0-9]{1,4},[0-9]{1,3},[0-9]{1,5}$/,
+    up: /^(M[0-9]{1,2})?,(K[0-9]{1,2})?,(T[0-9]{1,2})?,(E[0-9]{1,2})?$/,
+    license: /^((hira|kata|k1|k2)(,(hira|kata|k1|k2)){0,3})?$/,
+    last: /^(math|letter|clock|english|trace|solo)?$/
+  };
+  var CLOUD_KEYS = ['v', 'date', 'dev', 'n', 'up', 'wrote', 'newChars', 'newSolo', 'license', 'newCars', 'last'];
+  // 端末の 1 日 → クラウドの文書。day が無い・空なら 0 と空の文字列だけの文書
+  function toCloudDay(day, date, dev) {
+    var d = normalizeDay(day) || {}, n = [];
+    Q_GAMES.forEach(function (g) { var x = d[g] || {}; n.push(x.sessions || 0, x.questions || 0, x.firstTry || 0); });
+    C_GAMES.forEach(function (g) { var x = d[g] || {}; n.push(x.sessions || 0, x.chars || 0); });
+    n.push(d.cards || 0, d.sec || 0);
+    return {
+      v: 1, date: date, dev: dev, n: n,
+      up: Q_GAMES.map(function (g) { return d.up && d.up[g] ? d.up[g] : ''; }).join(','),
+      wrote: d.wrote || '', newChars: d.newChars || '', newSolo: d.newSolo || '',
+      license: (d.license || []).join(','), newCars: (d.newCars || []).join(','), last: d.last || ''
+    };
+  }
+  // クラウドの文書 → { date, dev, day }。形が違えば null（ルールを通らない手作りの文書は捨てる）。day は normalizeDay と同じ規則で補正（空なら null）
+  function fromCloudDay(doc) {
+    if (!isObj(doc)) return null;
+    var keys = Object.keys(doc);
+    if (keys.length !== CLOUD_KEYS.length || !CLOUD_KEYS.every(function (k) { return has(doc, k); })) return null;
+    if (doc.v !== 1 || typeof doc.date !== 'string' || !RE.date.test(doc.date) || !isDayKey(doc.date)) return null;
+    if (typeof doc.dev !== 'string' || !RE.dev.test(doc.dev)) return null;
+    if (!Array.isArray(doc.n) || doc.n.length !== 18 || !doc.n.every(function (x) { return typeof x === 'number'; }) || !RE.n.test(doc.n.join(','))) return null;
+    if (typeof doc.up !== 'string' || !RE.up.test(doc.up) || typeof doc.license !== 'string' || !RE.license.test(doc.license)) return null;
+    if (typeof doc.last !== 'string' || !RE.last.test(doc.last) || typeof doc.newCars !== 'string' || doc.newCars.length > 700) return null;
+    if (typeof doc.wrote !== 'string' || typeof doc.newChars !== 'string' || typeof doc.newSolo !== 'string') return null;
+    var n = doc.n, raw = {}, i = 0;
+    Q_GAMES.forEach(function (g) { raw[g] = { sessions: n[i], questions: n[i + 1], firstTry: n[i + 2] }; i += 3; });
+    C_GAMES.forEach(function (g) { raw[g] = { sessions: n[i], chars: n[i + 1] }; i += 2; });
+    raw.cards = n[i]; raw.sec = n[i + 1];
+    raw.up = {}; doc.up.split(',').forEach(function (lv, j) { if (lv) raw.up[Q_GAMES[j]] = lv; });
+    raw.wrote = doc.wrote; raw.newChars = doc.newChars; raw.newSolo = doc.newSolo;
+    raw.license = doc.license ? doc.license.split(',') : []; raw.newCars = doc.newCars ? doc.newCars.split(',') : [];
+    raw.last = doc.last;
+    return { date: doc.date, dev: doc.dev, day: normalizeDay(raw) };
+  }
+  // 自分の端末の分（mine）とほかの端末の分（other）を足す。→ 新しい days。sumDays(a, {}) は normalizeDays(a)
+  function sumDays(mine, other) {
+    mine = normalizeDays(mine); other = normalizeDays(other);
+    var keys = {}; Object.keys(mine).forEach(function (k) { keys[k] = true; }); Object.keys(other).forEach(function (k) { keys[k] = true; });
+    var out = {};
+    Object.keys(keys).forEach(function (k) {
+      var a = has(mine, k) ? mine[k] : null, b = has(other, k) ? other[k] : null, m = {};
+      if (!a || !b) { out[k] = a || b; return; }
+      Q_GAMES.concat(C_GAMES).forEach(function (g) {
+        if (!a[g] && !b[g]) return;
+        var x = a[g] || {}, y = b[g] || {}, z = { sessions: (x.sessions || 0) + (y.sessions || 0) };
+        if (Q_GAMES.indexOf(g) >= 0) { z.questions = (x.questions || 0) + (y.questions || 0); z.firstTry = (x.firstTry || 0) + (y.firstTry || 0); }
+        else z.chars = (x.chars || 0) + (y.chars || 0);
+        m[g] = z;
+      });
+      if (a.up || b.up) {
+        m.up = {};
+        Q_GAMES.forEach(function (g) {
+          var u = a.up && a.up[g], v = b.up && b.up[g];
+          if (u && v) m.up[g] = levelIdx(g, u) >= levelIdx(g, v) ? u : v; else if (u || v) m.up[g] = u || v;
+        });
+      }
+      m.wrote = unionStr(a.wrote || '', b.wrote || ''); m.newChars = unionStr(a.newChars || '', b.newChars || ''); m.newSolo = unionStr(a.newSolo || '', b.newSolo || '');
+      m.license = (a.license || []).concat((b.license || []).filter(function (x) { return (a.license || []).indexOf(x) < 0; }));
+      m.newCars = (a.newCars || []).concat((b.newCars || []).filter(function (x) { return (a.newCars || []).indexOf(x) < 0; }));
+      m.cards = (a.cards || 0) + (b.cards || 0); m.sec = (a.sec || 0) + (b.sec || 0);
+      m.last = a.last || b.last || '';
+      out[k] = m;
+    });
+    return normalizeDays(out);
+  }
+  // ほかの端末の文書（fromCloudDay の結果の並び。端末の番号の順に並べてから）を 1 つの days に足し合わせる。何度読んでも同じ結果（置き換え用）
+  function foldOthers(list) {
+    var sorted = (list || []).filter(function (x) { return x && x.day && isDayKey(x.date); }).sort(function (p, q) { return p.dev < q.dev ? -1 : p.dev > q.dev ? 1 : (p.date < q.date ? -1 : p.date > q.date ? 1 : 0); });
+    var acc = {};
+    sorted.forEach(function (x) { var one = {}; one[x.date] = x.day; acc = sumDays(acc, one); });
+    return acc;
+  }
+
   var api = {
     KEEP_DAYS: KEEP_DAYS, MAX_KEYS: MAX_KEYS, SEC_CAP: SEC_CAP, GAMES: GAMES, KID_GAMES: KID_GAMES, CAP: CAP, LICENSES: LICENSES,
     isDayKey: isDayKey, addDays: addDays, dayOfWeek: dayOfWeek, weekStart: weekStart, weekKeys: weekKeys,
     normalizeDay: normalizeDay, normalizeDays: normalizeDays, prune: prune,
-    weekSummary: weekSummary, kidToday: kidToday, recordSession: recordSession, recordChar: recordChar, addTime: addTime
+    weekSummary: weekSummary, kidToday: kidToday, RE: RE, toCloudDay: toCloudDay, fromCloudDay: fromCloudDay, sumDays: sumDays, foldOthers: foldOthers, recordSession: recordSession, recordChar: recordChar, addTime: addTime
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else { root.Manabi = root.Manabi || {}; root.Manabi.daylog = api; }

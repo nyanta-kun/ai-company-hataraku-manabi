@@ -149,6 +149,7 @@
       ui.startSession(game, { fast: true, scene: g[3] || undefined });
       if (g[4]) root.setTimeout(function () { ui.debugProgress(+g[4]); }, 50);
     } else if (g[0] === 'solo' && g[1] === 'judge') { ui.soloDebug(true); ui.startSolo({ fast: true, chars: soloDebugChars('') }); }   // #debug:solo-judge（判定の中身を画面に出す。保存しない）
+    else if (g[0] === 'days' && g[1] === 'sample') log('みほん ' + ui.debugDaysSample() + ' にち');   // #debug:days-sample（今の子の日ごとの記録に 35 日分の見本を入れる。保存する）
     else if (g[0] === 'trace' && g[1] === 'sheet') toggleTraceSheet(g[2]);
     else if (g[0] === 'trace' && g[1] === 'plan') showTracePlan();
     else if (g[0] === 'trace' && g[1] === 'table') ui.previewMoji(g[2]);   // #debug:trace-table（-kata など集合も指定できる）
