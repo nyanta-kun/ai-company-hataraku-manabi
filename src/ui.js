@@ -1007,6 +1007,15 @@
         var u = (t - s.drive) / 1.5;
         if (u >= 1) s.drive = -1; else { m = V.motionAt(s.car.stage, u, c.w, c.h, sz); busy = true; }   // 動きは乗り物ごと（vehicles.js の MOTION）
       }
+      if (V.hasTrack(s.car.stage)) {   // 線路・桁・壁は元の位置のまま、車両だけを動かす
+        V.drawVehicle(ctx, s.car.stage, c.w / 2, c.h * 0.45, sz, 1, undefined, 'under');
+        ctx.save();
+        ctx.translate(c.w / 2 + m.x, c.h * 0.45 + m.y); ctx.rotate(m.rot);
+        V.drawVehicle(ctx, s.car.stage, 0, 0, sz * m.k, 1, undefined, 'body');
+        ctx.restore();
+        V.drawVehicle(ctx, s.car.stage, c.w / 2, c.h * 0.45, sz, 1, undefined, 'over');
+        return;
+      }
       ctx.save();
       ctx.translate(c.w / 2 + m.x, c.h * 0.45 + m.y); ctx.rotate(m.rot);
       V.drawVehicle(ctx, s.car.stage, 0, 0, sz * m.k);   // 既定の向き=右(走る向きと同じ)

@@ -893,9 +893,16 @@
   }
 
   // ---- 棚の乗り物（design-rewards.md 6 章。電車・飛行機・船の 12 種）。前は左。字・ロゴ・特定の塗装は描かない ----
+  // 線路・桁・壁を持つ絵は、軌道(静止)と車両(動く)に分けて描ける。PHASE: all=ぜんぶ(既定) / under=車両の下の軌道 / body=車両 / over=車両の手前の軌道
+  var PHASE = 'all';
+  function ph(p) { return PHASE === 'all' || PHASE === p; }
+  var TRACKED = { tram: 1, monorail: 1, linear: 1, cablecar: 1 };
   pics.tram = function (ctx) {   // ろめんでんしゃ（1りょう。短く背が高い。灰色の道に 2 本の細い線）
-    rr(ctx, -0.92, 0.44, 1.84, 0.1, 0.03, '#9aa0a6');
-    line(ctx, -0.9, 0.47, 0.9, 0.47, 0.02, '#555'); line(ctx, -0.9, 0.52, 0.9, 0.52, 0.02, '#555');
+    if (ph('under')) {
+      rr(ctx, -0.92, 0.44, 1.84, 0.1, 0.03, '#9aa0a6');
+      line(ctx, -0.9, 0.47, 0.9, 0.47, 0.02, '#555'); line(ctx, -0.9, 0.52, 0.9, 0.52, 0.02, '#555');
+    }
+    if (!ph('body')) return;
     rr(ctx, -0.52, -0.42, 1.04, 0.8, 0.14, '#fafafa');
     stripe(ctx, -0.48, 0.1, 0.96, 0.1, '#e8a317'); rr(ctx, -0.52, -0.42, 1.04, 0.8, 0.14, null);
     for (var i = 0; i < 4; i++) win(ctx, -0.42 + i * 0.24, -0.32, 0.18, 0.34);
@@ -907,7 +914,8 @@
   };
   pics.monorail = function (ctx) {   // ものれーる（丸い車体が太い桁にまたがる。車輪なし）
     ctx.scale(0.92, 0.92);                                                                    // 横に広いので少し縮める
-    rr(ctx, -0.94, 0.26, 1.88, 0.18, 0.04, '#9aa0a6');                                        // 桁（下端 0.44。柱は枠からはみ出すので描かない）
+    if (ph('under')) rr(ctx, -0.94, 0.26, 1.88, 0.18, 0.04, '#9aa0a6');                       // 桁（下端 0.44。柱は枠からはみ出すので描かない）
+    if (!ph('body')) return;
     rr(ctx, -0.88, -0.34, 1.76, 0.6, 0.3, '#fafafa');
     stripe(ctx, -0.7, 0.0, 1.4, 0.08, '#4aa3df'); rr(ctx, -0.88, -0.34, 1.76, 0.6, 0.3, null);
     poly(ctx, [[-0.78, -0.2], [-0.56, -0.26], [-0.56, -0.04], [-0.82, -0.04]], '#bfe6fb');
@@ -931,7 +939,8 @@
   };
   pics.cablecar = function (ctx) {   // けーぶるかー（ななめの線路の上の、段のついた 2 つの箱）
     ctx.scale(0.92, 0.92);
-    line(ctx, -0.95, 0.62, 0.95, -0.1, 0.09, OUT); line(ctx, -0.95, 0.62, 0.95, -0.1, 0.05, '#9aa0a6');
+    if (ph('under')) { line(ctx, -0.95, 0.62, 0.95, -0.1, 0.09, OUT); line(ctx, -0.95, 0.62, 0.95, -0.1, 0.05, '#9aa0a6'); }
+    if (!ph('body')) return;
     poly(ctx, [[-0.72, 0.28], [-0.08, 0.28], [-0.72, 0.52]], '#555');
     poly(ctx, [[-0.02, 0.02], [0.62, 0.02], [-0.02, 0.26]], '#555');
     rr(ctx, -0.72, -0.12, 0.64, 0.4, 0.07, '#fafafa');
@@ -1085,12 +1094,12 @@
       cab: [[-0.52, -0.08], [-0.44, -0.2], [-0.34, -0.22], [-0.34, -0.08]] });
   };
   pics.linear = function (ctx) {   // りにあ（車輪なし。U 字の軌道の中に浮かぶ、非常に長く低い鼻。白と青）
-    rr(ctx, -0.92, 0.0, 1.8, 0.42, 0.03, '#c3c8cc');                                           // 軌道の奥の壁
-    bullet(ctx, { bottom: 0.14, wheels: false, body: '#fafafa', wx: -0.18,
+    if (ph('under')) rr(ctx, -0.92, 0.0, 1.8, 0.42, 0.03, '#c3c8cc');                          // 軌道の奥の壁
+    if (ph('body')) bullet(ctx, { bottom: 0.14, wheels: false, body: '#fafafa', wx: -0.18,
       nose: [[-0.92, 0.1], [-0.9, 0.04], [-0.5, -0.1], [-0.2, -0.24], [0.0, -0.3], [0.0, 0.14], [-0.7, 0.14]],
       bands: [{ y: 0.0, h: 0.07, col: '#2a6fd0' }, { y: 0.08, h: 0.05, col: '#4aa3df' }],
       cab: [[-0.5, -0.02], [-0.38, -0.12], [-0.3, -0.16], [-0.3, -0.02]] });
-    rr(ctx, -0.92, 0.22, 1.8, 0.2, 0.03, '#8d949a');                                           // 手前の壁（すきまが U 字の内がわ）
+    if (ph('over')) rr(ctx, -0.92, 0.22, 1.8, 0.2, 0.03, '#8d949a');                           // 手前の壁（すきまが U 字の内がわ）
   };
 
   var DIRECTIONAL = { airplane: 1, train: 1, shinkansen: 1, ship: 1, steam: 1, postcar: 1, taxi: 1, motorbike: 1, crane: 1,
@@ -1103,7 +1112,12 @@
   //       hover=少し浮いてホバリング / climb=走りながら少し上昇 / sail=走りながら波に揺れる
   var ROCKET_TILT = 0.55;   // pics.rocket の ctx.rotate と同じ値（先端は右上を向く）
   var MOTION = { rocket: 'rocket', balloon: 'float', airship: 'drift', heli: 'hover', rescueHeli: 'hover', airplane: 'climb', propplane: 'climb',
+    tram: 'rail', monorail: 'rail', linear: 'rail', cablecar: 'rail',
     ship: 'sail', fishboat: 'sail', yacht: 'sail', tugboat: 'sail', fireboat: 'sail', cargoship: 'sail' };
+  // 軌道の上を行き来する乗り物。r=動く幅(絵の単位)、k=動くときの縮み(今は全部 1=縮めない)、py=軌道に乗る高さ(絵の単位。縮んでも軌道に乗り続ける)、slope=軌道の傾き(画面で右下がりが正)
+  var RAIL = { tram: { r: 0.5, k: 1, py: 0.4, slope: 0, lift: 0 }, monorail: { r: 0.2, k: 1, py: 0.28, slope: 0, lift: 0 },
+    linear: { r: 0.2, k: 1, py: 0.14, slope: 0, lift: 0.08 }, cablecar: { r: 0.3, k: 1, py: 0.26, slope: 0.72 / 1.9, lift: 0 } };   // lift=浮き上がる高さ(りにあは浮上して走る)
+  function hasTrack(stage) { return !!TRACKED[stage]; }
   function motionKind(stage) { return MOTION[stage] || 'run'; }
   // u(0..1) のときの、枠 w×h の中での置き場所。休んでいる位置(中心)からのずれ x・y(px)、傾き rot(rad)、大きさの倍率 k を返す純粋関数。
   // sz は絵の大きさ。run・climb・sail は u=0 で左の外、u=1 で右の外。rocket・float・drift・hover は u=0 と 1 で元の位置に戻り、枠の中で動く。
@@ -1114,6 +1128,12 @@
     if (kind === 'rocket') {
       var d = Math.min(h, w) * 0.3 * e;   // 傾き（先端の向き）に沿って上へ。小さくなりながら飛ぶので枠から出ない
       m.x = Math.sin(ROCKET_TILT) * d; m.y = -Math.cos(ROCKET_TILT) * d; m.k = 1 - 0.3 * e;
+    } else if (kind === 'rail') {   // 軌道は止めたまま、車両だけが軌道の上を右へ左へ行って戻る。ケーブルカーは坂に沿って上り下りする
+      var R = RAIL[stage], sc = sz / 1.8;
+      m.k = 1 - (1 - R.k) * e;
+      m.x = R.r * sc * Math.sin(2 * pi * u) * e;
+      m.y = m.x * R.slope + (1 - m.k) * (0.14 + R.py) * sc;
+      if (R.lift) m.y -= R.lift * sc * e + 0.02 * sc * Math.sin(6 * pi * u) * e;   // 浮き上がって、ふわっと上下する
     } else if (kind === 'float') {
       m.y = -sz * 0.1 * Math.sin(2 * pi * u * 1.5) * e; m.x = sz * 0.02 * Math.sin(2 * pi * u) * e; m.k = 0.95;
     } else if (kind === 'drift') {
@@ -1140,7 +1160,7 @@
   // 乗り物 stage(1..11) を、中心 (x, y)・おおよそ size px 四方に収めて描く。
   // facing: 前を向ける向き。1(既定)=右、-1=左。絵の前の向きと違うときだけ左右反転する。
   //   反転は絵の中だけ（呼び出し側の座標・文字は反転しない）。車体に文字を描くときは反転の外で描くこと。
-  function drawVehicle(ctx, stage, x, y, size, facing, t) {
+  function drawVehicle(ctx, stage, x, y, size, facing, t, phase) {
     var fn = typeof stage === 'string' ? pics[stage] : draw[stage];
     var s = size / 1.8, f = facing === -1 ? -1 : 1, flip = frontOf(stage) !== f;
     ctx.save();
@@ -1149,7 +1169,8 @@
     ctx.translate(-0.05 * s, 0.14 * s);
     ctx.scale(s, s);
     ctx.lineJoin = 'round';
-    fn(ctx, t);
+    PHASE = phase || 'all';
+    try { fn(ctx, t); } finally { PHASE = 'all'; }
     ctx.restore();
   }
   // 絵の種類('v1'..'v11' / 'hose' / 'flame' / 新しい絵の id)から描く
@@ -1183,7 +1204,7 @@
   }
 
   var api = {
-    draw: draw, pics: pics, PICS: PICS, hasPic: hasPic, drawVehicle: drawVehicle, frontOf: frontOf, drawPic: drawPic, motionKind: motionKind, motionAt: motionAt, drawColorCar: drawColorCar, drawSilhouette: drawSilhouette,
+    draw: draw, pics: pics, PICS: PICS, hasPic: hasPic, drawVehicle: drawVehicle, frontOf: frontOf, drawPic: drawPic, motionKind: motionKind, hasTrack: hasTrack, RAIL: RAIL, motionAt: motionAt, drawColorCar: drawColorCar, drawSilhouette: drawSilhouette,
     drawFlame: drawFlame, drawHose: drawHose, star: star, rr: rr, circ: circ, poly: poly, line: line,
     OUT: OUT
   };
