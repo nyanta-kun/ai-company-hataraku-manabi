@@ -250,7 +250,12 @@
   Stage.prototype.layout = function () {
     var p = this.prob, b = this.board(), it = [], pad = 14;
     var inner = { x: b.x + pad, y: b.y + pad, w: b.w - pad * 2, h: b.h - pad * 2 };
-    var gone = [], boxes = [], minis = [], eq = '', eqPos = null;
+    var gone = [], boxes = [], minis = [], eq = '', eqPos = null, picBtn = null;
+    if (p && p.formula && p.picShown && (p.kind === 'add' || p.kind === 'sub')) {   // 式だけで始めた問題は、絵を出したあとも 絵の下に式を残す（かけざんと同じ）
+      eq = p.a + ' ' + (p.kind === 'add' ? '+' : '\u2212') + ' ' + p.b + ' = ';
+      eqPos = { x: inner.x + inner.w / 2, y: inner.y + inner.h * 0.89, w: inner.w, h: inner.h * 0.2 };
+      inner = { x: inner.x, y: inner.y, w: inner.w, h: inner.h * 0.78 };
+    }
     this.plus = null; this.pic = null; this.clock = null; this.speaker = null;
     if (p && p.kind === 'count' && p.tens) {   // M11: 10 の束 + ばら
       it = tensLayout(p.n, inner, 90).items;
@@ -262,6 +267,10 @@
     } else if (p && p.mental) {   // M12: 暗算。ものは出さず、式を大きく出す
       eq = p.a + ' ' + (p.kind === 'add' ? '+' : '\u2212') + ' ' + p.b + ' = ';
       eqPos = { x: inner.x + inner.w / 2, y: inner.y + inner.h / 2, w: inner.w, h: inner.h * 0.6 };
+    } else if (p && p.formula && !p.picShown && (p.kind === 'add' || p.kind === 'sub' || p.kind === 'mul')) {   // 慣れたレベル: 式だけ。下の「えで みる」で絵を出す
+      eq = p.a + ' ' + (p.kind === 'add' ? '+' : p.kind === 'sub' ? '\u2212' : '\u00d7') + ' ' + p.b + ' = ';
+      eqPos = { x: inner.x + inner.w / 2, y: inner.y + inner.h * 0.38, w: inner.w, h: inner.h * 0.58 };
+      picBtn = { x: inner.x + inner.w * 0.2, y: inner.y + inner.h * 0.74, w: inner.w * 0.6, h: inner.h * 0.26 };
     } else if (p && p.kind === 'mul') {   // M13: d こずつ入った箱が m ばこ
       var gl = groupLayout(p.b, p.a, { x: inner.x, y: inner.y, w: inner.w, h: inner.h * 0.78 }, 96);
       it = gl.items; boxes = gl.boxes; minis = gl.minis;
@@ -294,7 +303,7 @@
       var s = Math.min(inner.w * 0.7, inner.h * 1.0);
       this.pic = { x: inner.x + inner.w / 2, y: inner.y + inner.h / 2, s: s };
     }
-    this.items = it; this.gone = gone; this.boxes = boxes; this.minis = minis; this.eq = eq; this.eqPos = eqPos;
+    this.items = it; this.gone = gone; this.boxes = boxes; this.minis = minis; this.eq = eq; this.eqPos = eqPos; this.picBtn = picBtn;
   };
   Stage.prototype.bounce = function (i, now) { this.bounceIdx = i; this.bounceT0 = now; };
   Stage.prototype.bouncePic = function (now) { this.picBounceT0 = now; };
@@ -435,7 +444,7 @@
       if (this.eq && this.eqPos) {   // M12・M13: 式。正解のあとは「= 答え」まで出す（まだのときは「= ？」）
         var ep = this.eqPos, et = this.eq + (this.reveal ? p.answer : '?');
         ctx.fillStyle = OUT; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-        var efs = Math.round(Math.max(24, Math.min(ep.h * 0.9, ep.w / (et.length * 0.62), p.mental ? 150 : 64)));
+        var efs = Math.round(Math.max(24, Math.min(ep.h * 0.9, ep.w / (et.length * 0.62), p.mental || this.picBtn ? 150 : 64)));
         ctx.font = 'bold ' + efs + 'px sans-serif';
         ctx.fillText(et, ep.x, ep.y, ep.w * 0.96);
       }

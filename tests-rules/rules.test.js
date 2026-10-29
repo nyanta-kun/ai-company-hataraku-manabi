@@ -45,6 +45,7 @@ function toCloudProfile(p) {
   const o = JSON.parse(JSON.stringify(p));
   delete o.seen;
   delete o.days; delete o.daysOther;   // 日ごとの記録は別の文書（docs/design-daily-log.md 10.6）
+  delete o.practice;   // レベルごとの出動数（式から始めるか）は端末の中だけ（R4 で送るか決める。docs/r4-firebase-setup.md 4 章）
   if (!DATE_RE.test(o.lastPlayed)) o.lastPlayed = '';
   o.updatedAt = NOW; o.ladderAt = NOW;
   return o;

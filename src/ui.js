@@ -215,7 +215,7 @@
     if (name === 'pick') { updateBadges(); updatePick(); later(300, function () { say(LN.FIXED.pick); }); }
     if (name === 'garage') buildGarage();
     if (name === 'parent') { dlWeek = ''; dlOpen = ''; fillParent(); }
-    if (name === 'play' && stage) { stage.resize(); stage.draw(now()); }
+    if (name === 'play' && stage) { stage.resize(); stage.draw(now()); syncPicBtn(); }
     if (name === 'reward') startRewardAnim();
     if (name === 'promote') startPromoteAnim();
   }
@@ -329,6 +329,7 @@
     clearTimers(); token++;
     var pl = LD.playLevel(data, game), level = pl.level;   // 下のステージで遊ぶとき（復習）は進み具合を変えない
     var qs = P.generateSession(game, level, Math.random, game === 'letter' ? seenLetter() : undefined);
+    if (game === 'math') P.applyFormula(qs, data.practice, level);   // 慣れたレベル（絵つきで 2 回終えた）は 式だけで始める
     if (game === 'letter' && !P.LETTER[level].form) rememberLetter(qs);   // K7・K8 の絵は「直近の絵」に入れない（K1〜K6 の出方を変えない）
     timeStart();
     run = {
@@ -373,6 +374,7 @@
     renderAnswers(q);
     stage.resize();   // 答えボタンの高さで現場の領域が変わる（時計ボタンは高い）ので測り直す
     stage.draw(now());
+    syncPicBtn();
     sayPrompt(q);
     if (q.kind === 'letter') stage.bouncePic(now() + 0.3);
     if (q.kind === 'english') { stage.bouncePic(now() + 0.3); syncCaption(); }
@@ -390,7 +392,7 @@
       else if (q.kind === 'clock') b.innerHTML = '<span class="num">' + c + '</span>';
       else if (q.kind === 'english' && q.form === 'alpha') b.innerHTML = '<span class="kana">' + c + '</span>';   // E5: 大文字
       else if (q.kind === 'letter') b.innerHTML = '<span class="kana' + (c.length > 1 ? ' two' : '') + '">' + c + '</span>';   // 拗音（しょ）は 2 文字なので少し小さく
-      else if (q.kind === 'mul' || q.choices.some(function (v) { return v > 10; })) b.innerHTML = '<span class="num">' + c + '</span>';   // 11 以上は数字だけ（点は 10 まで。S1 の子は数字が読める）
+      else if (q.kind === 'mul' || q.choices.some(function (v) { return v > 10; }) || (q.formula && !q.picShown)) b.innerHTML = '<span class="num">' + c + '</span>';   // 11 以上は数字だけ（点は 10 まで。S1 の子は数字が読める）
       else {
         var dots = '';
         for (var i = 0; i < c; i++) { dots += '<i></i>'; if (i === 4 && c > 5) dots += '<b></b>'; }
@@ -423,6 +425,30 @@
       CF.drawClock(c.ctx, c.w / 2, c.h / 2, Math.min(c.w, c.h) / 2 - 2, key, { numbers: 12, ticks: tk, pulse: key === pulseKey ? pulse : 0, pulseMin: both && key === pulseKey ? pulse : 0 });
     });
   }
+  // 式だけの問題の「えで みる」。板の下がわに置く（stage.picBtn は板の中の場所）。式だけでなくなる・正解したら消す
+  function syncPicBtn() {
+    var b = $('btn-pic'); if (!b) return;
+    var q = run && run.qs && run.qs[run.idx], r = stage && stage.picBtn;
+    var on = !!(q && r && q.formula && !q.picShown && !run.busy);
+    b.hidden = !on;
+    if (!on) return;
+    var k = stage.cssScale, h = Math.max(44, r.h * k), w = Math.min(Math.max(r.w * k, 150), 260);
+    b.style.left = (r.x * k + r.w * k / 2 - w / 2) + 'px'; b.style.top = (r.y * k + r.h * k / 2 - h / 2) + 'px';
+    b.style.width = w + 'px'; b.style.height = h + 'px';
+    var cv = b.querySelector('canvas'); cv.setAttribute('data-car', data.icon); drawCarIcon(cv, data.icon);
+  }
+  // 絵を出す（ボタンをおした・まちがえた）。このあと正解しても「1回目で正解」には数えない
+  function showPics(q, byTap) {
+    if (!run || !q.formula || q.picShown) return;
+    q.picShown = true;
+    if (q.kind !== 'mul') {   // 絵を出したら、答えの点（数の目印）も出す
+      renderAnswers(q);
+      answerButtons().forEach(function (b) { if (run.off.indexOf(+b.getAttribute('data-v')) >= 0) b.classList.add('off'); });
+    }
+    stage.layout(); syncPicBtn();
+    if (byTap) { sfx('pon', 1); if (q.kind === 'mul') say(promptText(q)); }   // かけざんは、絵つきの文（「ひとはこに…」）を読む
+    stage.draw(now()); kick();
+  }
   function answerButtons() { return [].slice.call($('answers').children); }
 
   function onAnswer(btn) {
@@ -433,6 +459,7 @@
     run.wrong++;
     run.off.push(v);
     btn.classList.add('off', 'shake'); btn.classList.remove('glow');
+    showPics(q, false);   // 式だけで まちがえたら、絵を出す（答えの描き直しで、まちがえたボタンの 'off' は付け直す）
     sfx('oshii');
     if (q.kind === 'english') seq([{ text: q.form === 'word' ? englishOf(v).en : q.form === 'color' ? P.colorOf(v).en : q.form === 'alpha' ? v : D.NUM_EN[v], lang: 'en' }, { text: LN.FIXED.oshii, lang: 'ja', gap: 250 }]);
     else say(LN.wrong(q, v));
@@ -475,7 +502,8 @@
   function onCorrect(q, btn) {
     run.busy = true; run.counting = false; stage.reveal = true; syncCaption();
     var first = run.wrong === 0;
-    if (first) run.firstTry++;
+    if (first && !(q.formula && q.picShown)) run.firstTry++;   // 絵を見て正解したものは「1回目で正解」に数えない（子どもには差を見せない）
+    syncPicBtn();
     answerButtons().forEach(function (b) { b.classList.remove('glow'); });
     sfx('correct');
     var done = run.idx + 1, my0 = run.token;
@@ -1550,7 +1578,7 @@
       unlockOnce();
     }, true);
     root.addEventListener('resize', function () {
-      if (screen === 'play' && stage) { stage.resize(); stage.draw(now()); drawAnswerClocks(0); drawAnswerPics(); }
+      if (screen === 'play' && stage) { stage.resize(); stage.draw(now()); drawAnswerClocks(0); drawAnswerPics(); syncPicBtn(); }
       if (screen === 'title') drawTitle();
       if (screen === 'trace') layoutTrace();
       if (screen === 'reward' && reward) drawReward();
@@ -1610,6 +1638,10 @@
     $('answers').addEventListener('click', function (e) {
       var b = e.target.closest ? e.target.closest('.ans') : null;
       if (b) onAnswer(b);
+    });
+    $('btn-pic').addEventListener('click', function () {
+      if (!run || run.busy) return;
+      showPics(run.qs[run.idx], true);
     });
     $('btn-replay').addEventListener('click', function () {
       if (!run || run.busy) return;

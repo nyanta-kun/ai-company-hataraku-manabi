@@ -1,5 +1,5 @@
 // VOICEVOX:四国めたん。scripts/voice/build.js が書く（手で直さない）。文 → [ファイル名, 長さ ms]
-Manabi.voicePack({"id":"metan","label":"めたん","credit":"VOICEVOX:四国めたん","engine":"0.26.0","style":{"uuid":"7ffcb7ce-00ec-4bdc-82cd-45a8889e43ff","name":"ノーマル","id":2},"params":{"speedScale":0.95,"pitchScale":0,"intonationScale":1.2,"volumeScale":1,"pauseLengthScale":0.6,"prePhonemeLength":0.05,"postPhonemeLength":0.05},"made":"2026-10-28","ext":"aac",
+Manabi.voicePack({"id":"metan","label":"めたん","credit":"VOICEVOX:四国めたん","engine":"0.26.0","style":{"uuid":"7ffcb7ce-00ec-4bdc-82cd-45a8889e43ff","name":"ノーマル","id":2},"params":{"speedScale":0.95,"pitchScale":0,"intonationScale":1.2,"volumeScale":1,"pauseLengthScale":0.6,"prePhonemeLength":0.05,"postPhonemeLength":0.05},"made":"2026-10-29","ext":"aac",
 "clips":{
 "1ねん めんきょを、もらったよ！":["0646bd5c5b61",2037],
 "2ねん めんきょを、もらったよ！":["e35ea4a383e1",1899],
@@ -87,6 +87,7 @@ Manabi.voicePack({"id":"metan","label":"めたん","credit":"VOICEVOX:四国め�
 "かがやき":["31bcb1ca1906",779],
 "かがやきを、ゲット！":["d1a726f5b8d2",1600],
 "かくで あそぶと ふえるよ":["0e04df823fd2",1579],
+"かける":["3a560f1eca5f",544],
 "かずで あそぶと ふえるよ":["9bd536cb7036",1621],
 "かぜ。":["87ab236fd857",533],
 "かぜ！":["87ab236fd857",533],

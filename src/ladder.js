@@ -33,6 +33,10 @@
   // → { profile, promotedTo }。levels の更新（復習なら更新しない）、cleared の記録、昇格判定
   function afterSession(profile, game, level, firstTry, review, today) {
     var p = clone(profile), s = currentStage(p);
+    if (game === 'math') {   // 式から始める目安: レベルごとに終えた出動の数（review でも、遊んだレベルに数える）
+      p.practice = p.practice || {};
+      p.practice[level] = Math.min(P.PRACTICE_CAP, P.practiceOf(p.practice, level) + 1);
+    }
     // こてい中に、遊んだレベルが保存されたレベルと違うとき（札の切り替えなど）は復習扱い。保存したレベルが正
     if (p.locked[game] && level !== p.levels[game]) review = true;
     if (!review) p.levels[game] = P.nextLevel(game, level, firstTry, p.locked[game], D.stageRange(s, game));

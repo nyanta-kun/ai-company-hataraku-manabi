@@ -23,7 +23,7 @@ function units() {
   for (let m = 1; m <= 59; m++) if (m !== 30) ['。', '！'].forEach(mk => add(D.MIN_KANA[m] + mk, 'time'));
   Object.keys(P.CLOCK).forEach(lv => { if (P.CLOCK[lv].form === 'elapsed') P.CLOCK[lv].durations.forEach(dm => add(P.readMinutes(dm) + L.FIXED.clockElapsed, 'time')); });
   // 式: 部品 3 つ、数がともに 10 以下のたしざん・ひきざんは丸ごと
-  ['たす', 'ひく', 'は、いくつ？'].forEach(t => add(t, 'expr'));
+  ['たす', 'ひく', 'かける', 'は、いくつ？'].forEach(t => add(t, 'expr'));
   for (let a = 1; a <= 10; a++) for (let b = 1; b <= 10; b++) add(L.prompt({ kind: 'add', a: a, b: b }), 'expr');
   for (let a = 1; a <= 10; a++) for (let b = 1; b <= a; b++) add(L.prompt({ kind: 'sub', a: a, b: b }), 'expr');
   // かけざん（2 文を別々に）

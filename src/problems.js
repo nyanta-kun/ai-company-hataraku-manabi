@@ -6,7 +6,7 @@
 
   var QUESTIONS_PER_SESSION = 4;   // 1 回の出動の問題数（調整可）
   var PROMOTE_AT = 4;              // 1 回目正解がこれ以上なら昇級
-  var DEMOTE_AT = 1;               // 1 回目正解がこれ以下なら降級
+  var DEMOTE_AT = 1;               // 1 回目正解がこれ以下なら降級（かず は、絵を見て正解した問題を 1 回目正解に数えない。毎回「えで みる」を押す子は下がる。design-elementary.md 10 章）
 
   var LEVELS = D.LEVELS;   // レベル列の正は data.js（STAGES から組み立てる）
   // 数のレベル: max = 選択肢の範囲の上限、choices = 選択肢の数
@@ -639,7 +639,23 @@
     return lv[i];
   }
 
+  // ---- しきから（たしざん・ひきざん・かけざんは、慣れたら式だけで始め、タップで絵を出す）----
+  // practice = { レベル: そのレベルで終えた出動の数 }。FORMULA_AFTER 回（絵つき）をこえたレベルでは、式の問題に formula を付ける。
+  // 数える問題（M1・M2・M3・M8 の数える問題・M11）と、もともと式だけの M12（mental）には付けない
+  var FORMULA_AFTER = 2;
+  var PRACTICE_CAP = 99;
+  function practiceOf(practice, level) {
+    return practice && Object.prototype.hasOwnProperty.call(practice, level) && typeof practice[level] === 'number' ? practice[level] : 0;
+  }
+  function formulaReady(practice, level) { return practiceOf(practice, level) >= FORMULA_AFTER; }
+  function applyFormula(qs, practice, level) {
+    if (!formulaReady(practice, level)) return qs;
+    qs.forEach(function (q) { if ((q.kind === 'add' || q.kind === 'sub' || q.kind === 'mul') && !q.mental) q.formula = true; });
+    return qs;
+  }
+
   var api = {
+    FORMULA_AFTER: FORMULA_AFTER, PRACTICE_CAP: PRACTICE_CAP, practiceOf: practiceOf, formulaReady: formulaReady, applyFormula: applyFormula,
     QUESTIONS_PER_SESSION: QUESTIONS_PER_SESSION, PROMOTE_AT: PROMOTE_AT, DEMOTE_AT: DEMOTE_AT,
     LEVELS: LEVELS, MATH: MATH, LETTER: LETTER, CLOCK: CLOCK, ENGLISH: ENGLISH,
     generateEnglish: generateEnglish, buildEnglish: buildEnglish, colorOf: colorOf,

@@ -87,6 +87,7 @@ test('T3: 式（数がともに 10 以下は丸ごと、11 以上を含むと部
   assert.deepEqual(keysOf('よんたすななは、いくつ？'), ['よんたすななは、いくつ？']);
   assert.deepEqual(keysOf('じゅうたすにじゅうは、いくつ？'), ['じゅう', 'たす', 'にじゅう', 'は、いくつ？']);
   assert.deepEqual(keysOf('よんじゅうひくじゅうごは、いくつ？'), ['よんじゅう', 'ひく', 'じゅうご', 'は、いくつ？']);
+  assert.deepEqual(keysOf('ごかけるきゅうは、いくつ？'), ['ご', 'かける', 'きゅう', 'は、いくつ？']);   // かけざんの式だけ
   assert.deepEqual(keysOf('そう！にじゅうご！'), ['そう！', 'にじゅうご！']);
   assert.deepEqual(keysOf('にじゅうご'), ['にじゅうご']);
   assert.deepEqual(keysOf('ごじゅう'), ['ごじゅう']);   // 数が時刻に取り違えられない
