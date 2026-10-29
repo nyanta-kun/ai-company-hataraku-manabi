@@ -1002,12 +1002,15 @@
       ctx.clearRect(0, 0, c.w, c.h);
       ctx.fillStyle = 'rgba(0,0,0,.08)'; ctx.fillRect(0, c.h * 0.9, c.w, 4);
       if (!s.n) { V.drawSilhouette(ctx, s.car.stage, c.w / 2, c.h * 0.45, sz, '#4a4f5c'); return; }
-      var x = c.w / 2;
+      var m = { x: 0, y: 0, rot: 0, k: 1 };
       if (s.drive >= 0) {
         var u = (t - s.drive) / 1.5;
-        if (u >= 1) s.drive = -1; else { x = -sz * 0.5 + (c.w + sz) * u; busy = true; }
+        if (u >= 1) s.drive = -1; else { m = V.motionAt(s.car.stage, u, c.w, c.h, sz); busy = true; }   // 動きは乗り物ごと（vehicles.js の MOTION）
       }
-      V.drawVehicle(ctx, s.car.stage, x, c.h * 0.45, sz);   // 既定の向き=右(走る向きと同じ)
+      ctx.save();
+      ctx.translate(c.w / 2 + m.x, c.h * 0.45 + m.y); ctx.rotate(m.rot);
+      V.drawVehicle(ctx, s.car.stage, 0, 0, sz * m.k);   // 既定の向き=右(走る向きと同じ)
+      ctx.restore();
     });
     return busy;
   }

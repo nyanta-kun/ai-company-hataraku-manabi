@@ -1098,6 +1098,36 @@
     rescueHeli: 1, rescueWork: 1, rescueChem: 1, rescueCmd: 1,
     tram: 1, monorail: 1, freight: 1, cablecar: 1, airship: 1, propplane: 1, fishboat: 1, yacht: 1, tugboat: 1, fireboat: 1, cargoship: 1,
     hayabusa: 1, komachi: 1, kagayaki: 1, doctoryellow: 1, linear: 1 };
+  // ---- しゃこで乗り物を押したとき（1.5 秒）の動き。乗り物ごとに持つ。既定=右へ走り抜ける ----
+  // kind: run=横に走る / rocket=絵の傾きに沿って斜め上へ飛んで戻る / float=ふわふわ上下 / drift=ゆっくり横に漂う
+  //       hover=少し浮いてホバリング / climb=走りながら少し上昇 / sail=走りながら波に揺れる
+  var ROCKET_TILT = 0.55;   // pics.rocket の ctx.rotate と同じ値（先端は右上を向く）
+  var MOTION = { rocket: 'rocket', balloon: 'float', airship: 'drift', heli: 'hover', rescueHeli: 'hover', airplane: 'climb', propplane: 'climb',
+    ship: 'sail', fishboat: 'sail', yacht: 'sail', tugboat: 'sail', fireboat: 'sail', cargoship: 'sail' };
+  function motionKind(stage) { return MOTION[stage] || 'run'; }
+  // u(0..1) のときの、枠 w×h の中での置き場所。休んでいる位置(中心)からのずれ x・y(px)、傾き rot(rad)、大きさの倍率 k を返す純粋関数。
+  // sz は絵の大きさ。run・climb・sail は u=0 で左の外、u=1 で右の外。rocket・float・drift・hover は u=0 と 1 で元の位置に戻り、枠の中で動く。
+  function motionAt(stage, u, w, h, sz) {
+    u = u < 0 ? 0 : u > 1 ? 1 : u;
+    var kind = motionKind(stage), pi = Math.PI, e = Math.sin(pi * u);
+    var m = { x: 0, y: 0, rot: 0, k: 1 };
+    if (kind === 'rocket') {
+      var d = Math.min(h, w) * 0.3 * e;   // 傾き（先端の向き）に沿って上へ。小さくなりながら飛ぶので枠から出ない
+      m.x = Math.sin(ROCKET_TILT) * d; m.y = -Math.cos(ROCKET_TILT) * d; m.k = 1 - 0.3 * e;
+    } else if (kind === 'float') {
+      m.y = -sz * 0.1 * Math.sin(2 * pi * u * 1.5) * e; m.x = sz * 0.02 * Math.sin(2 * pi * u) * e; m.k = 0.95;
+    } else if (kind === 'drift') {
+      m.x = Math.min(w * 0.12, sz * 0.2) * Math.sin(2 * pi * u) * e; m.y = -sz * 0.03 * Math.sin(4 * pi * u) * e; m.k = 0.95;
+    } else if (kind === 'hover') {
+      m.y = -sz * 0.1 * e; m.x = sz * 0.02 * Math.sin(8 * pi * u) * e; m.rot = 0.04 * Math.sin(6 * pi * u) * e; m.k = 0.95;
+    } else {
+      m.x = -sz * 0.5 + (w + sz) * u - w / 2;
+      if (kind === 'climb') { m.y = -sz * 0.18 * u; m.rot = -0.12 * Math.min(1, u * 4); }   // 前(右)へ走りながら、鼻を少し上げて上がる
+      else if (kind === 'sail') { m.y = sz * 0.025 * Math.sin(2 * pi * u * 3); m.rot = 0.05 * Math.sin(2 * pi * u * 3 + 1); }
+    }
+    return m;
+  }
+
   // 絵の id 一覧（出題に使える絵）
   var PICS = ['v1', 'v2', 'v3', 'v4', 'v5', 'v6', 'v7', 'v8', 'v9', 'v10', 'v11', 'hose', 'flame'].concat(Object.keys(pics));
   function hasPic(id) { return typeof id === 'string' && PICS.indexOf(id) >= 0; }
@@ -1153,7 +1183,7 @@
   }
 
   var api = {
-    draw: draw, pics: pics, PICS: PICS, hasPic: hasPic, drawVehicle: drawVehicle, frontOf: frontOf, drawPic: drawPic, drawColorCar: drawColorCar, drawSilhouette: drawSilhouette,
+    draw: draw, pics: pics, PICS: PICS, hasPic: hasPic, drawVehicle: drawVehicle, frontOf: frontOf, drawPic: drawPic, motionKind: motionKind, motionAt: motionAt, drawColorCar: drawColorCar, drawSilhouette: drawSilhouette,
     drawFlame: drawFlame, drawHose: drawHose, star: star, rr: rr, circ: circ, poly: poly, line: line,
     OUT: OUT
   };
