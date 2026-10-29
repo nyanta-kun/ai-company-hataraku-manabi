@@ -254,7 +254,9 @@ div.dl-row.none, div.dl-row.old, div.dl-row.future { color: #9a8f7c; }
 .today-box h2 { font-size: clamp(26px, 6vmin, 44px); margin: 0 0 20px; }
 #today-row { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; max-width: 440px; margin: 0 auto 16px; }
 .tcell { position: relative; min-width: 0; min-height: 0; padding: 8px 4px 6px; border-radius: 22px; border-bottom-width: 6px; transition: opacity .3s; }
-.tcell:active { transform: none; }
+.tcell { cursor: pointer; }
+.tcell:active { transform: translateY(4px); border-bottom-width: 4px; }   /* 押せる: 押すと沈む（箱の影は .big のまま） */
+.tcell.invite { box-shadow: 0 0 0 5px #ffd54a, 0 6px 14px rgba(0,0,0,.18); }
 .tcell canvas.ico { width: clamp(52px, 12vmin, 84px); height: clamp(52px, 12vmin, 84px); }
 .tcell span { font-size: clamp(18px, 4vmin, 28px); }
 .tcell.later { opacity: .4; }   /* まだ: 色は残して薄く（灰色にしない） */

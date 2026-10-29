@@ -1329,11 +1329,13 @@
     box.textContent = '';
     var cells = [];
     TODAY_GAMES.forEach(function (g) {
-      var id = g[0], c = el(small ? 'span' : 'div', small ? 'tchip ' + id : 'big tcell ' + id);
+      var id = g[0], c = el(small ? 'span' : 'button', small ? 'tchip ' + id : 'big tcell ' + id);
+      if (!small) { c.type = 'button'; c.setAttribute('data-game', id); c.setAttribute('aria-label', g[2]); }   // 押すとそのゲームの出動
       var cv = doc.createElement('canvas'); cv.className = 'ico'; cv.width = cv.height = small ? 72 : 96; cv.setAttribute('data-icon', g[1]); c.appendChild(cv); drawIcon(cv, g[1]);
       if (!small) c.appendChild(el('span', '', g[2]));
       var off = !k.played[id] && !(id === 'english' && enOff());
       if (off && !k.none) c.classList.add('later');
+      if (!small && !k.none && !k.all && k.invite === id) c.classList.add('invite');   // 誘いの声で勧めたゲームは少し目立たせる
       var cell = { id: id, el: c, stamp: null, crown: null };
       if (k.played[id]) {
         var im = doc.createElement('img'); im.className = 'stamp'; im.alt = ''; im.src = stampURL('stamp', k.crown === id); c.appendChild(im); cell.stamp = im;
@@ -1681,6 +1683,13 @@
     });
     $('btn-pr-later').addEventListener('click', function () { sfx('tap'); var nx = promo && promo.next || 'title'; promo = null; show(nx); });
     $('btn-today-ok').addEventListener('click', function () { sfx('tap'); show('title'); });
+    $('today-row').addEventListener('click', function (e) {   // 絵を押す = 出動えらびで押したのと同じ動き
+      var b = e.target.closest ? e.target.closest('button[data-game]') : null;
+      if (!b) return;
+      var g = b.getAttribute('data-game');
+      if (g === 'english' && enOff()) { sfx('oshii'); say(LN.FIXED.noEnglish); return; }
+      if (g === 'trace') startTrace(); else startSession(g);
+    });
     $('today-strip').addEventListener('click', function () { sfx('tap'); todayFromStrip = true; show('today'); });
     $('btn-g-back').addEventListener('click', function () { sfx('tap'); show('title'); });
     $('dl-prev').addEventListener('click', function () { dlMove(-1); });
