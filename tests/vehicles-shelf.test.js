@@ -38,8 +38,8 @@ test('しゃこの動き: ロケットは絵の傾きに沿って斜め上へ飛
   const a = V.motionAt('rocket', 0, w, h, sz), b = V.motionAt('rocket', 0.5, w, h, sz), c = V.motionAt('rocket', 1, w, h, sz);
   assert.ok(Math.abs(a.x) < 1e-9 && Math.abs(a.y) < 1e-9 && a.k === 1);
   assert.ok(Math.abs(c.y) < 1e-9 && Math.abs(c.x) < 1e-9);
-  assert.ok(b.y < 0 && b.x > 0, '右上へ');
-  assert.ok(Math.abs(Math.atan2(b.x, -b.y) - 0.55) < 1e-9, '傾きと同じ向き');
+  assert.ok(b.y < 0 && b.x < 0, 'しゃこでは絵が左右反転して先端が左上なので、左上へ');
+  assert.ok(Math.abs(Math.atan2(-b.x, -b.y) - 0.55) < 1e-9, '先端の向きと同じ');
   assert.ok(b.k < 1);
 });
 

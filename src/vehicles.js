@@ -1110,7 +1110,7 @@
   // ---- しゃこで乗り物を押したとき（1.5 秒）の動き。乗り物ごとに持つ。既定=右へ走り抜ける ----
   // kind: run=横に走る / rocket=絵の傾きに沿って斜め上へ飛んで戻る / float=ふわふわ上下 / drift=ゆっくり横に漂う
   //       hover=少し浮いてホバリング / climb=走りながら少し上昇 / sail=走りながら波に揺れる
-  var ROCKET_TILT = 0.55;   // pics.rocket の ctx.rotate と同じ値（先端は右上を向く）
+  var ROCKET_TILT = 0.55;   // pics.rocket の ctx.rotate と同じ値（絵の中では先端は右上。しゃこでは左右反転して左上）
   var MOTION = { rocket: 'rocket', balloon: 'float', airship: 'drift', heli: 'hover', rescueHeli: 'hover', airplane: 'climb', propplane: 'climb',
     tram: 'rail', monorail: 'rail', linear: 'rail', cablecar: 'rail',
     ship: 'sail', fishboat: 'sail', yacht: 'sail', tugboat: 'sail', fireboat: 'sail', cargoship: 'sail' };
@@ -1127,7 +1127,8 @@
     var m = { x: 0, y: 0, rot: 0, k: 1 };
     if (kind === 'rocket') {
       var d = Math.min(h, w) * 0.3 * e;   // 傾き（先端の向き）に沿って上へ。小さくなりながら飛ぶので枠から出ない
-      m.x = Math.sin(ROCKET_TILT) * d; m.y = -Math.cos(ROCKET_TILT) * d; m.k = 1 - 0.3 * e;
+      var fx = frontOf(stage) !== 1 ? -1 : 1;   // しゃこは facing=1（右）で描く。絵の前が左なら drawVehicle が左右反転するので、先端は左上を向く
+      m.x = fx * Math.sin(ROCKET_TILT) * d; m.y = -Math.cos(ROCKET_TILT) * d; m.k = 1 - 0.3 * e;
     } else if (kind === 'rail') {   // 軌道は止めたまま、車両だけが軌道の上を右へ左へ行って戻る。ケーブルカーは坂に沿って上り下りする
       var R = RAIL[stage], sc = sz / 1.8;
       m.k = 1 - (1 - R.k) * e;
