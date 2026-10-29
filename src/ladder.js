@@ -31,7 +31,7 @@
 
   // 出動が終わった後の進み具合。level = 実際に遊んだレベル、review = playLevel が返した復習かどうか
   // → { profile, promotedTo }。levels の更新（復習なら更新しない）、cleared の記録、昇格判定
-  function afterSession(profile, game, level, firstTry, review, today, steady) {
+  function afterSession(profile, game, level, firstTry, review, today) {
     var p = clone(profile), s = currentStage(p);
     if (game === 'math') {   // 式から始める目安: レベルごとに終えた出動の数（review でも、遊んだレベルに数える）
       p.practice = p.practice || {};
@@ -39,7 +39,7 @@
     }
     // こてい中に、遊んだレベルが保存されたレベルと違うとき（札の切り替えなど）は復習扱い。保存したレベルが正
     if (p.locked[game] && level !== p.levels[game]) review = true;
-    if (!review) p.levels[game] = P.nextLevel(game, level, firstTry, p.locked[game], D.stageRange(s, game), steady);
+    if (!review) p.levels[game] = P.nextLevel(game, level, firstTry, p.locked[game], D.stageRange(s, game));
     // 関門の記録は、どのステージで遊んでも付ける（すでにあれば日付を変えない）。解放を決めるのは下の判定
     var outside = p.locked[game] && D.stageRange(s, game).indexOf(level) < 0;   // こてい中で範囲の外のレベルを遊んだ（復習）。関門の記録も付けない
     if (!outside && firstTry >= P.QUESTIONS_PER_SESSION && D.gateLevels().indexOf(level) >= 0 && !p.cleared[level]) p.cleared[level] = today;

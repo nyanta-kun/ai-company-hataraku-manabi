@@ -11,7 +11,7 @@ const { rngOf } = require('./helpers.js');
 const TODAY = '2026-11-05';
 function prof(lv) { const p = S.defaultProfile('p_a', 'こども1', 'shoubousha', '2026-10-01'); if (lv) { p.levels.math = lv; p.stage.unlocked = D.stageOf(lv); p.stage.current = D.stageOf(lv); } return p; }
 function session(level, seed) { return P.generateSession('math', level, rngOf(seed || 1)); }
-function finish(p, level, ft, steady) { return L.afterSession(p, 'math', level, ft, false, TODAY, steady).profile; }
+function finish(p, level, ft) { return L.afterSession(p, 'math', level, ft, false, TODAY).profile; }
 
 test('最初の 2 回の出動は絵つき、3 回目から式だけ（たしざん M4・ひきざん M6・かけざん M13）', () => {
   ['M4', 'M5', 'M6', 'M7', 'M9', 'M10', 'M13'].forEach((lv) => {
@@ -19,7 +19,7 @@ test('最初の 2 回の出動は絵つき、3 回目から式だけ（たしざ
     for (let n = 0; n < 5; n++) {
       const qs = P.applyFormula(session(lv, n), p.practice, lv);
       qs.forEach((q) => assert.equal(!!q.formula, n >= 2, lv + ' ' + n + '回目'));
-      p = finish(p, lv, 4, 4);
+      p = finish(p, lv, 4);
     }
     assert.equal(p.practice[lv], 5);
   });
@@ -27,7 +27,7 @@ test('最初の 2 回の出動は絵つき、3 回目から式だけ（たしざ
 
 test('級が上がって新しいレベルに入ると、また最初の 2 回は絵つき（回数はレベルごと）', () => {
   let p = prof('M4');
-  p = finish(p, 'M4', 4, 4); p = finish(p, 'M4', 4, 4);   // 2 回とも 4/4 → M5 へ
+  p = finish(p, 'M4', 4); p = finish(p, 'M4', 4);   // 2 回とも 4/4 → M5 へ
   assert.equal(p.levels.math, 'M5');
   assert.equal(P.formulaReady(p.practice, 'M4'), true);
   assert.equal(P.formulaReady(p.practice, 'M5'), false);
@@ -46,7 +46,7 @@ test('数える問題（M1・M2・M3・M11）、M8 の数える問題、M12（�
 
 test('出動の数は 99 まで。review でも遊んだレベルに数える。かず以外のゲームは数えない', () => {
   let p = prof('M4'); p.practice.M4 = 99;
-  p = finish(p, 'M4', 3, 3);
+  p = finish(p, 'M4', 3);
   assert.equal(p.practice.M4, 99);
   const r = L.afterSession(prof('M7'), 'math', 'M5', 4, true, TODAY).profile;
   assert.equal(r.practice.M5, 1);
@@ -54,17 +54,15 @@ test('出動の数は 99 まで。review でも遊んだレベルに数える。
   assert.deepEqual(k.practice, {});
 });
 
-test('絵を見た問題は 1 回目正解に数えない: 昇級は firstTry だけで決まる。降級は まちがえなかった数（steady）で決まる', () => {
+test('絵を見た問題は 1 回目正解に数えない: 昇級も降級も firstTry で決まる（毎回「えで みる」を押す子は下がる）', () => {
   const r = D.stageRange('S0', 'math');
-  assert.equal(P.nextLevel('math', 'M5', 3, false, r, 4), 'M5');   // 4 問とも まちがえず、うち 1 問は絵を見た → 昇級しない
-  assert.equal(P.nextLevel('math', 'M5', 0, false, r, 4), 'M5');   // 毎回 絵を見ても 下がらない
-  assert.equal(P.nextLevel('math', 'M5', 4, false, r, 4), 'M6');
-  assert.equal(P.nextLevel('math', 'M5', 0, false, r, 1), 'M4');   // 3 問まちがえたら下がる
-  assert.equal(P.nextLevel('math', 'M5', 1, false, r), 'M4');      // steady 省略は今までどおり
-  // 関門の記録も firstTry（絵を見たものを除く）が 4 のときだけ
+  assert.equal(P.nextLevel('math', 'M5', 3, false, r), 'M5');   // 1 問は絵を見た → 昇級しない
+  assert.equal(P.nextLevel('math', 'M5', 4, false, r), 'M6');
+  assert.equal(P.nextLevel('math', 'M5', 1, false, r), 'M4');
+  assert.equal(P.nextLevel('math', 'M5', 0, false, r), 'M4');   // 毎回絵を見たら下がる
   let p = prof('M7');
-  assert.ok(!finish(p, 'M7', 3, 4).cleared.M7);
-  assert.equal(finish(p, 'M7', 4, 4).cleared.M7, TODAY);
+  assert.ok(!finish(p, 'M7', 3).cleared.M7);
+  assert.equal(finish(p, 'M7', 4).cleared.M7, TODAY);
 });
 
 test('既存の子（practice が無い）: 下のレベルは式から、いまのレベルは かずを 10 回以上遊んでいれば式から、そうでなければ絵つき 2 回から', () => {

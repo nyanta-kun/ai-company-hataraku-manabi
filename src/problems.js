@@ -6,7 +6,7 @@
 
   var QUESTIONS_PER_SESSION = 4;   // 1 回の出動の問題数（調整可）
   var PROMOTE_AT = 4;              // 1 回目正解がこれ以上なら昇級
-  var DEMOTE_AT = 1;               // 1 回目正解がこれ以下なら降級（かず の式から始める問題は「まちがえなかった数」で見る。design-elementary.md 10 章）
+  var DEMOTE_AT = 1;               // 1 回目正解がこれ以下なら降級（かず は、絵を見て正解した問題を 1 回目正解に数えない。毎回「えで みる」を押す子は下がる。design-elementary.md 10 章）
 
   var LEVELS = D.LEVELS;   // レベル列の正は data.js（STAGES から組み立てる）
   // 数のレベル: max = 選択肢の範囲の上限、choices = 選択肢の数
@@ -628,16 +628,14 @@
 
   // レベルの昇降級（企画書 3.3）。locked なら変えない。範囲外の current も端に丸める。
   // range = 動ける範囲のレベル ID の配列（省略時は LEVELS[game] 全体）。上下とも range の端で止まる
-  // steady = 1 回もまちがえなかった問題の数（絵を見たものも入れる）。省略時は firstTryCorrectCount と同じ。
-  // 絵を見て正解した問題は firstTryCorrectCount（昇級）には入れないが、まちがえてはいないので降級の判定には steady を使う（絵のボタンをよく押す子が下がらないように）
-  function nextLevel(game, current, firstTryCorrectCount, locked, range, steady) {
+  function nextLevel(game, current, firstTryCorrectCount, locked, range) {
     var lv = range || LEVELS[game];
     if (!lv || !lv.length) throw new RangeError('game: ' + game);
     var i = lv.indexOf(current);
     if (i < 0) i = 0;
     if (locked) return lv[i];
     if (firstTryCorrectCount >= PROMOTE_AT) i = Math.min(lv.length - 1, i + 1);
-    else if ((typeof steady === 'number' ? steady : firstTryCorrectCount) <= DEMOTE_AT) i = Math.max(0, i - 1);
+    else if (firstTryCorrectCount <= DEMOTE_AT) i = Math.max(0, i - 1);
     return lv[i];
   }
 

@@ -334,7 +334,7 @@
     timeStart();
     run = {
       game: game, level: level, review: pl.review, scene: opts.scene || pickScene(), qs: qs,
-      idx: 0, firstTry: 0, steady: 0, wrong: 0, off: [], busy: true, token: token
+      idx: 0, firstTry: 0, wrong: 0, off: [], busy: true, token: token
     };
     if (!stage) stage = new SC.Stage($('sceneCanvas'));
     SP.prefetch(LN.sessionTexts(qs));   // 4 問ぶんの音声を先に読んでおく（声が端末の声のときは何もしない）
@@ -392,7 +392,7 @@
       else if (q.kind === 'clock') b.innerHTML = '<span class="num">' + c + '</span>';
       else if (q.kind === 'english' && q.form === 'alpha') b.innerHTML = '<span class="kana">' + c + '</span>';   // E5: 大文字
       else if (q.kind === 'letter') b.innerHTML = '<span class="kana' + (c.length > 1 ? ' two' : '') + '">' + c + '</span>';   // 拗音（しょ）は 2 文字なので少し小さく
-      else if (q.kind === 'mul' || q.choices.some(function (v) { return v > 10; })) b.innerHTML = '<span class="num">' + c + '</span>';   // 11 以上は数字だけ（点は 10 まで。S1 の子は数字が読める）
+      else if (q.kind === 'mul' || q.choices.some(function (v) { return v > 10; }) || (q.formula && !q.picShown)) b.innerHTML = '<span class="num">' + c + '</span>';   // 11 以上は数字だけ（点は 10 まで。S1 の子は数字が読める）
       else {
         var dots = '';
         for (var i = 0; i < c; i++) { dots += '<i></i>'; if (i === 4 && c > 5) dots += '<b></b>'; }
@@ -441,6 +441,10 @@
   function showPics(q, byTap) {
     if (!run || !q.formula || q.picShown) return;
     q.picShown = true;
+    if (q.kind !== 'mul') {   // 絵を出したら、答えの点（数の目印）も出す
+      renderAnswers(q);
+      answerButtons().forEach(function (b) { if (run.off.indexOf(+b.getAttribute('data-v')) >= 0) b.classList.add('off'); });
+    }
     stage.layout(); syncPicBtn();
     if (byTap) { sfx('pon', 1); if (q.kind === 'mul') say(promptText(q)); }   // かけざんは、絵つきの文（「ひとはこに…」）を読む
     stage.draw(now()); kick();
@@ -454,8 +458,8 @@
     if (v === q.answer) return onCorrect(q, btn);
     run.wrong++;
     run.off.push(v);
-    showPics(q, false);   // 式だけで まちがえたら、絵を出す
     btn.classList.add('off', 'shake'); btn.classList.remove('glow');
+    showPics(q, false);   // 式だけで まちがえたら、絵を出す（答えの描き直しで、まちがえたボタンの 'off' は付け直す）
     sfx('oshii');
     if (q.kind === 'english') seq([{ text: q.form === 'word' ? englishOf(v).en : q.form === 'color' ? P.colorOf(v).en : q.form === 'alpha' ? v : D.NUM_EN[v], lang: 'en' }, { text: LN.FIXED.oshii, lang: 'ja', gap: 250 }]);
     else say(LN.wrong(q, v));
@@ -498,7 +502,6 @@
   function onCorrect(q, btn) {
     run.busy = true; run.counting = false; stage.reveal = true; syncCaption();
     var first = run.wrong === 0;
-    if (first) run.steady++;
     if (first && !(q.formula && q.picShown)) run.firstTry++;   // 絵を見て正解したものは「1回目で正解」に数えない（子どもには差を見せない）
     syncPicBtn();
     answerButtons().forEach(function (b) { b.classList.remove('glow'); });
@@ -812,7 +815,7 @@
     st.sessions++; st[game].sessions++;
     st[game].questions += P.QUESTIONS_PER_SESSION; st[game].firstTry += run.firstTry;
     var lvBefore = data.levels[game];
-    var res = LD.afterSession(data, game, run.level, run.firstTry, run.review, todayStr(), run.steady);
+    var res = LD.afterSession(data, game, run.level, run.firstTry, run.review, todayStr());
     replaceData(res.profile);
     var r = grantReward(run.scene, D.stageIndex(D.stageOf(run.level)), game);
     data.lastPlayed = todayStr();

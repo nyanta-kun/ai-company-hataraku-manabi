@@ -251,6 +251,11 @@
     var p = this.prob, b = this.board(), it = [], pad = 14;
     var inner = { x: b.x + pad, y: b.y + pad, w: b.w - pad * 2, h: b.h - pad * 2 };
     var gone = [], boxes = [], minis = [], eq = '', eqPos = null, picBtn = null;
+    if (p && p.formula && p.picShown && (p.kind === 'add' || p.kind === 'sub')) {   // 式だけで始めた問題は、絵を出したあとも 絵の下に式を残す（かけざんと同じ）
+      eq = p.a + ' ' + (p.kind === 'add' ? '+' : '\u2212') + ' ' + p.b + ' = ';
+      eqPos = { x: inner.x + inner.w / 2, y: inner.y + inner.h * 0.89, w: inner.w, h: inner.h * 0.2 };
+      inner = { x: inner.x, y: inner.y, w: inner.w, h: inner.h * 0.78 };
+    }
     this.plus = null; this.pic = null; this.clock = null; this.speaker = null;
     if (p && p.kind === 'count' && p.tens) {   // M11: 10 の束 + ばら
       it = tensLayout(p.n, inner, 90).items;
